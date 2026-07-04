@@ -1,0 +1,210 @@
+package com.pbms.modules.operation.service;
+
+import com.pbms.modules.operation.domain.Vehicle;
+import com.pbms.modules.operation.dto.VehicleDTO;
+import com.pbms.modules.operation.repository.VehicleRepository;
+import com.pbms.modules.infrastructure.repository.RfidCardRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class VehicleService {
+
+    private final VehicleRepository vehicleRepository;
+    private final com.pbms.modules.operation.repository.ParkingSessionRepository parkingSessionRepository;
+    private final com.pbms.modules.incident.repository.IncidentTicketRepository incidentTicketRepository;
+    private final RfidCardRepository rfidCardRepository;
+    private final com.pbms.common.service.FileStorageService fileStorageService;
+
+    @Transactional(readOnly = true)
+    public List<VehicleDTO> getAllVehicles() {
+        return vehicleRepository.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public VehicleDTO getVehicleByPlate(String plate) {
+        return vehicleRepository.findByPlateNumber(plate.trim().toUpperCase())
+                .map(this::mapToDTO)
+                .orElseGet(() -> {
+                    java.util.List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository.findByPlateOrderByTimeInDesc(plate.trim().toUpperCase());
+                    if (!sessions.isEmpty()) {
+                        com.pbms.modules.operation.domain.ParkingSession lastSession = sessions.get(0);
+                        return VehicleDTO.builder()
+                                .plateNumber(lastSession.getPlate())
+                                .vehicleTypeName(lastSession.getVehicleType() != null ? lastSession.getVehicleType().getTypeName() : "Unknown")
+                                .status("GUEST")
+                                .isBlacklisted(false)
+                                .build();
+                    }
+                    throw new RuntimeException("Vehicle not found");
+                });
+    }
+
+    @Transactional
+    public VehicleDTO setBlacklist(Long id, String reason) {
+        Vehicle vehicle = vehicleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+        vehicle.setIsBlacklisted(true);
+        vehicle.setBlacklistReason(reason);
+        vehicleRepository.save(vehicle);
+        return mapToDTO(vehicle);
+    }
+
+    @Transactional
+    public VehicleDTO setBlacklistByPlate(String plate, String reason, String evidenceUrl) {
+        Vehicle vehicle = vehicleRepository.findByPlateNumber(plate.trim().toUpperCase())
+                .orElseGet(() -> {
+                    Vehicle newVehicle = new Vehicle();
+                    newVehicle.setPlateNumber(plate.trim().toUpperCase());
+                    newVehicle.setStatus("ACTIVE");
+                    return newVehicle;
+                });
+        vehicle.setIsBlacklisted(true);
+        vehicle.setBlacklistReason(reason);
+        vehicle.setBlacklistEvidenceUrl(evidenceUrl);
+        vehicleRepository.save(vehicle);
+        return mapToDTO(vehicle);
+    }
+
+    @Transactional
+    public VehicleDTO removeBlacklist(Long id) {
+        Vehicle vehicle = vehicleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+        vehicle.setIsBlacklisted(false);
+        // Note: keeping the reason/evidence for history, or clearing them. User said "khôi phục lại như cũ". Let's clear them.
+        vehicle.setBlacklistReason(null);
+        vehicle.setBlacklistEvidenceUrl(null);
+        vehicleRepository.save(vehicle);
+
+        // Find the session that was closed due to blacklist
+        parkingSessionRepository.findByPlateAndStatus(vehicle.getPlateNumber(), "CLOSED_BLACKLISTED")
+            .ifPresent(session -> {
+                session.setStatus("ACTIVE");
+                session.setTimeOut(null);
+                session.setTotalFee(null);
+                session.setGateOut(null);
+                
+                if (session.getRfidCard() != null) {
+                    session.getRfidCard().setStatus("IN_USE");
+                    rfidCardRepository.save(session.getRfidCard());
+                }
+                parkingSessionRepository.save(session);
+                
+                // Find the incident ticket and mark it as RESOLVED
+                incidentTicketRepository.findBySessionId(session.getId()).stream()
+                    .filter(t -> "BLACKLIST_VIOLATION".equals(t.getIssueType()))
+                    .forEach(t -> {
+                        t.setStatus("RESOLVED");
+                        t.setDescription(t.getDescription() + " | Unblacklisted due to mistake.");
+                        t.setResolutionNotes("Unblacklisted and returned to ACTIVE");
+                        t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+                        incidentTicketRepository.save(t);
+                    });
+            });
+
+        return mapToDTO(vehicle);
+    }
+
+    @Transactional
+    public VehicleDTO unblacklistVehicleByPlate(String plate, String reason, String evidenceUrl, Long incidentId) {
+        Vehicle vehicle = vehicleRepository.findByPlateNumber(plate.trim().toUpperCase())
+                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+        vehicle.setIsBlacklisted(false);
+        // We keep the old reason/evidence or we can clear them. Since they unblacklisted, let's keep history in the IncidentTicket instead.
+        vehicle.setBlacklistReason(null);
+        vehicle.setBlacklistEvidenceUrl(null);
+        vehicleRepository.save(vehicle);
+
+        if (incidentId != null) {
+            incidentTicketRepository.findById(incidentId).ifPresent(t -> {
+                String existingUrl = t.getUploadedDocUrl();
+                if (evidenceUrl != null && !evidenceUrl.isBlank()) {
+                    String storedUrl = fileStorageService.storeBase64File(evidenceUrl);
+                    t.setUploadedDocUrl(existingUrl != null && !existingUrl.isBlank() ? existingUrl + "|" + storedUrl : storedUrl);
+                }
+                String resolution = t.getResolutionNotes();
+                t.setResolutionNotes((resolution != null ? resolution + "\n" : "") + "UNBLACKLISTED: " + reason);
+                t.setStatus("RESOLVED");
+                incidentTicketRepository.save(t);
+            });
+        }
+        
+        return mapToDTO(vehicle);
+    }
+
+    @Transactional
+    public void blacklistSession(Long sessionId, String reason, String evidenceUrl, Long incidentId) {
+        com.pbms.modules.operation.domain.ParkingSession session = parkingSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+        
+        // 1. Close session -> CLOSED_BLACKLISTED
+        session.setStatus("CLOSED_BLACKLISTED");
+        session.setTimeOut(com.pbms.common.utils.TimeProvider.now());
+        session.setTotalFee(java.math.BigDecimal.ZERO);
+        
+        // 2. Card -> LOST
+        if (session.getRfidCard() != null) {
+            session.getRfidCard().setStatus("LOST");
+            rfidCardRepository.save(session.getRfidCard());
+        }
+        
+        parkingSessionRepository.save(session);
+
+        // 3. Update Vehicle -> isBlacklisted = true
+        Vehicle vehicle = vehicleRepository.findByPlateNumber(session.getPlate().trim().toUpperCase())
+                .orElseGet(() -> {
+                    Vehicle newVehicle = new Vehicle();
+                    newVehicle.setPlateNumber(session.getPlate().trim().toUpperCase());
+                    newVehicle.setStatus("ACTIVE");
+                    if (session.getVehicleType() != null) {
+                        newVehicle.setVehicleType(session.getVehicleType());
+                    }
+                    return newVehicle;
+                });
+        vehicle.setIsBlacklisted(true);
+        vehicle.setBlacklistReason(reason);
+        vehicle.setBlacklistEvidenceUrl(evidenceUrl);
+        vehicleRepository.save(vehicle);
+
+        // 4. Update the IncidentTicket to record this action
+        if (incidentId != null) {
+            incidentTicketRepository.findById(incidentId).ifPresent(ticket -> {
+                ticket.setResolutionNotes(reason);
+                String storedUrl = evidenceUrl;
+                if (evidenceUrl != null && !evidenceUrl.isBlank()) {
+                    storedUrl = fileStorageService.storeBase64File(evidenceUrl);
+                }
+                String existingUrl = ticket.getUploadedDocUrl();
+                ticket.setUploadedDocUrl(existingUrl != null && !existingUrl.isBlank() && storedUrl != null ? existingUrl + "|" + storedUrl : storedUrl);
+                ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+                ticket.setStatus("RESOLVED");
+                incidentTicketRepository.save(ticket);
+            });
+        }
+    }
+
+    private VehicleDTO mapToDTO(Vehicle vehicle) {
+        return VehicleDTO.builder()
+                .id(vehicle.getId())
+                .plateNumber(vehicle.getPlateNumber())
+                .color(vehicle.getColor())
+                .brand(vehicle.getBrand())
+                .vehicleTypeName(vehicle.getVehicleType() != null ? vehicle.getVehicleType().getTypeName() : null)
+                .vehicleTypeId(vehicle.getVehicleType() != null ? vehicle.getVehicleType().getId() : null)
+                .ownerName(vehicle.getUser() != null ? vehicle.getUser().getFullName() : null)
+                .ownerId(vehicle.getUser() != null ? vehicle.getUser().getId() : null)
+                .status(vehicle.getStatus())
+                .isBlacklisted(vehicle.getIsBlacklisted())
+                .blacklistReason(vehicle.getBlacklistReason())
+                .blacklistEvidenceUrl(vehicle.getBlacklistEvidenceUrl())
+                .build();
+    }
+
+    // Removed old lock/force-checkout logic
+}
+
