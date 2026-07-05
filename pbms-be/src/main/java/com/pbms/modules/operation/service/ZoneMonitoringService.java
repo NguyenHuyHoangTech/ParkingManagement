@@ -49,7 +49,7 @@ public class ZoneMonitoringService {
             long occupiedMonthlySlots = slotRepository.countByFunctionTypeAndVehicleTypeIdAndStatus("MONTHLY",
                     zone.getVehicleType().getId(), "OCCUPIED");
             long activeMonthlyCars = parkingSessionRepository
-                    .countActiveMonthlyCarsByVehicleType(zone.getVehicleType().getId());
+                    .countActiveMonthlyCarsByVehicleType(zone.getVehicleType().getId(), com.pbms.common.utils.TimeProvider.now());
 
             if (occupiedMonthlySlots > activeMonthlyCars) {
                 // Alert! Violation detected

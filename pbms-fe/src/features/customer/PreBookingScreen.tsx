@@ -178,7 +178,7 @@ export const PreBookingScreen = () => {
         zoneId: selectedZone
       };
       
-      const res = await axiosClient.post('/payments/initialize', {
+      const res = await axiosClient.post('/finance/payments/initialize', {
         actionType: 'CREATE_RESERVATION',
         amount: totalFee,
         gateway: selectedGateway,
@@ -228,18 +228,18 @@ export const PreBookingScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
           if (countdown % 3 === 0) {
-            const captureUrl = selectedGateway === 'PAYOS' ? '/payments/payos/capture' : '/payments/paypal/capture';
+            const captureUrl = selectedGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
             axiosClient.post(captureUrl, { token: paymentOrderId })
               .then(res => {
                 if (res.data?.data?.status === 'COMPLETED') {
                   // Execute Business Logic via Payment Execute Action
-                  axiosClient.post('/payments/execute-action', { token: paymentOrderId })
+                  axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
                     .then(execRes => {
                        message.success('Booking confirmed successfully!');
                        setIsPaymentSuccess(true);
                        setIsQRModalVisible(false);
                        setTimeout(() => {
-                         navigate('/customer/dashboard');
+                         navigate('/customer/finance/dashboard');
                        }, 2000);
                     })
                     .catch(execErr => {

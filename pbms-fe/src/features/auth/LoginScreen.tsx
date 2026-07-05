@@ -35,7 +35,7 @@ export const LoginScreen = () => {
 
   const navigateByRole = (role: string) => {
     switch (role) {
-      case 'ROLE_SUPER_ADMIN': navigate('/admin/users'); break;
+      case 'ROLE_SUPER_ADMIN': navigate('/admin/identity/users'); break;
       case 'ROLE_MANAGER': navigate('/manager/building-profile'); break;
       case 'ROLE_STAFF': navigate('/staff/shift-management'); break;
       case 'ROLE_CUSTOMER': navigate('/customer/home'); break;
@@ -56,7 +56,7 @@ export const LoginScreen = () => {
 
   // --- LOGIN ---
   const loginMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/login', { email, password })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/login', { email, password })).data,
     onSuccess: handleSuccessAuth,
     onError: (err: any) => {
       const msg = err.response?.data?.message || err.message || 'Login Failed';
@@ -66,26 +66,26 @@ export const LoginScreen = () => {
 
   // --- REGISTER ---
   const registerMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/register', { email, password, confirmPassword, fullName })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/register', { email, password, confirmPassword, fullName })).data,
     onSuccess: () => { setSuccessMsg('Registration Success! OTP sent to emaile'); setError(''); setRegStep(2); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Failede Registration'); setSuccessMsg(''); }
   });
 
   const verifyRegisterOtpMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/verify-otp', { email, otpCode, purpose: 'REGISTER' })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/verify-otp', { email, otpCode, purpose: 'REGISTER' })).data,
     onSuccess: (data) => { setSuccessMsg('authentication Success! Go to Logine page'); setError(''); setTimeout(() => goToLogin(), 1500); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Invalid OTP code'); }
   });
 
   // --- FORGOT PASSWORD ---
   const forgotMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/forgot-password', { email })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/forgot-password', { email })).data,
     onSuccess: () => { setForgotStep(2); setSuccessMsg('OTP sent to emaile'); setError(''); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Accounte not found'); setSuccessMsg(''); }
   });
 
   const verifyForgotOtpMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/verify-forgot-password', { email, otpCode })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/verify-forgot-password', { email, otpCode })).data,
     onSuccess: (data) => {
       setResetToken(data.data);
       setForgotStep(3);
@@ -98,28 +98,28 @@ export const LoginScreen = () => {
   });
 
   const resetPasswordMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/reset-password', { newPassword: password, confirmPassword }, { headers: { Authorization: `Bearer ${resetToken}` } })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/reset-password', { newPassword: password, confirmPassword }, { headers: { Authorization: `Bearer ${resetToken}` } })).data,
     onSuccess: () => { setSuccessMsg('Change Password Success! Please Logine'); setError(''); setTimeout(() => goToLogin(), 1500); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Change Password Failede'); setSuccessMsg(''); }
   });
 
   // --- SEND OTP (resend) ---
   const sendOtpMutation = useMutation({
-    mutationFn: async (purpose: string) => (await axiosClient.post('/auth/send-otp', { email, purpose })).data,
+    mutationFn: async (purpose: string) => (await axiosClient.post('/identity/auth/send-otp', { email, purpose })).data,
     onSuccess: () => { setSuccessMsg('New OTP has been sent to emaile'); setError(''); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Send OTP Failede'); }
   });
 
   // --- GOOGLE LOGIN ---
   const googleLoginMutation = useMutation({
-    mutationFn: async (credential: string) => (await axiosClient.post('/auth/login/google', { googleIdToken: credential })).data,
+    mutationFn: async (credential: string) => (await axiosClient.post('/identity/auth/login/google', { googleIdToken: credential })).data,
     onSuccess: handleSuccessAuth,
     onError: (err: any) => { setError(err.response?.data?.message || 'Login Google Failed.'); }
   });
 
   // --- SETUP PASSWORD (after Google login) ---
   const setupPasswordMutation = useMutation({
-    mutationFn: async () => (await axiosClient.post('/auth/set-password', { newPassword: password, confirmPassword }, { headers: { Authorization: `Bearer ${setupToken}` } })).data,
+    mutationFn: async () => (await axiosClient.post('/identity/auth/set-password', { newPassword: password, confirmPassword }, { headers: { Authorization: `Bearer ${setupToken}` } })).data,
     onSuccess: () => {
       const store = useAuthStore.getState();
       store.setAuth(setupToken, store.email!, store.role!, store.name || '', true, store.authProvider === 'GOOGLE');

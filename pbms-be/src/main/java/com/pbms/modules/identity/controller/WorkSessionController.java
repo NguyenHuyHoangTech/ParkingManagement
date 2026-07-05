@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/work-sessions")
+@RequestMapping("/api/v1/identity/work-sessions")
 @RequiredArgsConstructor
 public class WorkSessionController {
 

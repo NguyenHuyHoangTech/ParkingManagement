@@ -187,7 +187,7 @@ const App = () => {
   const { data: syncData, refetch: refetchSync } = useQuery({
     queryKey: ['iot-data-sync'],
     queryFn: async () => {
-      const res = await axios.get('http://localhost:8080/api/v1/iot/data-sync');
+      const res = await axios.get('http://localhost:8080/api/v1/operation/iot/hardware/data-sync');
       return res.data.data;
     },
     refetchInterval: 2000
@@ -473,7 +473,7 @@ const App = () => {
     mutationFn: async (values: any) => {
       const gate = gates.find((g: any) => g.id === values.gateId);
       const isOut = gate?.gateType === 'OUT' || gate?.gateType === 'EXIT' || (gate?.gateType === 'IN_OUT' && values.actionType === 'OUT');
-      const url = isOut ? 'http://localhost:8080/api/v1/iot/gates/checkout' : 'http://localhost:8080/api/v1/iot/gates/checkin';
+      const url = isOut ? 'http://localhost:8080/api/v1/operation/iot/hardware/gates/checkout' : 'http://localhost:8080/api/v1/operation/iot/hardware/gates/checkin';
       
       const base64Img = generateMockLicensePlateImage(values.plate, values.actionType, values.vehicleType);
       
@@ -505,7 +505,7 @@ const App = () => {
 
   const triggerSensorMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number, status: string }) => {
-      return axios.post('http://localhost:8080/api/v1/iot/sensors/update', {
+      return axios.post('http://localhost:8080/api/v1/operation/iot/hardware/sensors/update', {
         sensorId: id,
         status: status
       }).then(res => res.data);
@@ -522,7 +522,7 @@ const App = () => {
   const timeTravelMutation = useMutation({
     mutationFn: async (values: any) => {
       const targetTimeStr = values.targetTime.format('YYYY-MM-DDTHH:mm:ss');
-      return axios.post('http://localhost:8080/api/v1/iot/time/fast-forward', {
+      return axios.post('http://localhost:8080/api/v1/operation/iot/hardware/time/fast-forward', {
         targetTime: targetTimeStr
       }).then(res => res.data);
     },

@@ -26,7 +26,7 @@ export const OperationalDashboardScreen = () => {
   const { data: historyData, isLoading: isLoadingHistory } = useQuery({
     queryKey: ['parking-history', historyPage, historySize],
     queryFn: async () => {
-      const res = await axiosClient.get(`/parking-sessions/all?page=${historyPage - 1}&size=${historySize}`);
+      const res = await axiosClient.get(`/operation/parking-sessions/all?page=${historyPage - 1}&size=${historySize}`);
       return res.data.data;
     },
     refetchInterval: 5000
@@ -45,7 +45,7 @@ export const OperationalDashboardScreen = () => {
     queryKey: ['operational-dashboard', selectedTrafficDate?.format('YYYY-MM-DD')],
     queryFn: async () => {
       const dateStr = selectedTrafficDate?.format('YYYY-MM-DD');
-      const res = await axiosClient.get(`/dashboard/operational?date=${dateStr}`);
+      const res = await axiosClient.get(`/finance/dashboard/operational?date=${dateStr}`);
       return res.data.data;
     },
     refetchInterval: 5000,
@@ -66,7 +66,7 @@ export const OperationalDashboardScreen = () => {
     queryKey: ['hourly-flow', selectedTrafficDate?.format('YYYY-MM-DD')],
     queryFn: async () => {
       const dateStr = selectedTrafficDate?.format('YYYY-MM-DD');
-      const res = await axiosClient.get(`/dashboard/hourly-flow?date=${dateStr}`);
+      const res = await axiosClient.get(`/finance/dashboard/hourly-flow?date=${dateStr}`);
       return res.data.data;
     },
     enabled: !!selectedTrafficDate
@@ -78,7 +78,7 @@ export const OperationalDashboardScreen = () => {
     queryFn: async () => {
       const startDate = dateRange[0]?.format('YYYY-MM-DD');
       const endDate = dateRange[1]?.format('YYYY-MM-DD');
-      const res = await axiosClient.get(`/dashboard/macro-trends?startDate=${startDate}&endDate=${endDate}&category=${macroCategory}`);
+      const res = await axiosClient.get(`/finance/dashboard/macro-trends?startDate=${startDate}&endDate=${endDate}&category=${macroCategory}`);
       return res.data.data;
     },
     enabled: !!dateRange[0] && !!dateRange[1]

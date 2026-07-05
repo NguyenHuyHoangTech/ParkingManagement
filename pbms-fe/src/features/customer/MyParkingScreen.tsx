@@ -137,7 +137,7 @@ export const MyParkingScreen = () => {
     queryFn: async () => {
       try {
         if (!selectedHistoryPlate) return [];
-        const res = await axiosClient.get(`/parking-sessions/history?plate=${selectedHistoryPlate}`);
+        const res = await axiosClient.get(`/operation/parking-sessions/history?plate=${selectedHistoryPlate}`);
         return (res.data.data || []).map((item: any) => ({
           type: 'MONTHLY PASS',
           plateNumber: item.plate,
@@ -157,7 +157,7 @@ export const MyParkingScreen = () => {
   const { data: session, isLoading, isFetching } = useQuery({
     queryKey: ['my-active-session', plateNumberInput, rfidInput],
     queryFn: async () => {
-      const res = await axiosClient.get(`/parking-sessions/my-active?plate=${encodeURIComponent(plateNumberInput)}&rfid=${encodeURIComponent(rfidInput)}`);
+      const res = await axiosClient.get(`/operation/parking-sessions/my-active?plate=${encodeURIComponent(plateNumberInput)}&rfid=${encodeURIComponent(rfidInput)}`);
       return res.data?.data || null;
     },
     enabled: hasSearched
@@ -256,7 +256,7 @@ export const MyParkingScreen = () => {
 
   const generateRenewLinkMutation = useMutation({
     mutationFn: async (totalFee: number) => {
-      const res = await axiosClient.post('/payments/initialize', {
+      const res = await axiosClient.post('/finance/payments/initialize', {
         amount: totalFee,
         gateway: renewGateway,
         actionType: 'RENEW_MONTHLY_TICKET',
@@ -308,11 +308,11 @@ export const MyParkingScreen = () => {
         timer = setTimeout(() => {
           setRenewCountdown(c => c - 1);
           if (renewCountdown % 3 === 0) {
-            const captureUrl = renewGateway === 'PAYOS' ? '/payments/payos/capture' : '/payments/paypal/capture';
+            const captureUrl = renewGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
             axiosClient.post(captureUrl, { token: renewPaymentToken })
               .then(res => {
                 if (res.data?.data?.status === 'COMPLETED') {
-                  axiosClient.post('/payments/execute-action', { token: renewPaymentToken })
+                  axiosClient.post('/finance/payments/execute-action', { token: renewPaymentToken })
                     .then(execRes => {
                       setIsRenewSuccess(true);
                       message.success('Monthly pass renewed successfully!');

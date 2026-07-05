@@ -46,7 +46,7 @@ export const GateConsoleScreen = () => {
     queryKey: ['current-work-session'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/work-sessions/current');
+        const res = await axiosClient.get('/identity/work-sessions/current');
         return res.data?.data;
       } catch (e) {
         return null;

@@ -56,7 +56,7 @@ export const ShiftManagementScreen = () => {
     queryKey: ['active-session-sync'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/work-sessions/current');
+        const res = await axiosClient.get('/identity/work-sessions/current');
         if (res.data?.data?.hasActiveSession) {
           const { gateName, gateId, gateType } = res.data.data;
           setAuthShiftStatus('OPEN');
@@ -95,7 +95,7 @@ export const ShiftManagementScreen = () => {
     queryKey: ['shift-settlement-preview'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/work-sessions/current/preview-settlement');
+        const res = await axiosClient.get('/identity/work-sessions/current/preview-settlement');
         return res.data;
       } catch (e) {
         return null;
@@ -106,7 +106,7 @@ export const ShiftManagementScreen = () => {
 
   const startShiftMutation = useMutation({
     mutationFn: async () => {
-      const res = await axiosClient.post('/work-sessions/start', { gateId: selectedGateId, gateType: selectedGateFunction }); 
+      const res = await axiosClient.post('/identity/work-sessions/start', { gateId: selectedGateId, gateType: selectedGateFunction }); 
       return res.data;
     },
     onSuccess: () => {
@@ -145,7 +145,7 @@ export const ShiftManagementScreen = () => {
         finalCash = systemCash;
       }
       
-      const res = await axiosClient.put('/work-sessions/end', {
+      const res = await axiosClient.put('/identity/work-sessions/end', {
         declaredCash: finalCash,
         varianceReason: revenueMode === 'DISCREPANCY' ? varianceReason : null
       });

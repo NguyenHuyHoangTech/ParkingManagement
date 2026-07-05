@@ -130,11 +130,20 @@ public class GateOperationService {
 
         Zone suggestedZone = null;
         String customerType = determineCustomerType(request.getPlateNumber(), request.getRfid(), type);
+        String earlyBookingNotice = null;
         if (type != null) {
             List<Reservation> reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
                 suggestedZone = reservations.get(0).getZone();
             } else {
+                List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+                if (!allPending.isEmpty()) {
+                    Reservation earliest = allPending.stream().min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                    if (earliest != null) {
+                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
+                        earlyBookingNotice = "Notice: This vehicle has a booking at " + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
+                    }
+                }
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
             }
         }
@@ -166,6 +175,7 @@ public class GateOperationService {
                 .suggestedZoneId(displayRouting && suggestedZone != null ? suggestedZone.getId() : null)
                 .suggestedZoneName(displayRouting && suggestedZone != null ? suggestedZone.getZoneName() : "Free")
                 .customerType(customerType)
+                .earlyBookingNotice(earlyBookingNotice)
                 .build();
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", event);
@@ -175,6 +185,7 @@ public class GateOperationService {
                 .message("Scan triggered. Waiting for staff approval.")
                 .suggestedZoneId(displayRouting && suggestedZone != null ? suggestedZone.getId() : null)
                 .suggestedZoneName(displayRouting && suggestedZone != null ? suggestedZone.getZoneName() : "Free")
+                .earlyBookingNotice(earlyBookingNotice)
                 .build();
     }
 
@@ -378,12 +389,21 @@ public class GateOperationService {
         Zone suggestedZone = null;
         String customerType = determineCustomerType(request.getPlateNumber(), request.getRfid(), type);
         List<Reservation> reservations = java.util.Collections.emptyList();
+        String earlyBookingNotice = null;
 
         if (type != null) {
             reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
                 suggestedZone = reservations.get(0).getZone();
             } else {
+                List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+                if (!allPending.isEmpty()) {
+                    Reservation earliest = allPending.stream().min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                    if (earliest != null) {
+                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
+                        earlyBookingNotice = "Notice: This vehicle has a booking at " + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
+                    }
+                }
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
             }
         }
@@ -521,6 +541,7 @@ public class GateOperationService {
                 .message(isBlacklistedRef[0] ? "Vehicle has evaded before. Penalty added to session." : "Check-in successful")
                 .suggestedZoneId(suggestedZone != null ? suggestedZone.getId() : null)
                 .suggestedZoneName(suggestedZone != null ? suggestedZone.getZoneName() : null)
+                .earlyBookingNotice(earlyBookingNotice)
                 .build();
 
         return response;

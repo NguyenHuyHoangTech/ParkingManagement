@@ -21,7 +21,7 @@ import org.springframework.data.domain.Sort;
 import com.pbms.modules.incident.repository.IncidentTicketRepository;
 
 @RestController
-@RequestMapping("/api/v1/parking-sessions")
+@RequestMapping("/api/v1/operation/parking-sessions")
 @RequiredArgsConstructor
 public class ParkingSessionController {
 

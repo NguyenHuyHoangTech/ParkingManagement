@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
-@RequestMapping("/api/v1/incidents")
+@RequestMapping("/api/v1/incident/incidents")
 @RequiredArgsConstructor
 public class IncidentTicketController {
 

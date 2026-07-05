@@ -93,7 +93,7 @@ export const ExceptionDeskScreen = () => {
         return;
       }
       setIsSearchingSessions(true);
-      const res = await axiosClient.get(`/parking-sessions/active/search`, {
+      const res = await axiosClient.get(`/operation/parking-sessions/active/search`, {
         params: { plate, vehicleTypeId }
       });
       if (res.data && res.data.data && res.data.data.length > 0) {
@@ -144,11 +144,11 @@ export const ExceptionDeskScreen = () => {
     }
   };
 
-  // QUERY: GET /api/v1/incidents
+  // QUERY: GET /api/v1/incident/incidents
   const { data: ticketsData = [] } = useQuery({
     queryKey: ['incidents'],
     queryFn: async () => {
-      const res = await axiosClient.get('/incidents');
+      const res = await axiosClient.get('/incident/incident/incidents');
       return res.data?.data || [];
     },
     refetchInterval: 3000 // Poll every 3 seconds
@@ -200,14 +200,14 @@ export const ExceptionDeskScreen = () => {
 
       let res;
       if (values.type === 'LOST_CARD') {
-        res = await axiosClient.post('/incidents/lost-card', { 
+        res = await axiosClient.post('/incident/incident/incidents/lost-card', { 
           plate: values.plate?.toUpperCase(), 
           fee: getPenaltyConfig('PENALTY_LOST_CARD', 200000), 
           description: values.description,
           uploadedDocUrl: mockUrl
         });
       } else {
-        res = await axiosClient.post('/incidents', {
+        res = await axiosClient.post('/incident/incident/incidents', {
           issueType: values.type,
           plate: values.plate?.toUpperCase(),
           fineAmount: values.fineAmount,
@@ -250,9 +250,9 @@ export const ExceptionDeskScreen = () => {
       setIsCheckingManualPlate(true);
       let res;
       if (isLostOrDamaged) {
-          res = await axiosClient.get('/incidents/check-plate', { params: { plate: plate.toUpperCase() } });
+          res = await axiosClient.get('/incident/incident/incidents/check-plate', { params: { plate: plate.toUpperCase() } });
       } else {
-          res = await axiosClient.get('/incidents/check-plate-rfid', { params: { plate: plate.toUpperCase(), rfid } });
+          res = await axiosClient.get('/incident/incident/incidents/check-plate-rfid', { params: { plate: plate.toUpperCase(), rfid } });
       }
 
       if (res.data?.data?.isActive) {
@@ -296,7 +296,7 @@ export const ExceptionDeskScreen = () => {
 
   const updatePhase1Mutation = useMutation({
     mutationFn: async (id: number) => {
-      await axiosClient.put(`/incidents/${id}/process-phase1`);
+      await axiosClient.put(`/incident/incidents/${id}/process-phase1`);
     },
     onSuccess: () => {
       message.success('Session locked. Moving to Phase 2 processing.');
@@ -335,7 +335,7 @@ export const ExceptionDeskScreen = () => {
       if (docFile) {
         uploadedDocUrl = await getBase64Phase2(docFile);
       }
-      await axiosClient.put(`/incidents/${id}/move-to-overstay`, {
+      await axiosClient.put(`/incident/incidents/${id}/move-to-overstay`, {
         uploadedDocUrl
       });
     },
@@ -428,7 +428,7 @@ export const ExceptionDeskScreen = () => {
       const penaltyFee = phase2SessionInfo?.feePenalty ?? selectedTicket?.fineAmount ?? 0;
       const totalFee = Number(parkingFee) + Number(penaltyFee);
       
-      await axiosClient.put(`/incidents/${id}/resolve`, {
+      await axiosClient.put(`/incident/incidents/${id}/resolve`, {
         resolutionNotes: `[Phase 2] Fee collected: ${totalFee.toLocaleString()} VND (Parking fee: ${Number(parkingFee).toLocaleString()} + Penalty: ${Number(penaltyFee).toLocaleString()})${selectedTicket?.type === 'DAMAGED_CARD' ? (damagedCardFault === 'CUSTOMER_FAULT' ? ' - Damaged card due to customer' : ' - Card damage due to wear and tear') : ''}`,
         uploadedDocUrl,
         uploadedPicOutUrl,
@@ -495,7 +495,7 @@ export const ExceptionDeskScreen = () => {
 
   const resolveNonCardMutation = useMutation({
     mutationFn: async (id: number) => {
-      await axiosClient.put(`/incidents/${id}/resolve-non-card`, {
+      await axiosClient.put(`/incident/incidents/${id}/resolve-non-card`, {
         resolutionNotes: nonCardResolutionNotes
       });
     },
@@ -516,7 +516,7 @@ export const ExceptionDeskScreen = () => {
 
   const adjustFeeMutation = useMutation({
     mutationFn: async (id: number) => {
-      await axiosClient.put(`/incidents/${id}/adjust-fee-dispute`, {
+      await axiosClient.put(`/incident/incidents/${id}/adjust-fee-dispute`, {
         discountAmount: feeDisputeAmount,
         resolutionNotes: feeDisputeNotes
       });
@@ -536,7 +536,7 @@ export const ExceptionDeskScreen = () => {
 
   const cancelIncidentMutation = useMutation({
     mutationFn: async (id: number) => {
-      await axiosClient.put(`/incidents/${id}/cancel`, {
+      await axiosClient.put(`/incident/incidents/${id}/cancel`, {
         reason: 'The customer found the card, canceled incident and let the car exit normally'
       });
     },
@@ -553,7 +553,7 @@ export const ExceptionDeskScreen = () => {
 
   const pauseFeeMutation = useMutation({
     mutationFn: async (id: number) => {
-      await axiosClient.put(`/incidents/${id}/pause-fee`);
+      await axiosClient.put(`/incident/incidents/${id}/pause-fee`);
     },
     onSuccess: () => {
       message.success('✅ Time and parking fees updated');
@@ -566,7 +566,7 @@ export const ExceptionDeskScreen = () => {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: number, reason: string }) => {
-      await axiosClient.put(`/incidents/${id}/reject?reason=${encodeURIComponent(reason)}`);
+      await axiosClient.put(`/incident/incidents/${id}/reject?reason=${encodeURIComponent(reason)}`);
     },
     onSuccess: () => {
       message.success('Incident handling rejected');

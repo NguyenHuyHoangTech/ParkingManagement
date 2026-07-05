@@ -77,4 +77,7 @@ public class ScanEventDTO {
      * - "MONTHLY": Khách sử dụng vé tháng
      */
     private String customerType;
+    
+    /** Notice for early arrivals if they have a pending booking that is not yet active */
+    private String earlyBookingNotice;
 }

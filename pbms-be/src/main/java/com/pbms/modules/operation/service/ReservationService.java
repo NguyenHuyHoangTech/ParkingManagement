@@ -256,6 +256,42 @@ public class ReservationService {
         return mapToDTO(reservation);
     }
 
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class ScheduledTaskInfo {
+        private java.util.concurrent.ScheduledFuture<?> future;
+        private Runnable task;
+        private LocalDateTime targetSimulatedTime;
+    }
+
+    private final java.util.Map<Long, java.util.Map<String, ScheduledTaskInfo>> taskRegistry = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private void cancelAllTasks(Long reservationId) {
+        java.util.Map<String, ScheduledTaskInfo> tasks = taskRegistry.get(reservationId);
+        if (tasks != null) {
+            tasks.values().forEach(info -> {
+                if (info.getFuture() != null) info.getFuture().cancel(false);
+            });
+            taskRegistry.remove(reservationId);
+        }
+    }
+
+    private void registerTask(Long reservationId, String type, LocalDateTime targetTime, Runnable task) {
+        LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+        taskRegistry.computeIfAbsent(reservationId, k -> new java.util.concurrent.ConcurrentHashMap<>());
+        
+        if (!now.isBefore(targetTime)) {
+            // execute immediately if time has passed
+            task.run();
+            return;
+        }
+        
+        long delayMillis = java.time.Duration.between(now, targetTime).toMillis();
+        java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task, java.time.Instant.now().plusMillis(delayMillis));
+        
+        taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(future, task, targetTime));
+    }
+
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void onStartup() {
         log.info("Scheduling existing pending reservations...");
@@ -266,6 +302,8 @@ public class ReservationService {
     }
 
     public void scheduleReservationTasks(Reservation res) {
+        cancelAllTasks(res.getId());
+
         int windowMinutes = 30;
         try {
             windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
@@ -274,17 +312,19 @@ public class ReservationService {
         }
 
         LocalDateTime notifyTime = res.getExpectedEntryTime().minusMinutes(windowMinutes);
-        LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(res.getExpectedDurationMinutes());
+        LocalDateTime entryTime = res.getExpectedEntryTime();
+        LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(res.getExpectedDurationMinutes() != null ? res.getExpectedDurationMinutes() : 120);
 
-        // Schedule Notification
+        // Timer 1: Notification & 50% penalty activation
         if (res.getNotifiedEarlyArrival() == null || !res.getNotifiedEarlyArrival()) {
-            taskScheduler.schedule(() -> notifyStaffTask(res.getId()),
-                    notifyTime.atZone(java.time.ZoneId.systemDefault()).toInstant());
+            registerTask(res.getId(), "NOTIFY", notifyTime, () -> notifyStaffTask(res.getId()));
         }
 
-        // Schedule Expiration
-        taskScheduler.schedule(() -> expireReservationTask(res.getId()),
-                expireTime.atZone(java.time.ZoneId.systemDefault()).toInstant());
+        // Timer 2: Expected Entry (Late Warning / 100% penalty)
+        registerTask(res.getId(), "ENTRY", entryTime, () -> lateWarningTask(res.getId()));
+
+        // Timer 3: End of Booking
+        registerTask(res.getId(), "EXPIRE", expireTime, () -> endOfBookingTask(res.getId()));
     }
 
     @Transactional
@@ -305,14 +345,44 @@ public class ReservationService {
     }
 
     @Transactional
-    public void expireReservationTask(Long reservationId) {
+    public void lateWarningTask(Long reservationId) {
         Reservation res = reservationRepository.findById(reservationId).orElse(null);
         if (res == null || !"PENDING".equals(res.getStatus())) return;
+        
+        log.info("Reservation {} is now late (reached expected entry time).", res.getId());
+    }
 
-        log.info("Reservation {} marked as COMPLETED_UNUSED (No-show)", res.getId());
-        res.setStatus("COMPLETED_UNUSED");
-        reservationRepository.save(res);
-        saveNoShowPenalty(res);
+    @Transactional
+    public void endOfBookingTask(Long reservationId) {
+        Reservation res = reservationRepository.findById(reservationId).orElse(null);
+        if (res == null) return;
+        
+        LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+        java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository.findTopByReservationIdOrderByTimeInDesc(reservationId);
+        
+        if (psOpt.isPresent()) {
+            com.pbms.modules.operation.domain.ParkingSession ps = psOpt.get();
+            if ("ACTIVE".equals(ps.getStatus())) {
+                if (!"COMPLETED".equals(res.getStatus())) {
+                    log.info("Reservation {} completed. Car still in lot. Switching to guest pricing.", res.getId());
+                    res.setStatus("COMPLETED");
+                    reservationRepository.save(res);
+                }
+            } else if ("COMPLETED".equals(ps.getStatus())) {
+                if (!"COMPLETED".equals(res.getStatus())) {
+                    log.info("Reservation {} completed normally.", res.getId());
+                    res.setStatus("COMPLETED");
+                    reservationRepository.save(res);
+                }
+            }
+        } else {
+            if ("PENDING".equals(res.getStatus())) {
+                log.info("Reservation {} marked as COMPLETED_UNUSED (No-show)", res.getId());
+                res.setStatus("COMPLETED_UNUSED");
+                reservationRepository.save(res);
+                saveNoShowPenalty(res, now);
+            }
+        }
     }
     
     private void saveNoShowPenalty(Reservation reservation, LocalDateTime now) {
@@ -336,48 +406,37 @@ public class ReservationService {
         }
     }
     
-    private void saveNoShowPenalty(Reservation reservation) {
-        saveNoShowPenalty(reservation, null);
-    }
 
     @org.springframework.context.event.EventListener(com.pbms.common.event.TimeFastForwardedEvent.class)
     @Transactional
     public void handleTimeFastForward(com.pbms.common.event.TimeFastForwardedEvent event) {
         LocalDateTime now = event.getNewSimulatedTime();
-        log.info("Handling TimeFastForwardedEvent in ReservationService for time: {}", now);
+        log.info("Handling TimeFastForwardedEvent in ReservationService. Syncing {} tasks for simulated time: {}", taskRegistry.size(), now);
         
-        List<Reservation> pendingReservations = reservationRepository.findByStatus("PENDING");
-        int expiredCount = 0;
-        int notifiedCount = 0;
-        
-        int windowMinutes = 30;
-        try {
-            windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
-        } catch (Exception e) {
-            // ignore
-        }
+        int executedCount = 0;
+        int rescheduledCount = 0;
 
-        for (Reservation res : pendingReservations) {
-            LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(res.getExpectedDurationMinutes());
-            if (now.isAfter(expireTime)) {
-                log.info("Reservation {} marked as COMPLETED_UNUSED (No-show) due to time fast-forward", res.getId());
-                res.setStatus("COMPLETED_UNUSED");
-                reservationRepository.save(res);
-                saveNoShowPenalty(res, now);
-                expiredCount++;
-            } else {
-                LocalDateTime notifyTime = res.getExpectedEntryTime().minusMinutes(windowMinutes);
-                if (!now.isBefore(notifyTime) && (res.getNotifiedEarlyArrival() == null || !res.getNotifiedEarlyArrival())) {
-                    res.setNotifiedEarlyArrival(true);
-                    reservationRepository.save(res);
-                    notifiedCount++;
+        for (java.util.Map.Entry<Long, java.util.Map<String, ScheduledTaskInfo>> entry : taskRegistry.entrySet()) {
+            java.util.Map<String, ScheduledTaskInfo> tasks = entry.getValue();
+            
+            for (java.util.Map.Entry<String, ScheduledTaskInfo> taskEntry : tasks.entrySet()) {
+                ScheduledTaskInfo info = taskEntry.getValue();
+                if (info.getFuture() != null) info.getFuture().cancel(false);
+                
+                if (!now.isBefore(info.getTargetSimulatedTime())) {
+                    // Time has passed, execute now synchronously
+                    info.getTask().run();
+                    executedCount++;
+                } else {
+                    // Reschedule for remaining time
+                    long newDelayMillis = java.time.Duration.between(now, info.getTargetSimulatedTime()).toMillis();
+                    java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(), java.time.Instant.now().plusMillis(newDelayMillis));
+                    info.setFuture(newFuture);
+                    rescheduledCount++;
                 }
             }
         }
-        
-        if (expiredCount > 0 || notifiedCount > 0) {
-            log.info("Fast-forward summary: Expired {} reservations, Notified {} early arrivals", expiredCount, notifiedCount);
-        }
+        log.info("Fast-forward sync complete: {} tasks executed instantly, {} tasks rescheduled", executedCount, rescheduledCount);
     }
 
     private ReservationDTO mapToDTO(Reservation reservation) {
@@ -426,7 +485,7 @@ public class ReservationService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public ReservationDTO resolveZone(Long reservationId, Long newZoneId, ReservationConflictScheduler scheduler) {
+    public ReservationDTO resolveZone(Long reservationId, Long newZoneId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
                 
@@ -443,12 +502,25 @@ public class ReservationService {
 
         reservation.setZone(newZone);
         reservationRepository.save(reservation);
-        
-        // Remove from notified list so scheduler can check it again if needed
-        if (scheduler != null) {
-            scheduler.removeNotificationFlag(reservationId);
-        }
 
         return mapToDTO(reservation);
+    }
+    
+    @Transactional
+    public void attemptResolveConflict(Long reservationId) {
+        Reservation res = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
+        if (!"PENDING".equals(res.getStatus())) {
+            throw new IllegalStateException("Reservation is not PENDING");
+        }
+        
+        Zone newZone = zoneRoutingService.suggestZone(res.getVehicle().getVehicleType(), "WALK_IN", null);
+        if (newZone != null) {
+            res.setZone(newZone);
+            reservationRepository.save(res);
+            return;
+        }
+        
+        throw new IllegalStateException("Could not find an alternative zone");
     }
 }

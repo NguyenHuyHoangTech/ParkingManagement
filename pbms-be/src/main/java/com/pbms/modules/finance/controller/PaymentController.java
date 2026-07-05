@@ -14,7 +14,7 @@ import com.pbms.modules.finance.strategy.PayPalStrategy;
 import com.pbms.modules.finance.strategy.PayOsStrategy;
 
 @RestController
-@RequestMapping("/api/v1/payments")
+@RequestMapping("/api/v1/finance/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 

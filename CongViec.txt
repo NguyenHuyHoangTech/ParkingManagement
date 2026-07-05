@@ -1,0 +1,139 @@
+====================================================================
+BẢNG PHÂN CÔNG NHIỆM VỤ DỰ ÁN PBMS ĐẢM BẢO BAO PHỦ 100% HỆ THỐNG
+====================================================================
+
+Bản phân công này đã được ánh xạ chi tiết đến từng file code, Controller, Repository, Service và toàn bộ các màn hình (Screen/Layout) tồn tại trong source code hiện tại, đảm bảo không bỏ sót bất kỳ một chức năng nào.
+
+--------------------------------------------------------------------
+MEMBER 1: CORE ARCHITECT & CLOUD DEVOPS (Nền móng, Bảo mật & Triển khai)
+--------------------------------------------------------------------
+* MỤC TIÊU: Thiết lập cấu trúc lõi của hệ thống (Store, Routing, Security, Logging) và quản lý hệ thống Admin nội bộ.
+
+[BACKEND - pbms-be]
+- Package `com.pbms.common.*`: Toàn bộ các cấu hình nền tảng (SecurityConfig, WebSocketConfig, GlobalExceptionHandler, JWT Filters, CORS, Logging AOP).
+- Package `com.pbms.modules.identity.*`: Toàn bộ source code xác thực (User, Role, OTP, OAuth2).
+- Package `com.pbms.modules.system.*` (Phần Lõi):
+  + SystemConfigController.java, SystemConfig.java, SystemConfigRepository.java, SystemConfigService.java
+  + AuditLogController.java, AuditLog.java, AuditLogRepository.java, AuditLogService.java
+  + TimeInitializationComponent.java
+
+[FRONTEND - pbms-fe]
+- Lõi ứng dụng:
+  + src/main.tsx, src/App.tsx
+  + src/core/routes/AppRouter.tsx
+  + src/core/errors/ErrorBoundary.tsx
+  + src/features/shared/components/ErrorBoundary.tsx
+  + src/features/shared/components/UserProfileSettingsModal.tsx
+- Tính năng:
+  + src/features/auth/LoginScreen.tsx
+  + src/features/admin/AdminLayout.tsx
+  + src/features/admin/AuditLogScreen.tsx
+  + src/features/admin/UserManagementScreen.tsx
+  + src/features/system/SystemConfigScreen.tsx
+
+[DEVOPS] Quản lý .env, Deploy Vercel (FE), Render (BE), Azure SQL, Upstash Redis.
+
+
+--------------------------------------------------------------------
+MEMBER 2: SPATIAL & ROUTING MASTER (Bản đồ, Không gian & Điều hướng)
+--------------------------------------------------------------------
+* MỤC TIÊU: Quản lý hạ tầng 2D của hầm xe (Zone/Slot), cấu hình tòa nhà và thuật toán điều hướng xe thông minh.
+
+[BACKEND - pbms-be]
+- Package `com.pbms.modules.infrastructure.*` (Phần Hạ Tầng Vật Lý):
+  + Building, Floor, Zone, Slot, Gate (Domain & Repositories)
+  + MapConfigurationService.java, ZoneService.java
+  + WebSocketEventPublisher.java (Bắn tọa độ Live)
+  + RoutingRuleRepository.java, RoutingRuleService.java
+- Package `com.pbms.modules.operation.*` (Phần Tracking & Routing):
+  + ZoneMonitoringService.java, ZoneOccupancyTracker.java
+  + ZoneRoutingService.java, ZoneTrendSchedulingService.java
+  + VehicleTypeController.java, VehicleType.java, VehicleTypeRepository.java, VehicleTypeService.java
+
+[FRONTEND - pbms-fe]
+- Tính năng:
+  + src/features/manager/ManagerLayout.tsx (Setup Layout dùng chung)
+  + src/features/manager/SpaceMapScreen.tsx
+  + src/features/manager/VehicleRoutingScreen.tsx
+  + src/features/manager/VehicleTypeScreen.tsx
+  + src/features/system/BuildingProfileScreen.tsx
+
+
+--------------------------------------------------------------------
+MEMBER 3: FINANCE & DATA ANALYTICS (Kế toán trưởng & Lõi tính tiền)
+--------------------------------------------------------------------
+* MỤC TIÊU: Quản lý bảng giá, phạt, doanh thu, và kho thẻ RFID vật lý.
+
+[BACKEND - pbms-be]
+- Package `com.pbms.modules.finance.*`: Toàn bộ source code liên quan tính cước (PricingPolicy, Giao dịch, Hoá đơn, thuật toán block thời gian).
+- Phân tích dữ liệu & Báo cáo: Gom nhóm Query phức tạp để Dashboard hoạt động mượt mà, xử lý High-Water Mark peak load lưu trên Redis.
+- Package `com.pbms.modules.infrastructure.*` (Phần RFID):
+  + RfidCardRepository.java, RfidCardService.java (UID generation, Life-cycle management).
+
+[FRONTEND - pbms-fe]
+- Tính năng:
+  + src/features/manager/PricingConfigScreen.tsx
+  + src/features/manager/PricingConfigScreen_New.tsx
+  + src/features/manager/PenaltyConfigScreen.tsx
+  + src/features/manager/RevenueDashboardScreen.tsx
+  + src/features/manager/OperationalDashboardScreen.tsx
+  + src/features/manager/ShiftRevenueReportScreen.tsx
+  + src/features/manager/CardManagementScreen.tsx
+
+
+--------------------------------------------------------------------
+MEMBER 4: GATE OPERATIONS & EXCEPTION HANDLER (Chỉ huy Trạm kiểm soát)
+--------------------------------------------------------------------
+* MỤC TIÊU: Xử lý giao dịch tại Gate của bảo vệ, chốt ca, và rà soát sự cố/sai sót.
+
+[BACKEND - pbms-be]
+- Package `com.pbms.modules.operation.*` (Phần Lõi Giao Dịch & Xe):
+  + GateConsoleController.java, GateOperationService.java
+  + ParkingSessionController.java, ParkingSession.java, ParkingSessionRepository.java
+  + VehicleController.java, Vehicle.java, VehicleRepository.java, VehicleService.java
+  + StaffWorkSessionRepository.java (Quản lý ca trực)
+- Package `com.pbms.modules.incident.*`: Toàn bộ source code xử lý ngoại lệ (Exception), e-KYC duyệt hồ sơ, và Cronjob truy quét xe quá hạn.
+
+[FRONTEND - pbms-fe]
+- Tính năng:
+  + src/features/staff/StaffLayout.tsx
+  + src/features/staff/GateConsoleScreen.tsx
+  + src/features/staff/GateInConsoleScreen.tsx
+  + src/features/staff/GateOutConsoleScreen.tsx
+  + src/features/staff/ShiftManagementScreen.tsx
+  + src/features/staff/ExceptionDeskScreen.tsx
+  + src/features/staff/MonthlyZoneConflictModal.tsx
+  + src/features/staff/ReservationConflictModal.tsx
+
+
+--------------------------------------------------------------------
+MEMBER 5: B2C CUSTOMER EXPERIENCE & IOT (Trải nghiệm Khách hàng & Giả lập)
+--------------------------------------------------------------------
+* MỤC TIÊU: Làm Mobile Web cho KH cuối, Quản lý Booking/Vé Tháng, tích hợp thanh toán và xây dựng công cụ Giả lập IoT (Time Machine).
+
+[BACKEND - pbms-be]
+- Package `com.pbms.modules.customer.*`: API tra cứu cho Khách hàng (Live slot, Tra cứu hóa đơn).
+- Package `com.pbms.modules.operation.*` (Phần Online Booking & Vé tháng):
+  + ReservationController.java, Reservation.java, ReservationRepository.java, ReservationService.java, ReservationConflictScheduler.java
+  + MonthlyTicketController.java, MonthlyTicket.java, MonthlyTicketRepository.java, MonthlyTicketService.java
+- Package `com.pbms.modules.operation.*` (Phần IoT & Tool):
+  + IotController.java, IotHardwareController.java, IotIntegrationController.java
+  + IotIntegrationService.java, IotService.java
+- Webhook Tích hợp: Tích hợp VNPay/PayOS và xử lý luồng Hoàn tiền (Refund) nằm rải rác ở Finance/Operation.
+
+[FRONTEND - pbms-fe & IOT Simulator]
+- Frontend Khách Hàng & Manager duyệt đơn:
+  + src/features/customer/CustomerLayout.tsx
+  + src/features/customer/HomeScreen.tsx
+  + src/features/customer/MyParkingScreen.tsx
+  + src/features/customer/PreBookingScreen.tsx
+  + src/features/customer/CustomerMonthlyPassScreen.tsx
+  + src/features/customer/HelpdeskScreen.tsx
+  + src/features/manager/PreBookingManagementScreen.tsx
+  + src/features/manager/MonthlyPassScreen.tsx
+  + src/features/manager/RefundManagementScreen.tsx
+  + src/features/shared/components/NotificationDropdown.tsx
+  + src/features/shared/components/SystemClock.tsx
+- Tool Giả lập (pbms-iot-simulator):
+  + Toàn bộ project `pbms-iot-simulator` (src/App.tsx, src/main.tsx, src/SimulatorMap.tsx).
+====================================================================

@@ -53,7 +53,7 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
 
   const linkGoogleMutation = useMutation({
     mutationFn: async (credential: string) => {
-      const response = await axiosClient.post('/auth/link-google', { googleIdToken: credential });
+      const response = await axiosClient.post('/identity/auth/link-google', { googleIdToken: credential });
       return response.data;
     },
     onSuccess: () => {
@@ -67,7 +67,7 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
 
   const changePasswordMutation = useMutation({
     mutationFn: async (values: any) => {
-      const response = await axiosClient.post('/auth/reset-password', {
+      const response = await axiosClient.post('/identity/auth/reset-password', {
         newPassword: values.newPassword,
         confirmPassword: values.confirmPassword
       });

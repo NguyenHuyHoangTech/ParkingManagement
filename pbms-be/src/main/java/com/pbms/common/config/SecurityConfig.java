@@ -35,7 +35,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/public/**", "/api/v1/auth/**", "/api/v1/webhooks/**",
                                 "/api/v1/iot/**")
                         .permitAll()
-                        .requestMatchers("/h2-console/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/h2-console/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/ws/**", "/ws-pbms/**", "/uploads/**").permitAll()
 
                         // 2. SYSTEM ADMIN

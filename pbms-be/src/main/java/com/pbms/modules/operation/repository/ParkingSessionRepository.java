@@ -16,8 +16,8 @@ import java.util.Optional;
 public interface ParkingSessionRepository extends JpaRepository<ParkingSession, Long> {
     
     @Query("SELECT COUNT(ps) FROM ParkingSession ps WHERE ps.status = 'ACTIVE' AND ps.vehicleType.id = :vehicleTypeId " +
-           "AND ps.plate IN (SELECT mt.plate FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE' AND mt.validUntil > CURRENT_TIMESTAMP)")
-    long countActiveMonthlyCarsByVehicleType(@Param("vehicleTypeId") Long vehicleTypeId);
+           "AND ps.plate IN (SELECT mt.plate FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE' AND mt.validUntil > :currentTime)")
+    long countActiveMonthlyCarsByVehicleType(@Param("vehicleTypeId") Long vehicleTypeId, @Param("currentTime") LocalDateTime currentTime);
     
     long countBySuggestedZoneIdAndStatusAndSlotIsNull(Long suggestedZoneId, String status);
     

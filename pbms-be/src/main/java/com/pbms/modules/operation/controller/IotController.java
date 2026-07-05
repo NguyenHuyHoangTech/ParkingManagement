@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/iot")
+@RequestMapping("/api/v1/operation/iot/cameras")
 @RequiredArgsConstructor
 public class IotController {
 

@@ -53,7 +53,7 @@ export const UserManagementScreen = () => {
       brokerURL: 'ws://localhost:8080/ws-pbms',
       connectHeaders: { Authorization: `Bearer ${token}` },
       onConnect: () => {
-        stomp.subscribe('/topic/users', () => {
+        stomp.subscribe('/topic/identity/users', () => {
           queryClient.invalidateQueries({ queryKey: ['users'] });
         });
       },
@@ -66,7 +66,7 @@ export const UserManagementScreen = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['users', keyword, roleFilter, statusFilter, pagination.current, pagination.pageSize],
     queryFn: async () => {
-      const res = await axiosClient.get('/users', {
+      const res = await axiosClient.get('/identity/users', {
         params: {
           keyword:  keyword    || undefined,
           role:     roleFilter || undefined,
@@ -84,7 +84,7 @@ export const UserManagementScreen = () => {
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createUserMutation = useMutation({
-    mutationFn: (values: any) => axiosClient.post('/users', values).then(r => r.data),
+    mutationFn: (values: any) => axiosClient.post('/identity/users', values).then(r => r.data),
     onSuccess: () => {
       message.success('Account created successfully. Temporary password sent via email.');
       setIsModalVisible(false);
@@ -102,7 +102,7 @@ export const UserManagementScreen = () => {
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, values }: { id: number; values: any }) =>
-      axiosClient.put(`/users/${id}`, values).then(r => r.data),
+      axiosClient.put(`/identity/users/${id}`, values).then(r => r.data),
     onSuccess: () => {
       message.success('Information updated successfully.');
       setIsEditModalVisible(false);
@@ -117,7 +117,7 @@ export const UserManagementScreen = () => {
 
   const changeStatusMutation = useMutation({
     mutationFn: ({ id, activate }: { id: number; activate: boolean }) =>
-      axiosClient.put(`/users/${id}/status`, null, { params: { activate } }).then(r => r.data),
+      axiosClient.put(`/identity/users/${id}/status`, null, { params: { activate } }).then(r => r.data),
     onSuccess: (_, vars) => {
       message.success(`Account has been ${vars.activate ? 'unlocked' : 'locked'} successfully.`);
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -129,7 +129,7 @@ export const UserManagementScreen = () => {
 
   const resetPasswordMutation = useMutation({
     mutationFn: (id: number) =>
-      axiosClient.put(`/users/${id}/reset-password`).then(r => r.data),
+      axiosClient.put(`/identity/users/${id}/reset-password`).then(r => r.data),
     onSuccess: () => message.success('New password sent via email.'),
     onError:   () => message.error('Failed to reset password.'),
   });

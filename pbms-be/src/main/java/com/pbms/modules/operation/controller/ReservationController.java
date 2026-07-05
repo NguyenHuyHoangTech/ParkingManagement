@@ -18,7 +18,6 @@ import com.pbms.modules.operation.dto.CancelReservationRequest;
 public class ReservationController {
 
     private final ReservationService reservationService;
-    private final com.pbms.modules.operation.service.ReservationConflictScheduler reservationConflictScheduler;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ReservationDTO>>> getAllReservations() {
@@ -90,7 +89,7 @@ public class ReservationController {
     @PostMapping("/{id}/resolve-conflict")
     public ResponseEntity<ApiResponse<String>> resolveConflict(@PathVariable Long id) {
         try {
-            reservationConflictScheduler.attemptResolveConflict(id);
+            reservationService.attemptResolveConflict(id);
             return ResponseEntity.ok(ApiResponse.success("Virtual slot reserved successfully", "Success"));
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));

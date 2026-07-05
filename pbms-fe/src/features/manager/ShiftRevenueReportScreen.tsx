@@ -22,7 +22,7 @@ const ShiftRevenueReportScreen: React.FC = () => {
   const { data: historyData, isLoading } = useQuery({
     queryKey: ['shift-revenue-history', appliedDateRange, page, size],
     queryFn: async () => {
-      const res = await axiosClient.get(`/work-sessions/history?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${page - 1}&size=${size}`);
+      const res = await axiosClient.get(`/identity/work-sessions/history?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${page - 1}&size=${size}`);
       return res.data.data;
     }
   });

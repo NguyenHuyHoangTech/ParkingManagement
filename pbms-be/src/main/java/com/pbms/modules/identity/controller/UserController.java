@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import com.pbms.common.annotation.LogAudit;
 
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/api/v1/identity/users")
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class UserController {
 

@@ -237,7 +237,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       // Auto-log LPR_MISMATCH if the staff edited the plate
       if (scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase()) {
         try {
-          await axiosClient.post('/incidents', {
+          await axiosClient.post('/incident/incident/incidents', {
             issueType: 'LPR_MISMATCH',
             sessionId: scanData.sessionId || response.data.data.sessionId,
             description: `[AUTO] License plate mismatch on EXIT. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`,
@@ -283,7 +283,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             totalFee: amount,
             sessionId: scanData.sessionId
         };
-        axiosClient.post('/payments/initialize', { 
+        axiosClient.post('/finance/payments/initialize', { 
             actionType: 'CHECKOUT',
             gateway: paymentMethod, 
             amount: amount,
@@ -321,13 +321,13 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   useEffect(() => {
     if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && paymentUrl && paymentOrderId && !paymentConfirmed) {
       const intervalId = setInterval(() => {
-        const captureUrl = paymentMethod === 'PAYOS' ? '/payments/payos/capture' : '/payments/paypal/capture';
+        const captureUrl = paymentMethod === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
         axiosClient.post(captureUrl, { token: paymentOrderId })
           .then(res => {
             if (res.data?.data?.status === 'COMPLETED') {
               clearInterval(intervalId);
               // Execute the checkout action internally via payments execute
-              axiosClient.post('/payments/execute-action', { token: paymentOrderId })
+              axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
                 .then(execRes => {
                     message.success(`Payment via ${paymentMethod} successful! Barrier opened!`);
                     setPaymentConfirmed(true);

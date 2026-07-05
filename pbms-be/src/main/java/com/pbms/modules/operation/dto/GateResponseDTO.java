@@ -43,6 +43,9 @@ public class GateResponseDTO {
     /** (Dành cho Check-in) Tên của khu vực đỗ xe được gợi ý */
     private String suggestedZoneName;
     
-    /** (Dành cho Check-out) Tổng số tiền phí cần thanh toán (nếu có) */
+    /** Phí dự kiến tính đến thời điểm hiện tại (Dành cho Check-out) */
     private BigDecimal checkoutFee;
+    
+    /** Notice for early arrivals if they have a pending booking that is not yet active */
+    private String earlyBookingNotice;
 }

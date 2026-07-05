@@ -64,7 +64,7 @@ export const HelpdeskScreen = () => {
     queryKey: ['incidents'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/incidents');
+        const res = await axiosClient.get('/incident/incident/incidents');
         return res.data.data || [];
       } catch (err) {
         return [];
@@ -76,13 +76,13 @@ export const HelpdeskScreen = () => {
     mutationFn: async (payload: any) => {
       let res;
       if (payload.issueType === 'LOST_CARD') {
-        res = await axiosClient.post('/incidents/lost-card', { 
+        res = await axiosClient.post('/incident/incident/incidents/lost-card', { 
           plate: payload.plate, 
           description: payload.description,
           uploadedDocUrl: payload.uploadedDocUrl
         });
       } else {
-        res = await axiosClient.post('/incidents', payload);
+        res = await axiosClient.post('/incident/incident/incidents', payload);
       }
       return res.data;
     },
@@ -112,9 +112,9 @@ export const HelpdeskScreen = () => {
     try {
       let res;
       if (isLostOrDamaged) {
-        res = await axiosClient.get(`/incidents/check-plate?plate=${encodeURIComponent(plate)}`);
+        res = await axiosClient.get(`/incident/incidents/check-plate?plate=${encodeURIComponent(plate)}`);
       } else {
-        res = await axiosClient.get(`/incidents/check-plate-rfid?plate=${encodeURIComponent(plate)}&rfid=${encodeURIComponent(rfid)}`);
+        res = await axiosClient.get(`/incident/incidents/check-plate-rfid?plate=${encodeURIComponent(plate)}&rfid=${encodeURIComponent(rfid)}`);
       }
       
       if (res.data?.data) {

@@ -10,7 +10,6 @@ import com.pbms.modules.operation.dto.GateResponseDTO;
 import com.pbms.modules.operation.service.GateOperationService;
 import com.pbms.modules.operation.service.ZoneRoutingService;
 import com.pbms.modules.operation.service.ReservationService;
-import com.pbms.modules.operation.service.ReservationConflictScheduler;
 import com.pbms.modules.operation.dto.ReservationDTO;
 import com.pbms.modules.operation.dto.ZoneRoutingStatusDTO;
 import java.util.List;
@@ -27,8 +26,6 @@ public class GateConsoleController {
     private final ZoneRoutingService zoneRoutingService;
 
     private final ReservationService reservationService;
-
-    private final ReservationConflictScheduler reservationConflictScheduler;
 
     @PostMapping("/check-in")
     public ResponseEntity<ApiResponse<GateResponseDTO>> processCheckIn(@RequestBody CheckInRequestDTO request) {
@@ -89,7 +86,7 @@ public class GateConsoleController {
             @PathVariable Long id,
             @RequestParam Long newZoneId) {
         try {
-            ReservationDTO dto = reservationService.resolveZone(id, newZoneId, reservationConflictScheduler);
+            ReservationDTO dto = reservationService.resolveZone(id, newZoneId);
             return ResponseEntity.ok(ApiResponse.success(dto, "Reservation zone resolved successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));

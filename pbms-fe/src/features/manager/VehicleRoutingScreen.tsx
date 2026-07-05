@@ -393,10 +393,21 @@ export const VehicleRoutingScreen = () => {
     try {
       setIsAiLoading(true);
       setAiResponse(null);
+
+      // Lọc dữ liệu biểu đồ để chỉ gửi các zone WALK_IN cho AI
+      const targetVehicleTypeId = vehicleTypes.find(v => v.typeName === confirmedVehicle)?.id;
+      const walkInZoneIds = new Set<number>();
+      zones.forEach(zoneObj => {
+        if (zoneObj.floorId === confirmedFloor && zoneObj.vehicleTypeId === targetVehicleTypeId && (zoneObj.functionType === 'WALK_IN' || zoneObj.zoneType === 'WALK_IN')) {
+          walkInZoneIds.add(zoneObj.id);
+        }
+      });
+      const filteredChartData = chartDataRaw.filter(item => walkInZoneIds.has(item.zoneId));
+
       const payload = {
         vehicleType: confirmedVehicle,
         dateRange: `${selectedTrendDateRange?.[0]?.format('DD/MM/YYYY')} - ${selectedTrendDateRange?.[1]?.format('DD/MM/YYYY')}`,
-        chartData: chartDataRaw,
+        chartData: filteredChartData,
         extraContext,
         isRoutingEnabled: displayRouting,
         currentRules: timeFrames

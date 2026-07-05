@@ -118,7 +118,7 @@ export const CustomerMonthlyPassScreen = () => {
         durationMonths: selectedDuration
       };
       
-      const res = await axiosClient.post('/payments/initialize', {
+      const res = await axiosClient.post('/finance/payments/initialize', {
         actionType: 'CREATE_MONTHLY_TICKET',
         amount: totalFee,
         gateway: selectedGateway,
@@ -167,12 +167,12 @@ export const CustomerMonthlyPassScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
           if (countdown % 3 === 0) {
-            const captureUrl = selectedGateway === 'PAYOS' ? '/payments/payos/capture' : '/payments/paypal/capture';
+            const captureUrl = selectedGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
             axiosClient.post(captureUrl, { token: paymentOrderId })
               .then(res => {
                 if (res.data?.data?.status === 'COMPLETED') {
                   // Execute Business Logic
-                  axiosClient.post('/payments/execute-action', { token: paymentOrderId })
+                  axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
                     .then(execRes => {
                        message.success('Monthly Pass registered successfully!');
                        setIsPaymentSuccess(true);

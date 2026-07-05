@@ -207,6 +207,10 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             derivedWarnings.push(`WRONG FLOOR: The vehicle reserved a spot on ${reservedZone.floorName}, but is entering via a Floor ${activeGate.floorId} gate!`);
           }
         }
+        
+        if (payload.earlyBookingNotice) {
+          derivedWarnings.push(payload.earlyBookingNotice);
+        }
 
         setScanData({
           plateNumber: payload.plateNumber,
@@ -270,7 +274,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       // Auto-log LPR_MISMATCH if the staff edited the plate
       if (scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase()) {
         try {
-          await axiosClient.post('/incidents', {
+          await axiosClient.post('/incident/incident/incidents', {
             issueType: 'LPR_MISMATCH',
             sessionId: response.data.data.sessionId,
             description: `[AUTO] License plate mismatch on ENTRY. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`,

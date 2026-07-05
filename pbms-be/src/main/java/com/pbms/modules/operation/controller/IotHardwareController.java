@@ -33,7 +33,7 @@ import java.util.Map;
 
 @CrossOrigin("*")
 @RestController
-@RequestMapping("/api/v1/iot")
+@RequestMapping("/api/v1/operation/iot/hardware")
 public class IotHardwareController {
 
     private final ZoneMonitoringService zoneMonitoringService;
