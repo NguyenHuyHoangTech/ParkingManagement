@@ -168,16 +168,16 @@ public class IncidentService {
         List<ParkingSession> overstaySessions = sessionRepository.findActiveSessionsOlderThan(cutoff);
 
         for (ParkingSession session : overstaySessions) {
-            boolean hasPendingOverstay = incidentTicketRepository.findBySessionId(session.getId()).stream()
-                    .anyMatch(t -> "OVERSTAY".equals(t.getIssueType()) && !"RESOLVED".equals(t.getStatus()));
+            boolean hasAnyOverstay = incidentTicketRepository.findBySessionId(session.getId()).stream()
+                    .anyMatch(t -> "OVERSTAY".equals(t.getIssueType()));
             
-            if (!hasPendingOverstay) {
+            if (!hasAnyOverstay) {
                 IncidentTicket ticket = IncidentTicket.builder()
                         .session(session)
                         .issueType("OVERSTAY")
                         .priority("HIGH")
-                        .description(String.format("The vehicle has overstayed for more than %d hours (%s: %s)", 
-                                hoursLimit, session.getPlate(), session.getTimeIn().toString()))
+                        .description(String.format("Hệ thống tự động ghi nhận xe đỗ quá hạn (Không áp phí phạt) (%s: %s)", 
+                                session.getPlate(), session.getTimeIn().toString()))
                         .status("PENDING")
                         .build();
                 incidentTicketRepository.save(ticket);
@@ -226,6 +226,22 @@ public class IncidentService {
         return tickets.stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public IncidentTicketDTO acknowledgeOverstay(Long id) {
+        IncidentTicket ticket = incidentTicketRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
+
+        if (!"PENDING".equals(ticket.getStatus()) && !"OVERSTAY".equals(ticket.getIssueType())) {
+            throw new IllegalStateException("Ticket must be PENDING and of type OVERSTAY");
+        }
+
+        ticket.setStatus("RESOLVED");
+        ticket.setResolutionNotes("Xác nhận đã xem bởi nhân viên");
+        ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+        
+        return mapToDTO(incidentTicketRepository.save(ticket));
     }
 
     @Transactional

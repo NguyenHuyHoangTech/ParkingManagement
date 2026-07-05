@@ -349,24 +349,17 @@ export const ExceptionDeskScreen = () => {
       reader.onerror = (error) => reject(error);
     });
 
-  const moveToOverstayMutation = useMutation({
+  const acknowledgeOverstayMutation = useMutation({
     mutationFn: async (id: number) => {
-      let uploadedDocUrl: string | undefined;
-      if (docFile) {
-        uploadedDocUrl = await getBase64Phase2(docFile);
-      }
-      await axiosClient.put(`/incident/incidents/${id}/move-to-overstay`, {
-        uploadedDocUrl
-      });
+      await axiosClient.put(`/incident/incidents/${id}/acknowledge`);
     },
     onSuccess: () => {
-      message.success('✅ Vehicle moved to overstay zone!');
+      message.success('✅ Overstay ticket acknowledged and resolved!');
       setSelectedTicket(null);
-      setDocFile(null);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
     },
     onError: (err: any) => {
-      message.error(err.response?.data?.message || 'Error moving vehicle');
+      message.error(err.response?.data?.message || 'Error acknowledging ticket');
     }
   });
 
@@ -832,46 +825,16 @@ export const ExceptionDeskScreen = () => {
                                                                           </Button>
                       )}
                       {selectedTicket.type === 'OVERSTAY' ? (
-                        <>
-                          <div className="mb-2">
-                            <Text className="text-xs text-gray-500 mb-1 block">Upload photo of car in overstay zone:</Text>
-                            <Upload
-                              beforeUpload={(file) => { setDocFile(file); return false; }}
-                              onRemove={() => setDocFile(null)}
-                              maxCount={1}
-                              listType="picture"
-                            >
-                              <Button icon={<UploadOutlined />} className="w-full">Upload vehicle photo</Button>
-                            </Upload>
-                          </div>
-                          <Button 
-                            type="primary" 
-                            size="large" 
-                            className="w-full font-bold bg-blue-600 h-12 mb-2" 
-                            icon={<CheckCircleOutlined />} 
-                            onClick={() => moveToOverstayMutation.mutate(selectedTicket.id)}
-                            loading={moveToOverstayMutation.isPending}
-                          >
-                            Confirm vehicle moved
-                          </Button>
-                          <Button 
-                            danger 
-                            type="primary"
-                            size="large" 
-                            className="w-full font-bold h-12 mb-2" 
-                            icon={<CloseCircleOutlined />} 
-                            onClick={() => {
-                              Modal.confirm({
-                                title: 'Confirm Blacklist',
-                                content: `Are you sure you want to add license plate ${selectedTicket.plate} to the blacklist?`,
-                                onOk: () => blacklistMutation.mutate(selectedTicket.plate)
-                              });
-                            }}
-                            loading={blacklistMutation.isPending}
-                          >
-                            Add to Blacklist
-                          </Button>
-                        </>
+                        <Button 
+                          type="primary" 
+                          size="large" 
+                          className="w-full font-bold bg-blue-600 h-12 mb-2" 
+                          icon={<CheckCircleOutlined />} 
+                          onClick={() => acknowledgeOverstayMutation.mutate(selectedTicket.id)}
+                          loading={acknowledgeOverstayMutation.isPending}
+                        >
+                          Xác nhận đã xem (Acknowledge)
+                        </Button>
                       ) : !(selectedTicket.type === 'FEE_DISPUTE' && !isManager) && (
                         <Button type="primary" size="large" className="w-full font-bold bg-blue-600 h-12 mb-2" icon={<LockOutlined />} onClick={handleLockSessionPhase1}>
                           {selectedTicket.type === 'LOST_CARD' || selectedTicket.type === 'DAMAGED_CARD' ? 'BROWSE & LOCK SESSION' : 'Confirm Incident'}

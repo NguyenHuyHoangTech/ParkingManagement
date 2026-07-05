@@ -54,7 +54,7 @@ interface Zone {
   vehicleTypeId: number;
   vehicleTypeName?: string;
   vehicleCategory?: string;
-  functionType: 'WALK_IN' | 'IMPOUNDED' | 'MONTHLY';
+  functionType: 'WALK_IN' | 'MONTHLY';
   layoutX: number;
   layoutY: number;
   rotation: number;
@@ -775,7 +775,7 @@ export const SpaceMapScreen = () => {
                     {/* Zone Bounding Box */}
                     <Rect
                       width={zoneW} height={zoneH}
-                      fill={isZoneSelected ? 'rgba(59, 130, 246, 0.15)' : (zone.functionType === 'WALK_IN' ? 'rgba(186, 230, 253, 0.4)' : zone.functionType === 'MONTHLY' ? 'rgba(167, 243, 208, 0.4)' : zone.functionType === 'IMPOUNDED' ? 'rgba(251, 146, 60, 0.4)' : 'rgba(241, 245, 249, 0.6)')}
+                      fill={isZoneSelected ? 'rgba(59, 130, 246, 0.15)' : (zone.functionType === 'WALK_IN' ? 'rgba(186, 230, 253, 0.4)' : zone.functionType === 'MONTHLY' ? 'rgba(167, 243, 208, 0.4)' : 'rgba(241, 245, 249, 0.6)')}
                       stroke={collidingNodeId === String(zone.id) ? '#ef4444' : (isZoneSelected ? '#3b82f6' : '#64748b')}
                       strokeWidth={isZoneSelected ? 3 : 2}
                       dash={collidingNodeId === String(zone.id) ? [10, 5] : []}
@@ -1071,7 +1071,6 @@ export const SpaceMapScreen = () => {
                     >
                       <Select.Option value="WALK_IN">Walk-in</Select.Option>
                       <Select.Option value="MONTHLY">Monthly Pass (Monthly)</Select.Option>
-                      <Select.Option value="IMPOUNDED">Impounded</Select.Option>
                       <Select.Option value="BACKUP">Backup</Select.Option>
                     </Select>
                   </div>

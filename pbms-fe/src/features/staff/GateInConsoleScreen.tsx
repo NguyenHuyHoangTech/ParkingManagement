@@ -680,7 +680,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                           <Rect
                             width={zoneW}
                             height={zoneH}
-                            fill={zone.functionType === 'WALK_IN' ? 'rgba(186, 230, 253, 0.4)' : zone.functionType === 'MONTHLY' ? 'rgba(167, 243, 208, 0.4)' : zone.functionType === 'IMPOUNDED' ? 'rgba(251, 146, 60, 0.4)' : 'rgba(241, 245, 249, 0.6)'}
+                            fill={zone.functionType === 'WALK_IN' ? 'rgba(186, 230, 253, 0.4)' : zone.functionType === 'MONTHLY' ? 'rgba(167, 243, 208, 0.4)' : 'rgba(241, 245, 249, 0.6)'}
                             stroke="#64748b"
                             strokeWidth={2}
                           />

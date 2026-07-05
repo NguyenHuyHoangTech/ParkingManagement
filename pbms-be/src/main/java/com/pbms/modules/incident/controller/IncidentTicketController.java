@@ -54,6 +54,16 @@ public class IncidentTicketController {
         }
     }
 
+    @PutMapping("/{id}/acknowledge")
+    public ResponseEntity<ApiResponse<com.pbms.modules.incident.dto.IncidentTicketDTO>> acknowledgeOverstay(@PathVariable Long id) {
+        try {
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.acknowledgeOverstay(id);
+            return ResponseEntity.ok(ApiResponse.success(dto, "Incident acknowledged successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
+        }
+    }
+
     @PutMapping("/{id}/resolve")
     public ResponseEntity<ApiResponse<com.pbms.modules.incident.dto.IncidentTicketDTO>> resolveIncident(
             @PathVariable Long id,

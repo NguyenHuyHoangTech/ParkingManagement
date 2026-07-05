@@ -278,7 +278,6 @@ public class ZoneRoutingService {
         List<Zone> zones = zoneRepository.findAll().stream()
                 .filter(z -> z.getVehicleType() != null && z.getVehicleType().getId().equals(vehicleTypeId) && "ACTIVE".equals(z.getStatus()))
                 .filter(z -> floorId == null || (z.getFloor() != null && z.getFloor().getId().equals(floorId)))
-                .filter(z -> !"IMPOUNDED".equalsIgnoreCase(z.getFunctionType()))
                 .filter(z -> {
                     if (!"MONTHLY".equalsIgnoreCase(customerType)) {
                         return "WALK_IN".equalsIgnoreCase(z.getFunctionType());

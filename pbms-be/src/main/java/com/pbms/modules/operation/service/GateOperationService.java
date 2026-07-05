@@ -641,7 +641,8 @@ public class GateOperationService {
 
         BigDecimal penaltyFee = BigDecimal.ZERO;
         List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = incidentTicketRepository.findBySessionId(session.getId()).stream()
-                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()))
+                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()) || 
+                            ("PENDING".equals(t.getStatus()) && "OVERSTAY".equals(t.getIssueType())))
                 .collect(java.util.stream.Collectors.toList());
 
         for (com.pbms.modules.incident.domain.IncidentTicket t : waitingTickets) {
@@ -649,6 +650,7 @@ public class GateOperationService {
                 penaltyFee = penaltyFee.add(t.getFineAmount());
             }
             t.setStatus("RESOLVED");
+            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Tự động đóng do xe đã xuất bãi thành công" : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             incidentTicketRepository.save(t);
         }

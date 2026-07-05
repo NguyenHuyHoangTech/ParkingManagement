@@ -259,11 +259,6 @@ export const OperationalDashboardScreen = () => {
                     dataGroups = [
                       { value: stat.occupiedMonthly || stat.occupied_monthly || 0, color: '#722ed1', label: 'Monthly' }
                     ];
-                  } else if (gaugeSegment === 'INCIDENT') {
-                    capacity = stat.capacityIncident || stat.capacity_incident || 0;
-                    dataGroups = [
-                      { value: stat.occupiedIncident || stat.occupied_incident || 0, color: '#f5222d', label: 'Incident' }
-                    ];
                   }
 
                   return (

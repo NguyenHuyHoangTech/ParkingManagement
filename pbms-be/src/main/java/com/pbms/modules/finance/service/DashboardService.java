@@ -102,12 +102,12 @@ public class DashboardService {
                 v.type_name as name, 
                 (SELECT COUNT(s.id) FROM slots s JOIN zones z ON s.zone_id = z.id WHERE z.vehicle_type_id = v.id AND z.status = 'ACTIVE' AND (z.function_type = 'WALK_IN' OR z.function_type = 'ALL')) as capacity_walk_in,
                 (SELECT COUNT(s.id) FROM slots s JOIN zones z ON s.zone_id = z.id WHERE z.vehicle_type_id = v.id AND z.status = 'ACTIVE' AND (z.function_type = 'MONTHLY' OR z.function_type = 'ALL')) as capacity_monthly,
-                (SELECT COUNT(s.id) FROM slots s JOIN zones z ON s.zone_id = z.id WHERE z.vehicle_type_id = v.id AND z.status = 'ACTIVE' AND z.function_type = 'IMPOUNDED') as capacity_incident,
+                0 as capacity_incident,
                 (SELECT COUNT(s.id) FROM slots s JOIN zones z ON s.zone_id = z.id WHERE z.vehicle_type_id = v.id AND z.status = 'ACTIVE') as capacity_total,
                 (SELECT COUNT(ps.id) FROM parking_sessions ps WHERE ps.vehicle_type_id = v.id AND ps.status = 'ACTIVE' AND ps.reservation_id IS NULL AND NOT EXISTS (SELECT 1 FROM monthly_tickets mt WHERE mt.plate = ps.plate AND mt.status = 'ACTIVE' AND ps.time_in BETWEEN mt.valid_from AND mt.valid_until) AND NOT EXISTS (SELECT 1 FROM incident_tickets it WHERE it.session_id = ps.id AND it.issue_type = 'OVERSTAY' AND it.status = 'RESOLVED')) as occupied_walk_in,
                 (SELECT COUNT(ps.id) FROM parking_sessions ps WHERE ps.vehicle_type_id = v.id AND ps.status = 'ACTIVE' AND ps.reservation_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM incident_tickets it WHERE it.session_id = ps.id AND it.issue_type = 'OVERSTAY' AND it.status = 'RESOLVED')) as occupied_booking,
                 (SELECT COUNT(ps.id) FROM parking_sessions ps WHERE ps.vehicle_type_id = v.id AND ps.status = 'ACTIVE' AND EXISTS (SELECT 1 FROM monthly_tickets mt WHERE mt.plate = ps.plate AND mt.status = 'ACTIVE' AND ps.time_in BETWEEN mt.valid_from AND mt.valid_until) AND NOT EXISTS (SELECT 1 FROM incident_tickets it WHERE it.session_id = ps.id AND it.issue_type = 'OVERSTAY' AND it.status = 'RESOLVED')) as occupied_monthly,
-                (SELECT COUNT(ps.id) FROM parking_sessions ps WHERE ps.vehicle_type_id = v.id AND ps.status = 'ACTIVE' AND EXISTS (SELECT 1 FROM incident_tickets it WHERE it.session_id = ps.id AND it.issue_type = 'OVERSTAY' AND it.status = 'RESOLVED')) as occupied_incident
+                0 as occupied_incident
             FROM vehicle_types v
             WHERE v.status = 'ACTIVE'
         """;
