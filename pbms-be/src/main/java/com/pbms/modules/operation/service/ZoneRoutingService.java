@@ -105,6 +105,19 @@ public class ZoneRoutingService {
                 .divide(BigDecimal.valueOf(effectiveCapacity), 2, RoundingMode.HALF_UP);
     }
 
+    public boolean isZonePhysicallyFull(Long zoneId) {
+        long totalSlots = slotRepository.countByZoneId(zoneId);
+        if (totalSlots == 0) return true;
+
+        long disabledSlots = slotRepository.countByZoneIdAndStatus(zoneId, "DISABLED");
+        long effectiveCapacity = totalSlots - disabledSlots;
+        
+        if (effectiveCapacity <= 0) return true;
+
+        long occupiedSlots = slotRepository.countByZoneIdAndStatus(zoneId, "OCCUPIED");
+        return occupiedSlots >= effectiveCapacity;
+    }
+
     /**
      * Suggests the best zone for a given vehicle type based on the sliding threshold algorithm.
      */

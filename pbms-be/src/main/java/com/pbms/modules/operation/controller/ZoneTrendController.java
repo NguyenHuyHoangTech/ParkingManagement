@@ -1,8 +1,8 @@
-package com.pbms.modules.incident.controller;
+package com.pbms.modules.operation.controller;
 
 import com.pbms.common.dto.ApiResponse;
-import com.pbms.modules.incident.dto.ZoneTrendDTO;
-import com.pbms.modules.incident.service.ZoneTrendService;
+import com.pbms.modules.operation.dto.ZoneTrendDTO;
+import com.pbms.modules.operation.service.ZoneTrendService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -40,4 +40,3 @@ public class ZoneTrendController {
         ));
     }
 }
-

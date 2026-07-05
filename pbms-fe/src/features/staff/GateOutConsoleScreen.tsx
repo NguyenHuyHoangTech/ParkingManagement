@@ -237,7 +237,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       // Auto-log LPR_MISMATCH if the staff edited the plate
       if (scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase()) {
         try {
-          await axiosClient.post('/incident/incident/incidents', {
+          await axiosClient.post('/incident/incidents', {
             issueType: 'LPR_MISMATCH',
             sessionId: scanData.sessionId || response.data.data.sessionId,
             description: `[AUTO] License plate mismatch on EXIT. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`,

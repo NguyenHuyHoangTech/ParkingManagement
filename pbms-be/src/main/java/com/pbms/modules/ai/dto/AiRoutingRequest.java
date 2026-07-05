@@ -1,6 +1,6 @@
 package com.pbms.modules.ai.dto;
 
-import com.pbms.modules.incident.dto.ZoneTrendDTO;
+import com.pbms.modules.operation.dto.ZoneTrendDTO;
 import lombok.Data;
 
 import java.util.List;

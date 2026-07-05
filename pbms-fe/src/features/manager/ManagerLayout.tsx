@@ -47,7 +47,7 @@ export const ManagerLayout = () => {
         label: 'Overview',
         icon: <DashboardOutlined />,
         children: [
-          { key: '/manager/finance/revenue-dashboard', label: 'Revenue Dashboard' },
+          { key: '/manager/revenue-dashboard', label: 'Revenue Dashboard' },
           { key: '/manager/operational-dashboard', label: 'Operate Dashboard' },
         ],
       },
@@ -58,7 +58,7 @@ export const ManagerLayout = () => {
         children: [
           { key: '/manager/space-map', label: 'Space Map', icon: <BlockOutlined /> },
           { key: '/manager/routing', label: 'Routing', icon: <NodeIndexOutlined /> },
-          { key: '/manager/incident/incidents', label: 'Incident Management', icon: <WarningOutlined /> },
+          { key: '/manager/incidents', label: 'Incident Management', icon: <WarningOutlined /> },
         ],
       },
       {

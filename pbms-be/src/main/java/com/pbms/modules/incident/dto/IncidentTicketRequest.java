@@ -48,4 +48,8 @@ public class IncidentTicketRequest {
 
     /** (Dành cho sự cố LOST_CARD) URL của giấy tờ tùy thân khách hàng đã tải lên để xác minh */
     private String uploadedDocUrl; 
+
+    /** ID loại phương tiện được yêu cầu xác thực */
+    @jakarta.validation.constraints.NotNull(message = "Vehicle type is required")
+    private Long vehicleTypeId;
 }

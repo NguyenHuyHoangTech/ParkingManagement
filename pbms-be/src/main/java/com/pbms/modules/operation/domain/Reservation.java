@@ -37,8 +37,6 @@ public class Reservation extends BaseEntity {
     @Column(name = "reservation_fee", nullable = false, precision = 18, scale = 2)
     private BigDecimal reservationFee;
 
-    @Column(name = "qr_code", unique = true)
-    private String qrCode;
 
     @Column(name = "notified_early_arrival")
     private Boolean notifiedEarlyArrival;

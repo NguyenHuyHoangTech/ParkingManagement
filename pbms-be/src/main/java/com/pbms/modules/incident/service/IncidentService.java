@@ -48,6 +48,15 @@ public class IncidentService {
                     .orElse(null);
         }
 
+        if (session != null) {
+            if (request.getVehicleTypeId() == null) {
+                throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            }
+            if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(request.getVehicleTypeId())) {
+                throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");
+            }
+        }
+
         com.pbms.modules.identity.domain.User user = null;
         if (email != null && !email.isBlank()) {
             user = userRepository.findByEmail(email).orElse(null);
@@ -435,10 +444,17 @@ public class IncidentService {
      * Staff xu ly mat the: Danh dau the LOST + tinh phat
      */
     @Transactional
-    public IncidentTicketDTO createLostCardIncident(String plate, BigDecimal fee, String description, String uploadedDocUrl, String email) {
+    public IncidentTicketDTO createLostCardIncident(String plate, BigDecimal fee, String description, String uploadedDocUrl, String email, Long vehicleTypeId) {
         ParkingSession session = sessionRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Khong tim thay phien do xe ACTIVE cho bien so: " + plate));
+
+        if (vehicleTypeId == null) {
+             throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+        }
+        if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
+             throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");
+        }
 
         // Danh dau the bi mat
         if (session.getRfidCard() != null) {
@@ -577,11 +593,14 @@ public class IncidentService {
                 .build();
     }
     @Transactional(readOnly = true)
-    public java.util.Map<String, Object> checkPlateActiveInfo(String plate) {
+    public java.util.Map<String, Object> checkPlateActiveInfo(String plate, Long vehicleTypeId) {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("isActive", false);
         sessionRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
                 .ifPresent(session -> {
+                    if (vehicleTypeId != null && session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
+                        return;
+                    }
                     result.put("isActive", true);
                     result.put("vehicleType", session.getVehicleType() != null ? session.getVehicleType().getTypeName() : "Unknown");
                 });
@@ -589,12 +608,15 @@ public class IncidentService {
     }
 
     @Transactional(readOnly = true)
-    public java.util.Map<String, Object> checkPlateAndRfidActiveInfo(String plate, String rfid) {
+    public java.util.Map<String, Object> checkPlateAndRfidActiveInfo(String plate, String rfid, Long vehicleTypeId) {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("isActive", false);
         sessionRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
                 .filter(session -> session.getRfidCard() != null && session.getRfidCard().getCardCode().equals(rfid.trim()))
                 .ifPresent(session -> {
+                    if (vehicleTypeId != null && session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
+                        return;
+                    }
                     result.put("isActive", true);
                     result.put("vehicleType", session.getVehicleType() != null ? session.getVehicleType().getTypeName() : "Unknown");
                 });

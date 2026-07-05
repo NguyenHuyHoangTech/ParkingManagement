@@ -22,10 +22,10 @@ public class MonthlyTicket extends BaseEntity {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_type_id")
+    @JoinColumn(name = "vehicle_type_id", nullable = false)
     private VehicleType vehicleType;
 
-    @Column(name = "plate", length = 50)
+    @Column(name = "plate", length = 50, nullable = false)
     private String plate;
 
     @ManyToOne(fetch = FetchType.LAZY)

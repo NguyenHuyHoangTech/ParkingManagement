@@ -21,7 +21,7 @@ public class IoTAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         
         String path = request.getServletPath();
-        if (path.startsWith("/api/v1/iot/")) {
+        if (path.startsWith("/api/v1/operation/iot/") || path.startsWith("/api/v1/iot/")) {
             String apiKey = request.getHeader("X-API-KEY");
             if (apiKey == null || !apiKey.equals(expectedApiKey)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

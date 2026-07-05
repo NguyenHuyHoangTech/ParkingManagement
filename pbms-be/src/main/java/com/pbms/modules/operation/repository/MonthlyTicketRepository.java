@@ -16,8 +16,8 @@ public interface MonthlyTicketRepository extends JpaRepository<MonthlyTicket, Lo
 
     long countByStatus(String status);
 
-    @org.springframework.data.jpa.repository.Query("SELECT COUNT(m) FROM MonthlyTicket m JOIN ParkingSession p ON m.plate = p.plate WHERE m.status = 'ACTIVE' AND p.status = 'ACTIVE'")
-    long countActiveMonthlyTicketsInside();
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(m) FROM MonthlyTicket m JOIN ParkingSession p ON m.plate = p.plate WHERE m.status = 'ACTIVE' AND p.status = 'ACTIVE' AND m.vehicleType.id = :vehicleTypeId")
+    long countActiveMonthlyTicketsInsideByVehicleType(@org.springframework.data.repository.query.Param("vehicleTypeId") Long vehicleTypeId);
 
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("UPDATE MonthlyTicket m SET m.status = 'EXPIRED', m.updatedAt = :now WHERE m.status = 'ACTIVE' AND m.validUntil < :now")

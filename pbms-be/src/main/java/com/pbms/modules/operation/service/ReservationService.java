@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
+
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -73,8 +73,50 @@ public class ReservationService {
         return pricingCalculatorService.calculateTotalFee(vehicleTypeId, expectedEntryTime, expectedExitTime);
     }
 
+    public void validateCreateReservation(CreateReservationRequest request) {
+        if (request.getVehicleTypeId() == null) {
+            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+        }
+        if (request.getPlateNumber() == null || request.getPlateNumber().trim().isEmpty()) {
+            throw new IllegalArgumentException("Biển số xe không được để trống.");
+        }
+
+
+
+        Vehicle vehicle = vehicleRepository.findByPlateNumber(request.getPlateNumber()).orElse(null);
+
+        if (vehicle != null) {
+            if (vehicle.getVehicleType() != null && !vehicle.getVehicleType().getId().equals(request.getVehicleTypeId())) {
+                throw new IllegalStateException("Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+            }
+            if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
+                throw new IllegalStateException("Cannot make a reservation because the vehicle is in the Blacklist.");
+            }
+        }
+
+        List<Reservation> existing = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+        if (!existing.isEmpty()) {
+            throw new IllegalStateException("Vehicle already has a pending reservation.");
+        }
+
+        List<com.pbms.modules.operation.domain.ParkingSession> activeSessions = parkingSessionRepository.findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").stream().toList();
+        if (!activeSessions.isEmpty()) {
+            throw new IllegalStateException("Phương tiện này hiện đang ở trong bãi, không thể đặt chỗ.");
+        }
+
+        Zone zone = zoneRepository.findById(request.getZoneId())
+                .orElseThrow(() -> new RuntimeException("Zone not found"));
+                
+        BigDecimal occupancy = zoneRoutingService.calculateZoneOccupancy(zone.getId());
+        if (occupancy.compareTo(BigDecimal.valueOf(100)) >= 0) {
+            throw new IllegalStateException("Zone is full. Cannot make a reservation.");
+        }
+    }
+
     @Transactional
     public ReservationDTO createReservation(CreateReservationRequest request) {
+        validateCreateReservation(request);
+
         String email = SecurityContextHolder.getContext().getAuthentication() != null ? SecurityContextHolder.getContext().getAuthentication().getName() : null;
         User currentUser = email != null ? userRepository.findByEmail(email).orElse(null) : null;
 
@@ -96,27 +138,12 @@ public class ReservationService {
             vehicleRepository.save(vehicle);
         }
 
-        // Check if there's an active or pending reservation for this vehicle
-        List<Reservation> existing = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
-        if (!existing.isEmpty()) {
-            throw new IllegalStateException("Vehicle already has a pending reservation.");
-        }
-
-        if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
-            throw new IllegalStateException("Cannot make a reservation because the vehicle is in the Blacklist.");
-        }
-
         // 2. Calculate Price dynamically
         BigDecimal fee = previewPrice(request.getVehicleTypeId(), request.getExpectedEntryTime(), request.getExpectedDurationMinutes());
 
-        // 3. Find Zone and Check Capacity
+        // 3. Find Zone
         Zone zone = zoneRepository.findById(request.getZoneId())
                 .orElseThrow(() -> new RuntimeException("Zone not found"));
-                
-        BigDecimal occupancy = zoneRoutingService.calculateZoneOccupancy(zone.getId());
-        if (occupancy.compareTo(BigDecimal.valueOf(100)) >= 0) {
-            throw new IllegalStateException("Zone is full. Cannot make a reservation.");
-        }
 
         // 4. Create Reservation
         Reservation reservation = Reservation.builder()
@@ -126,7 +153,6 @@ public class ReservationService {
                 .expectedDurationMinutes(request.getExpectedDurationMinutes())
                 .status("PENDING") // PENDING means paid but hasn't entered
                 .reservationFee(fee)
-                .qrCode("QR-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .build();
         
         if (reservation.getCreatedAt() == null) {
@@ -337,10 +363,25 @@ public class ReservationService {
 
         if (res.getZone() != null && res.getZone().getFloor() != null) {
             Long floorId = res.getZone().getFloor().getId();
-            String message = String.format("Vehicle %s is arriving soon for reservation at Zone %s.",
-                    res.getVehicle().getPlateNumber(), res.getZone().getZoneName());
-            Object payload = java.util.Map.of("message", message, "plateNumber", res.getVehicle().getPlateNumber(), "zoneName", res.getZone().getZoneName());
-            messagingTemplate.convertAndSend("/topic/floors/" + floorId + "/notifications", payload);
+            if (zoneRoutingService.isZonePhysicallyFull(res.getZone().getId())) {
+                String message = String.format("Zone %s is FULL but vehicle %s is arriving soon. Please resolve this conflict.",
+                        res.getZone().getZoneName(), res.getVehicle().getPlateNumber());
+                Object payload = java.util.Map.of(
+                        "type", "ZONE_CONFLICT",
+                        "reservationId", res.getId(),
+                        "plate", res.getVehicle().getPlateNumber(),
+                        "customer", res.getVehicle() != null && res.getVehicle().getUser() != null ? res.getVehicle().getUser().getFullName() : "Guest",
+                        "zoneName", res.getZone().getZoneName(),
+                        "vehicleTypeId", res.getVehicle().getVehicleType().getId(),
+                        "message", message
+                );
+                messagingTemplate.convertAndSend("/topic/staff/notifications", payload);
+            } else {
+                String message = String.format("Vehicle %s is arriving soon for reservation at Zone %s.",
+                        res.getVehicle().getPlateNumber(), res.getZone().getZoneName());
+                Object payload = java.util.Map.of("message", message, "plateNumber", res.getVehicle().getPlateNumber(), "zoneName", res.getZone().getZoneName());
+                messagingTemplate.convertAndSend("/topic/floors/" + floorId + "/notifications", payload);
+            }
         }
     }
 
@@ -381,6 +422,9 @@ public class ReservationService {
                 res.setStatus("COMPLETED_UNUSED");
                 reservationRepository.save(res);
                 saveNoShowPenalty(res, now);
+                
+                messagingTemplate.convertAndSend("/topic/staff/notifications", 
+                    String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Reservation expired.\"}", res.getId()));
             }
         }
     }
@@ -479,13 +523,12 @@ public class ReservationService {
                 .refundStatus(reservation.getRefundStatus())
                 .refundProofUrl(reservation.getRefundProofUrl())
                 .refundRejectReason(reservation.getRefundRejectReason())
-                .qrCode(reservation.getQrCode())
                 .createdAt(reservation.getCreatedAt())
                 .build();
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public ReservationDTO resolveZone(Long reservationId, Long newZoneId) {
+    public ReservationDTO retryZoneAssignment(Long reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
                 
@@ -493,15 +536,12 @@ public class ReservationService {
             throw new IllegalStateException("Reservation is not PENDING");
         }
 
-        Zone newZone = zoneRepository.findById(newZoneId)
-                .orElseThrow(() -> new IllegalArgumentException("Zone not found"));
-
-        if (!newZone.getVehicleType().getId().equals(reservation.getVehicle().getVehicleType().getId())) {
-            throw new IllegalArgumentException("Zone vehicle type does not match reservation vehicle type");
+        if (zoneRoutingService.isZonePhysicallyFull(reservation.getZone().getId())) {
+            throw new IllegalStateException("Zone is still full!");
         }
 
-        reservation.setZone(newZone);
-        reservationRepository.save(reservation);
+        messagingTemplate.convertAndSend("/topic/staff/notifications", 
+            String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Retry successful.\"}", reservation.getId()));
 
         return mapToDTO(reservation);
     }

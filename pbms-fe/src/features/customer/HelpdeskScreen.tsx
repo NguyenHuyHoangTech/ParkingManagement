@@ -64,7 +64,19 @@ export const HelpdeskScreen = () => {
     queryKey: ['incidents'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/incident/incident/incidents');
+        const res = await axiosClient.get('/incident/incidents');
+        return res.data.data || [];
+      } catch (err) {
+        return [];
+      }
+    }
+  });
+
+  const { data: vehicleTypes = [] } = useQuery({
+    queryKey: ['vehicleTypes'],
+    queryFn: async () => {
+      try {
+        const res = await axiosClient.get('/operation/vehicle-types');
         return res.data.data || [];
       } catch (err) {
         return [];
@@ -76,13 +88,14 @@ export const HelpdeskScreen = () => {
     mutationFn: async (payload: any) => {
       let res;
       if (payload.issueType === 'LOST_CARD') {
-        res = await axiosClient.post('/incident/incident/incidents/lost-card', { 
+        res = await axiosClient.post('/incident/incidents/lost-card', { 
           plate: payload.plate, 
           description: payload.description,
-          uploadedDocUrl: payload.uploadedDocUrl
+          uploadedDocUrl: payload.uploadedDocUrl,
+          vehicleTypeId: payload.vehicleTypeId
         });
       } else {
-        res = await axiosClient.post('/incident/incident/incidents', payload);
+        res = await axiosClient.post('/incident/incidents', payload);
       }
       return res.data;
     },
@@ -98,6 +111,12 @@ export const HelpdeskScreen = () => {
       return;
     }
     
+    const vehicleTypeId = form.getFieldValue('vehicleTypeId');
+    if (!vehicleTypeId) {
+      message.warning('Please select Vehicle Type to check');
+      return;
+    }
+
     const isLostOrDamaged = selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD';
     let rfid = '';
     if (!isLostOrDamaged) {
@@ -112,9 +131,9 @@ export const HelpdeskScreen = () => {
     try {
       let res;
       if (isLostOrDamaged) {
-        res = await axiosClient.get(`/incident/incidents/check-plate?plate=${encodeURIComponent(plate)}`);
+        res = await axiosClient.get(`/incident/incidents/check-plate?plate=${encodeURIComponent(plate)}&vehicleTypeId=${vehicleTypeId}`);
       } else {
-        res = await axiosClient.get(`/incident/incidents/check-plate-rfid?plate=${encodeURIComponent(plate)}&rfid=${encodeURIComponent(rfid)}`);
+        res = await axiosClient.get(`/incident/incidents/check-plate-rfid?plate=${encodeURIComponent(plate)}&rfid=${encodeURIComponent(rfid)}&vehicleTypeId=${vehicleTypeId}`);
       }
       
       if (res.data?.data) {
@@ -147,14 +166,17 @@ export const HelpdeskScreen = () => {
     setSystemMessage(null);
     let mockUrl = '';
     
+    if (['LOST_CARD', 'DAMAGED_CARD', 'SLOT_OCCUPIED'].includes(values.category) && !uploadedFile) {
+      message.error('Please upload required evidence images');
+      return;
+    }
+
     try {
       if (values.category === 'DAMAGED_CARD') {
         const urls = [];
         if (uploadedFile) urls.push(await getBase64(uploadedFile));
-        // Omit default URLs in production
         
         if (uploadedFile2) urls.push(await getBase64(uploadedFile2));
-        // Omit default URLs in production
         
         mockUrl = urls.join('|');
       } else {
@@ -166,6 +188,7 @@ export const HelpdeskScreen = () => {
       await createIncidentMutation.mutateAsync({
         issueType: values.category,
         plate: values.plate,
+        vehicleTypeId: values.vehicleTypeId,
         description: `BKS: ${values.plate} - ${values.description || ''}`,
         priority: values.category === 'LOST_CARD' ? 'HIGH' : 'MEDIUM',
         uploadedDocUrl: mockUrl
@@ -299,6 +322,23 @@ export const HelpdeskScreen = () => {
                 {selectedCategory && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-slate-50 p-4 md:p-6 rounded-xl border border-slate-200 mb-6 animate-fade-in-up">
                     
+                    {/* Vehicle Type - Required */}
+                    <Form.Item 
+                      name="vehicleTypeId" 
+                      label="Vehicle Type" 
+                      rules={[{ required: true, message: 'Please select vehicle type' }]}
+                      className="mb-0 col-span-1 md:col-span-2"
+                    >
+                      <Select 
+                        size="large" 
+                        placeholder="Select vehicle type" 
+                        className="h-12"
+                        options={vehicleTypes.map((vt: any) => ({ value: vt.id, label: vt.typeName }))}
+                        disabled={isCheckingPlate} 
+                        onChange={() => setIsPlateVerified(false)}
+                      />
+                    </Form.Item>
+
                     {/* License Plate XE - Always required */}
                     <Form.Item 
                       label="Actual vehicle License Plate"

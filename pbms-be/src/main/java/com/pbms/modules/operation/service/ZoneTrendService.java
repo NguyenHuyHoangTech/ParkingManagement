@@ -1,10 +1,10 @@
-package com.pbms.modules.incident.service;
+package com.pbms.modules.operation.service;
 
-import com.pbms.modules.incident.domain.ZoneHourlyTrend;
-import com.pbms.modules.incident.dto.ZoneTrendDTO;
-import com.pbms.modules.incident.repository.ZoneHourlyTrendRepository;
+import com.pbms.modules.operation.domain.ZoneHourlyTrend;
+import com.pbms.modules.operation.dto.ZoneTrendDTO;
+import com.pbms.modules.operation.repository.ZoneHourlyTrendRepository;
 import com.pbms.modules.infrastructure.repository.ZoneRepository;
-import com.pbms.modules.operation.service.ZoneRoutingService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,4 +118,3 @@ public class ZoneTrendService {
         return result;
     }
 }
-

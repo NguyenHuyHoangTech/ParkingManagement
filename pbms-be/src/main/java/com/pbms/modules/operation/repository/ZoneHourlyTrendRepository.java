@@ -1,6 +1,6 @@
-package com.pbms.modules.incident.repository;
+package com.pbms.modules.operation.repository;
 
-import com.pbms.modules.incident.domain.ZoneHourlyTrend;
+import com.pbms.modules.operation.domain.ZoneHourlyTrend;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

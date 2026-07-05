@@ -264,7 +264,9 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         vehicleType: scanData.vehicleType || 'CAR',
         rfid: scanData.rfid,
         imageBase64: scanData.imageBase64,
-        lprImageBase64: scanData.lprImageBase64
+        lprImageBase64: scanData.lprImageBase64,
+        suggestedZoneName: scanData.routing,
+        suggestedZoneId: scanData.suggestedZoneId
       };
       const response = await axiosClient.post('/operation/gates/check-in', payload);
 
@@ -274,7 +276,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       // Auto-log LPR_MISMATCH if the staff edited the plate
       if (scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase()) {
         try {
-          await axiosClient.post('/incident/incident/incidents', {
+          await axiosClient.post('/incident/incidents', {
             issueType: 'LPR_MISMATCH',
             sessionId: response.data.data.sessionId,
             description: `[AUTO] License plate mismatch on ENTRY. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`,
@@ -479,10 +481,20 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         {/* REAL-TIME ZONE STATUS */}
         <div className="bg-white border border-slate-300 shadow-sm rounded-xl p-2 flex-1 overflow-y-auto custom-scrollbar flex flex-col min-h-0 relative">
           <Text className="text-blue-600 text-[10px] font-bold tracking-widest block uppercase mb-1 sticky top-0 bg-white z-10">Real-time Zone Coordination</Text>
-          {scanData?.routing && (
-            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-3 mb-2 flex flex-col items-center justify-center shadow-sm min-h-[80px] shrink-0">
+          {scanData && (
+            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-3 mb-2 flex flex-col items-center justify-center shadow-sm min-h-[80px] shrink-0 relative">
               <Text className="text-green-600 text-[12px] uppercase font-bold tracking-widest mb-1">Suggested Route:</Text>
-              <div className="text-3xl font-black text-green-800 truncate w-full text-center tracking-tight">{scanData.routing}</div>
+              <div className="text-3xl font-black text-green-800 truncate w-full text-center tracking-tight">{scanData.routing || 'Free'}</div>
+              <Button 
+                size="small" 
+                className={`absolute top-2 right-2 font-bold ${(!scanData.routing || scanData.routing === 'Free') ? '' : 'border-green-600 text-green-600'}`}
+                disabled={!scanData.routing || scanData.routing === 'Free'}
+                onClick={() => {
+                    setScanData({...scanData, routing: 'Free', suggestedZoneId: undefined});
+                }}
+              >
+                Đổi sang Free
+              </Button>
             </div>
           )}
 

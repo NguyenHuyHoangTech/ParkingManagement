@@ -38,7 +38,7 @@ const RevenueDashboardScreen: React.FC = () => {
   const { data: masterData = [], isLoading } = useQuery({
     queryKey: ['revenue-dashboard', appliedDateRange],
     queryFn: async () => {
-      const res = await axiosClient.get(`/finance/revenue/finance/dashboard?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}`);
+      const res = await axiosClient.get(`/finance/revenue/dashboard?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}`);
       return res.data.data as RevenueRecord[];
     }
   });

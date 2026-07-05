@@ -1,4 +1,4 @@
-package com.pbms.modules.incident.domain;
+package com.pbms.modules.operation.domain;
 
 import com.pbms.modules.infrastructure.domain.Zone;
 import jakarta.persistence.*;
@@ -39,4 +39,3 @@ public class ZoneHourlyTrend {
     @Column(name = "exits_count", nullable = false)
     private Integer exitsCount;
 }
-

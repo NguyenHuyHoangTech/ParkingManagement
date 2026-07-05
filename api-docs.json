@@ -1,0 +1,1 @@
+{"status":"ERROR","code":500,"message":"An unexpected error occurred: Handler dispatch failed: java.lang.NoSuchMethodError: 'void org.springframework.web.method.ControllerAdviceBean.<init>(java.lang.Object)'","data":null,"timestamp":"2026-08-08T14:00:39.9068725"}

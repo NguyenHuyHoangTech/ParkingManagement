@@ -131,18 +131,53 @@ public class MonthlyTicketService {
         return false;
     }
 
-    @Transactional
-    public MonthlyTicketDTO createTicket(Map<String, Object> payload) {
+    public void validateCreateTicket(Map<String, Object> payload) {
         String plate = (String) payload.get("plateNumber");
+        if (plate == null || plate.trim().isEmpty()) {
+            throw new IllegalArgumentException("Biển số xe không được để trống.");
+        }
+        
+        Long vehicleTypeId = payload.get("vehicleTypeId") != null
+                ? Long.parseLong(payload.get("vehicleTypeId").toString())
+                : null;
+        if (vehicleTypeId == null) {
+            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+        }
+
         if (isVehicleInside(plate)) {
             throw new IllegalArgumentException("Cannot register a monthly ticket because the vehicle with plate "
                     + plate + " is currently inside the parking lot.");
         }
 
         com.pbms.modules.operation.domain.Vehicle vehicle = vehicleRepository.findByPlateNumber(plate).orElse(null);
-        if (vehicle != null && Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
-            throw new IllegalArgumentException("Cannot register a monthly ticket because the vehicle is in the Blacklist.");
+        if (vehicle != null) {
+            if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
+                throw new IllegalArgumentException("Cannot register a monthly ticket because the vehicle is in the Blacklist.");
+            }
+            if (vehicle.getVehicleType() != null && !vehicle.getVehicleType().getId().equals(vehicleTypeId)) {
+                throw new IllegalArgumentException("Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+            }
         }
+    }
+
+    public void validateRenewTicket(Long id, int durationMonths) {
+        MonthlyTicket ticket = monthlyTicketRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        boolean isExpired = "EXPIRED".equals(ticket.getStatus())
+                || ticket.getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now());
+        if (isExpired && isVehicleInside(ticket.getPlate())) {
+            throw new IllegalArgumentException(
+                    "The monthly ticket is expired, and the vehicle is currently inside the parking lot. Please exit the parking lot before renewing.");
+        }
+    }
+
+    @Transactional
+    public MonthlyTicketDTO createTicket(Map<String, Object> payload) {
+        validateCreateTicket(payload);
+
+        String plate = (String) payload.get("plateNumber");
+
 
         Long vehicleTypeId = payload.get("vehicleTypeId") != null
                 ? Long.parseLong(payload.get("vehicleTypeId").toString())
@@ -195,15 +230,10 @@ public class MonthlyTicketService {
 
     @Transactional
     public MonthlyTicketDTO renewTicket(Long id, int durationMonths) {
+        validateRenewTicket(id, durationMonths);
+        
         MonthlyTicket ticket = monthlyTicketRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
-
-        boolean isExpired = "EXPIRED".equals(ticket.getStatus())
-                || ticket.getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now());
-        if (isExpired && isVehicleInside(ticket.getPlate())) {
-            throw new IllegalArgumentException(
-                    "The monthly ticket is expired, and the vehicle is currently inside the parking lot. Please exit the parking lot before renewing.");
-        }
 
         LocalDateTime newEndDate;
         if (ticket.getValidUntil().isAfter(com.pbms.common.utils.TimeProvider.now())) {

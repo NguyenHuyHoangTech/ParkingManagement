@@ -5,7 +5,7 @@
  * Dùng để hiển thị biểu đồ phân tích trên Dashboard hoặc AI dự đoán.
  * @Dependencies: Không có
  */
-package com.pbms.modules.incident.dto;
+package com.pbms.modules.operation.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

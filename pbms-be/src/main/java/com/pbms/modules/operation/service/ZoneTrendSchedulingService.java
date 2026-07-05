@@ -20,7 +20,7 @@ public class ZoneTrendSchedulingService {
     private final ZoneRepository zoneRepository;
     private final ZoneOccupancyTracker zoneOccupancyTracker;
     private final ZoneRoutingService zoneRoutingService;
-    private final com.pbms.modules.incident.service.ZoneTrendService zoneTrendService;
+    private final ZoneTrendService zoneTrendService;
 
     /**
      * Runs every hour at minute 0 (e.g. 10:00, 11:00)

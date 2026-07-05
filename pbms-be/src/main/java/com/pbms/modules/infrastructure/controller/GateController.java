@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import com.pbms.common.annotation.LogAudit;
 
 @RestController
 @RequestMapping("/api/v1/infrastructure/gates")
@@ -60,5 +62,14 @@ public class GateController {
                 .layoutY(gate.getLayoutY())
                 .rotation(gate.getRotation())
                 .build();
+    }
+
+    @PostMapping("/{id}/command")
+    @LogAudit(action = "COMMAND", resource = "Gate", description = "Send command to gate")
+    public ResponseEntity<ApiResponse<String>> sendCommand(@PathVariable String id, @RequestBody Map<String, String> body) {
+        String command = body.get("command");
+        // In a simulation scenario, this just returns success.
+        // In real life, it would interact with the IoT hardware.
+        return ResponseEntity.ok(ApiResponse.success("Command " + command + " sent to gate " + id, "Success"));
     }
 }

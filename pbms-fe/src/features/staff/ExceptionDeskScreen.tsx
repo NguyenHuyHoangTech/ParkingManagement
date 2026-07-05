@@ -148,7 +148,7 @@ export const ExceptionDeskScreen = () => {
   const { data: ticketsData = [] } = useQuery({
     queryKey: ['incidents'],
     queryFn: async () => {
-      const res = await axiosClient.get('/incident/incident/incidents');
+      const res = await axiosClient.get('/incident/incidents');
       return res.data?.data || [];
     },
     refetchInterval: 3000 // Poll every 3 seconds
@@ -161,6 +161,18 @@ export const ExceptionDeskScreen = () => {
       return res.data?.data || [];
     },
     enabled: selectedCategory === 'BLACKLIST'
+  });
+
+  const { data: vehicleTypes = [] } = useQuery({
+    queryKey: ['vehicleTypes'],
+    queryFn: async () => {
+      try {
+        const res = await axiosClient.get('/operation/vehicle-types');
+        return res.data.data || [];
+      } catch (err) {
+        return [];
+      }
+    }
   });
 
   const blacklistedVehicles = vehiclesData.filter((v: any) => v.isBlacklisted);
@@ -200,16 +212,18 @@ export const ExceptionDeskScreen = () => {
 
       let res;
       if (values.type === 'LOST_CARD') {
-        res = await axiosClient.post('/incident/incident/incidents/lost-card', { 
+        res = await axiosClient.post('/incident/incidents/lost-card', { 
           plate: values.plate?.toUpperCase(), 
           fee: getPenaltyConfig('PENALTY_LOST_CARD', 200000), 
           description: values.description,
-          uploadedDocUrl: mockUrl
+          uploadedDocUrl: mockUrl,
+          vehicleTypeId: values.vehicleTypeId
         });
       } else {
-        res = await axiosClient.post('/incident/incident/incidents', {
+        res = await axiosClient.post('/incident/incidents', {
           issueType: values.type,
           plate: values.plate?.toUpperCase(),
+          vehicleTypeId: values.vehicleTypeId,
           fineAmount: values.fineAmount,
           description: values.description,
           priority: values.type === 'LOST_CARD' ? 'HIGH' : 'MEDIUM',
@@ -247,12 +261,18 @@ export const ExceptionDeskScreen = () => {
           }
       }
 
+      const vehicleTypeId = manualForm.getFieldValue('vehicleTypeId');
+      if (category !== 'BLACKLIST_VIOLATION' && !vehicleTypeId) {
+        message.warning('Please select Vehicle Type to check');
+        return;
+      }
+
       setIsCheckingManualPlate(true);
       let res;
       if (isLostOrDamaged) {
-          res = await axiosClient.get('/incident/incident/incidents/check-plate', { params: { plate: plate.toUpperCase() } });
+          res = await axiosClient.get('/incident/incidents/check-plate', { params: { plate: plate.toUpperCase(), vehicleTypeId } });
       } else {
-          res = await axiosClient.get('/incident/incident/incidents/check-plate-rfid', { params: { plate: plate.toUpperCase(), rfid } });
+          res = await axiosClient.get('/incident/incidents/check-plate-rfid', { params: { plate: plate.toUpperCase(), rfid, vehicleTypeId } });
       }
 
       if (res.data?.data?.isActive) {
@@ -1484,9 +1504,20 @@ export const ExceptionDeskScreen = () => {
                 const type = getFieldValue('type');
                 return (
                   <Form.Item label="License Plate declaration" required className="col-span-1">
-                    <Form.Item name="plate" rules={[{ required: true }]} noStyle>
-                      <Input size="large" className="font-mono font-bold uppercase" placeholder="51G-123.45" disabled={isCheckingManualPlate} onChange={() => setIsManualPlateVerified(false)} />
-                    </Form.Item>
+                    <div className="flex flex-col gap-2">
+                      <Form.Item name="vehicleTypeId" rules={[{ required: true, message: 'Please select Vehicle Type' }]} className="mb-0">
+                        <Select 
+                          size="large" 
+                          placeholder="Select Vehicle Type"
+                          options={vehicleTypes.map((vt: any) => ({ value: vt.id, label: vt.typeName }))}
+                          disabled={isCheckingManualPlate}
+                          onChange={() => setIsManualPlateVerified(false)}
+                        />
+                      </Form.Item>
+                      <Form.Item name="plate" rules={[{ required: true }]} noStyle>
+                        <Input size="large" className="font-mono font-bold uppercase" placeholder="51G-123.45" disabled={isCheckingManualPlate} onChange={() => setIsManualPlateVerified(false)} />
+                      </Form.Item>
+                    </div>
                   </Form.Item>
                 );
               }}

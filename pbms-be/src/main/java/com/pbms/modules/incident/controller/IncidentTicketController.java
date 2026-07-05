@@ -131,13 +131,18 @@ public class IncidentTicketController {
     }
 
     @GetMapping("/check-plate")
-    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> checkPlateActive(@RequestParam String plate) {
-        return ResponseEntity.ok(ApiResponse.success(incidentService.checkPlateActiveInfo(plate), "Check the status"));
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> checkPlateActive(
+            @RequestParam String plate,
+            @RequestParam(required = false) Long vehicleTypeId) {
+        return ResponseEntity.ok(ApiResponse.success(incidentService.checkPlateActiveInfo(plate, vehicleTypeId), "Check the status"));
     }
 
     @GetMapping("/check-plate-rfid")
-    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> checkPlateAndRfidActive(@RequestParam String plate, @RequestParam String rfid) {
-        return ResponseEntity.ok(ApiResponse.success(incidentService.checkPlateAndRfidActiveInfo(plate, rfid), "Check the status"));
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> checkPlateAndRfidActive(
+            @RequestParam String plate, 
+            @RequestParam String rfid,
+            @RequestParam(required = false) Long vehicleTypeId) {
+        return ResponseEntity.ok(ApiResponse.success(incidentService.checkPlateAndRfidActiveInfo(plate, rfid, vehicleTypeId), "Check the status"));
     }
 
     @PostMapping("/lost-card")
@@ -152,7 +157,10 @@ public class IncidentTicketController {
                     : null;
             String description = (String) requestBody.get("description");
             String uploadedDocUrl = (String) requestBody.get("uploadedDocUrl");
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.createLostCardIncident(plate, fee, description, uploadedDocUrl, email);
+            Long vehicleTypeId = requestBody.get("vehicleTypeId") != null 
+                    ? Long.parseLong(requestBody.get("vehicleTypeId").toString()) 
+                    : null;
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.createLostCardIncident(plate, fee, description, uploadedDocUrl, email, vehicleTypeId);
             return ResponseEntity.ok(ApiResponse.success(dto, "How cool is that?"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Leave a comment:" + e.getMessage()));

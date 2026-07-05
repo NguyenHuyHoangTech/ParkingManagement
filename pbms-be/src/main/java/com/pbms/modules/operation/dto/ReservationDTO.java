@@ -22,7 +22,6 @@ public class ReservationDTO {
     private Integer expectedDurationMinutes;
     private String status; // PENDING, ACTIVE, COMPLETED, CANCELLED
     private BigDecimal reservationFee;
-    private String qrCode;
     
     private String actualIn;
     private String actualOut;

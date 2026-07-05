@@ -15,7 +15,6 @@ import { UserProfileSettingsModal } from '../shared/components/UserProfileSettin
 import { useState } from 'react';
 import { useSystemTime } from '../../core/utils/timeProvider';
 import { NotificationDropdown } from '../shared/components/NotificationDropdown';
-import { ReservationConflictModal } from './ReservationConflictModal';
 import { MonthlyZoneConflictModal } from './MonthlyZoneConflictModal';
 import { useEffect } from 'react';
 import { Client } from '@stomp/stompjs';
@@ -35,8 +34,6 @@ export const StaffLayout = () => {
   const systemTime = useSystemTime();
   
   // Conflict state
-  const [conflictModalVisible, setConflictModalVisible] = useState(false);
-  const [conflictData, setConflictData] = useState<any>(null);
   const [pendingConflicts, setPendingConflicts] = useState<any[]>([]);
 
   const [monthlyConflictVisible, setMonthlyConflictVisible] = useState(false);
@@ -61,13 +58,9 @@ export const StaffLayout = () => {
                 });
                 notification.error({
                     message: '🚨 Zone Capacity Conflict!',
-                    description: data.message + ' (Click to resolve)',
+                    description: data.message + ' (Check the queue to retry)',
                     placement: 'topRight',
-                    duration: 0,
-                    onClick: () => {
-                        setConflictData(data);
-                        setConflictModalVisible(true);
-                    }
+                    duration: 0
                 });
             } else if (data.type === 'ZONE_RESERVED') {
                 setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
@@ -106,7 +99,7 @@ export const StaffLayout = () => {
 
   const handleResolveConflict = async (reservationId: number) => {
     try {
-      await axiosClient.post(`/customer/reservations/${reservationId}/resolve-conflict`);
+      await axiosClient.post(`/operation/gates/reservations/${reservationId}/retry-zone`);
     } catch (err: any) {
       notification.error({
         message: 'Resolution Failed',
@@ -142,10 +135,10 @@ export const StaffLayout = () => {
     items: pendingConflicts.length === 0 ? [{ key: 'empty', label: <span className="text-gray-400 italic px-2">No capacity conflicts</span> }] : pendingConflicts.map(c => ({
       key: c.reservationId,
       label: (
-        <div onClick={() => handleResolveConflict(c.reservationId)} className="flex flex-col gap-1 w-64 py-1 hover:bg-gray-50 rounded px-2 transition-colors cursor-pointer border-b border-gray-100 last:border-0">
+        <div className="flex flex-col gap-1 w-64 py-1 rounded transition-colors border-b border-gray-100 last:border-0">
           <span className="font-bold text-red-600 flex items-center gap-1"><AlertOutlined /> {c.zoneName} is FULL</span>
           <span className="text-xs text-gray-600">Plate: <b className="font-mono uppercase">{c.plate}</b> - {c.customer}</span>
-          <span className="text-xs text-blue-500 font-medium">Click to retry reservation</span>
+          <Button size="small" type="primary" className="mt-1 bg-blue-500 text-xs w-full" onClick={() => handleResolveConflict(c.reservationId)}>Thử gán lại (Retry)</Button>
         </div>
       )
     }))
@@ -249,11 +242,7 @@ export const StaffLayout = () => {
         onClose={() => setIsSettingsOpen(false)} 
       />
 
-      <ReservationConflictModal
-        visible={conflictModalVisible}
-        onClose={() => setConflictModalVisible(false)}
-        conflictData={conflictData}
-      />
+
 
       <MonthlyZoneConflictModal
         visible={monthlyConflictVisible}

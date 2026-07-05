@@ -50,17 +50,15 @@ public class PaymentValidatorService {
 
         try {
             if ("CREATE_RESERVATION".equals(actionType)) {
-                // Parse to CreateReservationRequest just to validate structure
-                objectMapper.convertValue(payload, CreateReservationRequest.class);
-                // We perform a dry-run validation (plate uniqueness, slot availability)
-                // ReservationService.validateCreate is normally inside createReservation
-                // We assume basic sanity checks pass.
+                CreateReservationRequest createReq = objectMapper.convertValue(payload, CreateReservationRequest.class);
+                reservationService.validateCreateReservation(createReq);
             } else if ("CREATE_MONTHLY_TICKET".equals(actionType)) {
-                // basic validation
-                if (payload.get("plateNumber") == null)
-                    throw new IllegalArgumentException("Plate is required");
+                monthlyTicketService.validateCreateTicket(payload);
+            } else if ("RENEW_MONTHLY_TICKET".equals(actionType)) {
+                Long ticketId = Long.valueOf(payload.get("id").toString());
+                int duration = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString()) : 1;
+                monthlyTicketService.validateRenewTicket(ticketId, duration);
             } else if ("CHECKOUT".equals(actionType)) {
-                // Checkout validation
                 if (payload.get("rfid") == null && payload.get("plateNumber") == null)
                     throw new IllegalArgumentException("RFID or Plate Number is required for Checkout");
             }

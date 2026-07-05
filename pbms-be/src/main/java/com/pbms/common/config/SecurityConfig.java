@@ -32,11 +32,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 1. PUBLIC & AUTHENTICATION
-                        .requestMatchers("/api/v1/public/**", "/api/v1/auth/**", "/api/v1/webhooks/**",
-                                "/api/v1/iot/**")
+                        .requestMatchers("/api/v1/public/**", "/api/v1/identity/auth/**", "/api/v1/webhooks/**",
+                                "/api/v1/iot/**", "/api/v1/operation/iot/**")
                         .permitAll()
                         .requestMatchers("/h2-console/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/ws/**", "/ws-pbms/**", "/uploads/**").permitAll()
+                        .requestMatchers("/ws/**", "/ws-pbms/**", "/uploads/**", "/error").permitAll()
 
                         // 2. SYSTEM ADMIN
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

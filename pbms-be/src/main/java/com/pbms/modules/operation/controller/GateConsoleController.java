@@ -81,13 +81,12 @@ public class GateConsoleController {
         }
     }
 
-    @PostMapping("/reservations/{id}/resolve-zone")
-    public ResponseEntity<ApiResponse<ReservationDTO>> resolveReservationZone(
-            @PathVariable Long id,
-            @RequestParam Long newZoneId) {
+    @PostMapping("/reservations/{id}/retry-zone")
+    public ResponseEntity<ApiResponse<ReservationDTO>> retryReservationZone(
+            @PathVariable Long id) {
         try {
-            ReservationDTO dto = reservationService.resolveZone(id, newZoneId);
-            return ResponseEntity.ok(ApiResponse.success(dto, "Reservation zone resolved successfully"));
+            ReservationDTO dto = reservationService.retryZoneAssignment(id);
+            return ResponseEntity.ok(ApiResponse.success(dto, "Reservation zone retried successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         }

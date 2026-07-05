@@ -134,7 +134,17 @@ public class GateOperationService {
         if (type != null) {
             List<Reservation> reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
-                suggestedZone = reservations.get(0).getZone();
+                Reservation res = reservations.get(0);
+                if (!res.getVehicle().getVehicleType().getId().equals(type.getId())) {
+                    earlyBookingNotice = "Warning: Booking exists but vehicle type mismatch! Booking is for " + res.getVehicle().getVehicleType().getTypeName();
+                    suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
+                } else {
+                    suggestedZone = res.getZone();
+                    if (zoneRoutingService.isZonePhysicallyFull(suggestedZone.getId())) {
+                        log.info("Reserved zone {} is physically full, routing to fallback zone.", suggestedZone.getZoneName());
+                        suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
+                    }
+                }
             } else {
                 List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
@@ -391,10 +401,19 @@ public class GateOperationService {
         List<Reservation> reservations = java.util.Collections.emptyList();
         String earlyBookingNotice = null;
 
-        if (type != null) {
+        if ("Free".equalsIgnoreCase(request.getSuggestedZoneName())) {
+            suggestedZone = null;
+        } else if (type != null) {
             reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
+                if (!reservations.get(0).getVehicle().getVehicleType().getId().equals(type.getId())) {
+                    return GateResponseDTO.builder().status("ERROR").message("Loại phương tiện AI nhận diện không khớp với Đơn đặt chỗ (Booking). Vui lòng kiểm tra lại.").build();
+                }
                 suggestedZone = reservations.get(0).getZone();
+                if (zoneRoutingService.isZonePhysicallyFull(suggestedZone.getId())) {
+                    log.info("Reserved zone {} is physically full, routing to fallback zone.", suggestedZone.getZoneName());
+                    suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
+                }
             } else {
                 List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
@@ -408,9 +427,16 @@ public class GateOperationService {
             }
         }
 
-        if (suggestedZone != null) {
-            request.setSuggestedZoneName(suggestedZone.getZoneName());
-            request.setSuggestedZoneId(suggestedZone.getId());
+        if (!"Free".equalsIgnoreCase(request.getSuggestedZoneName())) {
+            if (suggestedZone != null) {
+                request.setSuggestedZoneName(suggestedZone.getZoneName());
+                request.setSuggestedZoneId(suggestedZone.getId());
+            } else {
+                request.setSuggestedZoneName("Free");
+                request.setSuggestedZoneId(null);
+            }
+        } else {
+            request.setSuggestedZoneId(null);
         }
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
@@ -528,10 +554,13 @@ public class GateOperationService {
 
         if (activeRes != null) {
             activeRes.setStatus("ACTIVE");
+            if (suggestedZone != null && !suggestedZone.getId().equals(activeRes.getZone().getId())) {
+                activeRes.setZone(suggestedZone);
+            }
             reservationRepository.save(activeRes);
 
             messagingTemplate.convertAndSend("/topic/staff/notifications", 
-                String.format("{\"type\":\"RESERVATION_ARRIVED\", \"reservationId\":%d}", activeRes.getId()));
+                String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Vehicle arrived.\"}", activeRes.getId()));
         }
 
         GateResponseDTO response = GateResponseDTO.builder()
