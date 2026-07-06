@@ -37,7 +37,7 @@ public class PaymentValidatorService {
     private final MonthlyTicketService monthlyTicketService;
     private final GateOperationService gateOperationService;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     /**
      * Pre-Validate the payload before generating payment link.

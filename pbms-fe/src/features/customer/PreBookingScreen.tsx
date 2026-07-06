@@ -239,7 +239,7 @@ export const PreBookingScreen = () => {
                        setIsPaymentSuccess(true);
                        setIsQRModalVisible(false);
                        setTimeout(() => {
-                         navigate('/customer/finance/dashboard');
+                         navigate('/customer/my-parking?tab=booking');
                        }, 2000);
                     })
                     .catch(execErr => {

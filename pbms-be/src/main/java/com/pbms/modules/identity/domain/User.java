@@ -25,7 +25,7 @@ public class User extends BaseEntity {
     @Builder.Default
     private Boolean isVerified = false;
 
-    @Column(name = "full_name")
+    @Column(name = "full_name", columnDefinition = "NVARCHAR(255)")
     private String fullName;
 
     @Column(nullable = false, unique = true)

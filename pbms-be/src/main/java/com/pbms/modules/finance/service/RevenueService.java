@@ -79,7 +79,6 @@ public class RevenueService {
             CONVERT(VARCHAR(10), ps.time_out, 120), 
             COALESCE(vt.type_name, 'Unclear'),
             COALESCE(g.gate_name, 'N/A'), 
-            'Penalty', 
             COALESCE(t.payment_method, 'CASH')
          UNION ALL 
         SELECT 
@@ -111,8 +110,8 @@ public class RevenueService {
     @Transactional(readOnly = true)
     public List<RevenueRecordDTO> getRevenueDashboardData(LocalDate startDate, LocalDate endDate) {
         Query query = entityManager.createNativeQuery(BASE_SQL);
-        query.setParameter("startDate", startDate);
-        query.setParameter("endDate", endDate);
+        query.setParameter("startDate", startDate.toString());
+        query.setParameter("endDate", endDate.toString());
 
         @SuppressWarnings("unchecked")
         List<Object[]> rawList = query.getResultList();
@@ -134,15 +133,15 @@ public class RevenueService {
         // 1. Get count
         String countSql = "SELECT COUNT(*) FROM (" + BASE_SQL + ") AS raw_data";
         Query countQuery = entityManager.createNativeQuery(countSql);
-        countQuery.setParameter("startDate", startDate);
-        countQuery.setParameter("endDate", endDate);
+        countQuery.setParameter("startDate", startDate.toString());
+        countQuery.setParameter("endDate", endDate.toString());
         long totalElements = ((Number) countQuery.getSingleResult()).longValue();
 
         // 2. Get paginated data
         String paginatedSql = "SELECT * FROM (" + BASE_SQL + ") AS raw_data ORDER BY date_str DESC OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
         Query query = entityManager.createNativeQuery(paginatedSql);
-        query.setParameter("startDate", startDate);
-        query.setParameter("endDate", endDate);
+        query.setParameter("startDate", startDate.toString());
+        query.setParameter("endDate", endDate.toString());
         query.setParameter("offset", (page - 1) * size);
         query.setParameter("limit", size);
 
@@ -171,8 +170,8 @@ public class RevenueService {
                     writer.println("Ngày;Loại xe;Cổng;Nguồn thu;Phương thức thanh toán;Tổng doanh thu;Số giao dịch");
 
                     Query query = entityManager.createNativeQuery("SELECT * FROM (" + BASE_SQL + ") AS raw_data ORDER BY date_str DESC");
-                    query.setParameter("startDate", startDate);
-                    query.setParameter("endDate", endDate);
+                    query.setParameter("startDate", startDate.toString());
+                    query.setParameter("endDate", endDate.toString());
 
                     // Unwrap Hibernate query and set fetch size to stream data without OOM
                     @SuppressWarnings("unchecked")
