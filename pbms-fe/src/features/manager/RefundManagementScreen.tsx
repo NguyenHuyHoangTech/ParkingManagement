@@ -8,6 +8,8 @@ import {
   WarningOutlined, InboxOutlined, MoreOutlined, CloseCircleOutlined, UploadOutlined, FilterOutlined
 } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
+import dayjs from 'dayjs';
+import { simulatedDayjs } from '../../core/utils/timeProvider';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -212,6 +214,40 @@ export const RefundManagementScreen = () => {
     }
   ];
 
+  const [filterStatus, setFilterStatus] = useState<string>('PENDING');
+  const [searchText, setSearchText] = useState<string>('');
+  
+  // Date states
+  const [dateRange, setDateRange] = useState<any>([simulatedDayjs().startOf('day'), simulatedDayjs().endOf('day')]);
+
+  const filteredData = refundsData.filter((record: RefundRecord) => {
+    // 1. Filter by status
+    if (filterStatus !== 'ALL' && record.status !== filterStatus) return false;
+    
+    // 2. Filter by search text (ID or Plate)
+    if (searchText) {
+      const lowerSearch = searchText.toLowerCase();
+      const matchId = record.id?.toLowerCase().includes(lowerSearch);
+      const matchPlate = record.plateNumber?.toLowerCase().includes(lowerSearch);
+      if (!matchId && !matchPlate) return false;
+    }
+
+    // 3. Filter by date (cancelTime)
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      // Backend format is "yyyy-MM-dd HH:mm", replace space with T to make it standard ISO for dayjs
+      const isoString = record.cancelTime ? record.cancelTime.replace(' ', 'T') : '';
+      const recordDate = dayjs(isoString);
+      
+      if (recordDate.isValid()) {
+        const start = dateRange[0].startOf('day');
+        const end = dateRange[1].endOf('day');
+        if (recordDate.isBefore(start) || recordDate.isAfter(end)) return false;
+      }
+    }
+    
+    return true;
+  });
+
   return (
     <div className="h-full overflow-y-auto bg-slate-50 p-6 pb-24">
       {/* GLOBAL HEADER */}
@@ -260,16 +296,32 @@ export const RefundManagementScreen = () => {
 
       <Card className="shadow-sm mb-6">
         <div className="flex gap-4">
-          <Select defaultValue="PENDING" className="w-40" options={[
-            {label: 'Waiting for processing', value: 'PENDING'},
-            {label: 'Completed', value: 'REFUNDED'},
-            {label: 'Reject', value: 'REJECTED'},
-            {label: 'All', value: 'ALL'}
-          ]} />
-          <RangePicker format="DD/MM/YYYY" placeholder={['From date', 'Come day']} className="w-64" />
-          <Button type="primary" icon={<FilterOutlined />}>Filter</Button>
-          <Search placeholder="Enter the Application Code or License Plate xeeee" className="w-80" allowClear />
-          <Button>Export Excel File</Button>
+          <Select 
+            value={filterStatus} 
+            onChange={setFilterStatus}
+            className="w-40" 
+            options={[
+              {label: 'Waiting for processing', value: 'PENDING'},
+              {label: 'Completed', value: 'REFUNDED'},
+              {label: 'Reject', value: 'REJECTED'},
+              {label: 'All', value: 'ALL'}
+            ]} 
+          />
+          <RangePicker 
+            format="DD/MM/YYYY" 
+            placeholder={['From date', 'To date']} 
+            className="w-64" 
+            value={dateRange}
+            onChange={setDateRange}
+          />
+          <Search 
+            placeholder="Enter Request ID or License Plate" 
+            className="w-80" 
+            allowClear 
+            onSearch={setSearchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <Button onClick={() => message.info('Export feature coming soon!')}>Export Excel File</Button>
         </div>
       </Card>
 
@@ -277,7 +329,7 @@ export const RefundManagementScreen = () => {
       <Card className="shadow-sm rounded-xl border-slate-200" bodyStyle={{ padding: 0 }}>
         <Table 
           columns={columns} 
-          dataSource={refundsData} 
+          dataSource={filteredData} 
           rowKey="id"
           pagination={{ pageSize: 10 }}
           rowClassName={(record) => record.status === 'PENDING' ? 'bg-orange-50/50' : ''}
