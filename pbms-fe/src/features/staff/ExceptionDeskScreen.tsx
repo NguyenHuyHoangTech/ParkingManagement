@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Card, Typography, Input, Button, message, Select, Tag, Modal, Form, List, Upload, InputNumber } from 'antd';
+import { useState, useEffect, useMemo } from 'react';
+import { Card, Typography, Input, Button, message, Select, Tag, Modal, Form, List, Upload, InputNumber, Alert, Badge, Divider, Statistic } from 'antd';
 import { 
   WarningOutlined, CameraOutlined, LockOutlined, CreditCardOutlined,
   CloseCircleOutlined, PlusOutlined, UploadOutlined, CheckCircleOutlined, MessageOutlined, SearchOutlined
@@ -63,6 +63,29 @@ export const ExceptionDeskScreen = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // QUERY: GET /finance/dashboard/operational for live sensor monitoring
+  const { data: operationalData } = useQuery({
+    queryKey: ['operational_dashboard'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/finance/dashboard/operational');
+      return res.data?.data || {};
+    },
+    refetchInterval: 5000 // Poll every 5 seconds for sensor changes
+  });
+
+  const violations = useMemo(() => {
+    if (!operationalData?.liveData?.vehicleStats) return [];
+    return operationalData.liveData.vehicleStats
+      .map((stat: any) => {
+        const occSlots = stat.occupied_slots_monthly || 0;
+        const occSoft = stat.occupied_monthly || 0;
+        const wrongZoneTickets = stat.wrong_zone_tickets_count || 0;
+        const diff = occSlots - wrongZoneTickets - occSoft;
+        return { name: stat.name, diff: diff > 0 ? diff : 0, occSlots, occSoft, wrongZoneTickets };
+      })
+      .filter((v: any) => v.diff > 0);
+  }, [operationalData]);
+
   const getPenaltyConfig = (key: string, fallback: number) => {
     const config = configsData.find((c: any) => c.configKey === key);
     if (config && config.configValue) {
@@ -76,7 +99,8 @@ export const ExceptionDeskScreen = () => {
     queryFn: async () => {
       const res = await axiosClient.get('/infrastructure/map/config');
       return res.data?.data || null;
-    }
+    },
+    refetchInterval: 5000
   });
 
   const [zoneViolationForm] = Form.useForm();
@@ -123,22 +147,36 @@ export const ExceptionDeskScreen = () => {
   const handleCheckZoneViolationPlate = async () => {
     try {
       const plate = zoneViolationForm.getFieldValue('plate');
-      if (!plate) {
-        message.warning('Please enter a license plate to check');
+      const vehicleTypeId = zoneViolationForm.getFieldValue('vehicleTypeId');
+      if (!plate || !vehicleTypeId) {
+        message.warning('Please enter a license plate and select exact vehicle type to check');
         return;
       }
       setIsCheckingZonePlate(true);
-      const res = await axiosClient.get(`/operation/vehicles/check?plate=${plate}`);
-      if (res.data && res.data.data) {
+      const res = await axiosClient.get(`/incident/incidents/check-plate?plate=${plate}`);
+      if (res.data && res.data.data && res.data.data.isActive) {
+        const foundTypeName = res.data.data.vehicleType;
+        const selectedType = vehicleTypesData.find((v: any) => v.id === vehicleTypeId);
+        if (selectedType && selectedType.typeName !== foundTypeName) {
+            message.error(`Vehicle type mismatch! System found a ${foundTypeName}, but you selected ${selectedType.typeName}.`);
+            setCheckedZoneVehicle(null);
+            return;
+        }
+
         setCheckedZoneVehicle(res.data.data);
         message.success(`Vehicle found: Type ${res.data.data.vehicleType}`);
+        
+        if (res.data.data.hasMonthlyTicket) {
+            zoneViolationForm.setFieldsValue({ fee: 0 });
+            message.info('This vehicle has a valid Monthly Ticket. No fee should be charged.');
+        }
       } else {
         setCheckedZoneVehicle(null);
-        message.warning('Vehicle not found in system.');
+        message.warning('Vehicle not found or not currently active in system.');
       }
     } catch (e: any) {
       setCheckedZoneVehicle(null);
-      message.warning('Vehicle not found in system.');
+      message.warning('Error checking vehicle in system.');
     } finally {
       setIsCheckingZonePlate(false);
     }
@@ -211,7 +249,24 @@ export const ExceptionDeskScreen = () => {
       }
 
       let res;
-      if (values.type === 'LOST_CARD') {
+      if (values.type === 'ZONE_VIOLATION') {
+        if (!values.fromDashboard) {
+          setIsManualModalOpen(false);
+          setSelectedCategory('ZONE_VIOLATION');
+          setSelectedTicket(null);
+          manualForm.resetFields();
+          return;
+        }
+        res = await axiosClient.post('/incident/incidents', {
+          issueType: values.type,
+          plate: values.plate?.toUpperCase(),
+          vehicleTypeId: values.vehicleTypeId,
+          fineAmount: values.fee,
+          description: values.description,
+          priority: 'MEDIUM',
+          uploadedDocUrl: mockUrl
+        });
+      } else if (values.type === 'LOST_CARD') {
         res = await axiosClient.post('/incident/incidents/lost-card', { 
           plate: values.plate?.toUpperCase(), 
           fee: getPenaltyConfig('PENALTY_LOST_CARD', 200000), 
@@ -235,11 +290,13 @@ export const ExceptionDeskScreen = () => {
     onSuccess: () => {
       message.success('Incident report created successfully!');
       setIsManualModalOpen(false);
-      manualForm.resetFields();
       setUploadedFile(null);
       setUploadedCardFile(null);
       setIsManualPlateVerified(false);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    },
+    onError: (err: any) => {
+      message.error(err.response?.data?.message || 'Error creating incident');
     }
   });
 
@@ -627,25 +684,33 @@ export const ExceptionDeskScreen = () => {
         </div>
         <div className="flex-1 overflow-x-auto lg:overflow-y-auto p-3 flex flex-row lg:flex-col gap-2 pb-1 lg:pb-3">
           {[
-            { id: 'ALL', label: 'All Incidents', icon: '📋' },
-            { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨' },
-            { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒' },
-            { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥' },
-            { id: 'DAMAGED_CARD', label: 'Damaged / Unreadable Card', icon: '💳' },
-            { id: 'LPR_MISMATCH', label: 'LPR Mismatch', icon: '🤖' },
-            { id: 'SLOT_OCCUPIED', label: 'Slot Occupied', icon: '🚗' },
-            { id: 'FIND_CAR', label: 'Find Car', icon: '🔍' },
-            { id: 'FEE_DISPUTE', label: 'Fee Dispute', icon: '💰' },
-            { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬' },
-            { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫' }
+            { id: 'ALL', label: 'All Incidents', icon: '📋', count: ticketsData.length },
+            { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+            { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
+            { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
+            { id: 'DAMAGED_CARD', label: 'Damaged Card', icon: '💳', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+            { id: 'LPR_MISMATCH', label: 'LPR Mismatch', icon: '🤖', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
+            { id: 'SLOT_OCCUPIED', label: 'Slot Occupied', icon: '🚗', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+            { id: 'FIND_CAR', label: 'Find Car', icon: '🔍', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
+            { id: 'FEE_DISPUTE', label: 'Fee Dispute', icon: '💰', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+            { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length },
+            { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫', count: blacklistedVehicles.length }
           ].map(cat => (
              <div 
                key={cat.id} 
-               className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`} 
+               className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex justify-between items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`} 
                onClick={() => { setSelectedCategory(cat.id); setSelectedTicket(null); }}
              >
-               <span className="text-lg">{cat.icon}</span>
-               <span className="whitespace-nowrap">{cat.label}</span>
+               <div className="flex items-center gap-3">
+                 <span className="text-lg">{cat.icon}</span>
+                 <span className="whitespace-nowrap">{cat.label}</span>
+               </div>
+               {cat.count > 0 && (
+                 <Badge 
+                   count={cat.count} 
+                   style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#1890ff', color: selectedCategory === cat.id ? '#1890ff' : '#fff' }} 
+                 />
+               )}
              </div>
           ))}
         </div>
@@ -1296,25 +1361,85 @@ export const ExceptionDeskScreen = () => {
             </div>
           </div>
         ) : selectedCategory === 'ZONE_VIOLATION' ? (
-          <div className="p-4 overflow-y-auto flex-1 flex flex-col xl:flex-row gap-4 bg-gray-50/50">
+          <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-6 bg-slate-50">
+            {/* Dashboard Headers */}
+            <div>
+              <Title level={4} className="mb-1 text-slate-800">🚨 Monthly Zones Status</Title>
+              <Text className="text-slate-500">Real-time unauthorized parking detection for all Monthly Zones</Text>
+            </div>
+
+            {/* Zone Cards grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {mapConfigData?.zones?.filter((z: any) => z.functionType === 'MONTHLY').map((zone: any) => {
+                const occupied = zone.slots?.filter((s: any) => s.status === 'OCCUPIED').length || 0;
+                const authorized = zone.suggestedVehicles?.length || 0;
+                const vtStat = operationalData?.liveData?.vehicleStats?.find((s: any) => s.id == zone.vehicleTypeId || s.name === zone.vehicleTypeName);
+                const ticketsInLot = vtStat?.wrong_zone_tickets_count || 0;
+                
+                const unauthorized = Math.max(0, occupied - authorized - ticketsInLot);
+                const isViolated = unauthorized > 0;
+                
+                return (
+                  <Card key={zone.id} className={`shadow-sm border-t-4 ${isViolated ? 'border-t-red-500 bg-red-50/30' : 'border-t-emerald-500'}`} styles={{ body: { padding: '16px' } }}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-lg text-slate-700">{zone.name}</span>
+                        <Tag color="blue" className="w-max mt-1">{zone.vehicleTypeName}</Tag>
+                      </div>
+                      {isViolated ? (
+                        <Tag color="error" className="m-0 text-sm py-1 px-3 rounded-full font-bold animate-pulse border-red-200">
+                          {unauthorized} UNAUTHORIZED
+                        </Tag>
+                      ) : (
+                        <Tag color="success" className="m-0 font-bold rounded-full border-green-200 text-green-700 bg-green-50">ALL CLEAR</Tag>
+                      )}
+                    </div>
+                    <Divider className="my-3 border-slate-200" />
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Occupied</div>
+                        <div className="text-lg font-mono text-slate-700 leading-none">{occupied} <span className="text-[10px] text-slate-400">/ {zone.capacity}</span></div>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Authorized</div>
+                        <div className="text-lg font-mono text-blue-600 leading-none">{authorized}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
+                        <div className="text-[9px] text-orange-600 font-bold uppercase tracking-wider mb-1">Penalized (In Lot)</div>
+                        <div className="text-lg font-mono text-orange-600 leading-none">{ticketsInLot}</div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+              {(!mapConfigData?.zones || mapConfigData.zones.filter((z: any) => z.functionType === 'MONTHLY').length === 0) && (
+                 <div className="col-span-full p-8 text-center bg-white rounded-xl border border-slate-200">
+                   <Text className="text-slate-400 italic">No Monthly Zones configured.</Text>
+                 </div>
+              )}
+            </div>
+
+            {/* Action Section */}
+            <div className="flex flex-col gap-6 mt-2">
             {/* Form */}
             <Card title={<span className="text-red-600 font-bold">Issue Wrong Zone Penalty</span>} className="flex-1 shadow-sm border-red-200">
-               <Form 
-                 layout="vertical" 
-                 form={zoneViolationForm} 
-                 onFinish={(values) => createIncidentMutation.mutate({...values, type: 'ZONE_VIOLATION'})}
-                 onValuesChange={(changedValues) => {
-                   if (changedValues.plate) setCheckedZoneVehicle(null);
-                   if (changedValues.vehicleCategory) {
-                     const is2W = changedValues.vehicleCategory === 'TWO_WHEEL';
-                     const key = is2W ? 'PENALTY_ZONE_VIOLATION_2W' : 'PENALTY_ZONE_VIOLATION_4W';
-                     const config = configsData.find((c: any) => c.configKey === key);
-                     const fee = config ? Number(config.configValue) : (is2W ? 50000 : 100000);
-                     zoneViolationForm.setFieldsValue({ fee });
-                   }
-                 }}
-                 initialValues={{ vehicleCategory: 'FOUR_WHEEL', fee: 100000 }}
-               >
+                <Form 
+                  layout="vertical" 
+                  form={zoneViolationForm} 
+                  onFinish={(values) => createIncidentMutation.mutate({...values, type: 'ZONE_VIOLATION', fromDashboard: true})}
+                  onValuesChange={(changedValues) => {
+                    if (changedValues.plate || changedValues.vehicleTypeId) setCheckedZoneVehicle(null);
+                    if (changedValues.vehicleTypeId) {
+                      const selectedType = vehicleTypesData.find((v: any) => v.id === changedValues.vehicleTypeId);
+                      const is2W = selectedType && selectedType.category === 'TWO_WHEEL';
+                      const key = is2W ? 'PENALTY_ZONE_VIOLATION_2W' : 'PENALTY_ZONE_VIOLATION_4W';
+                      const config = configsData.find((c: any) => c.configKey === key);
+                      const fee = config ? Number(config.configValue) : (is2W ? 50000 : 100000);
+                      zoneViolationForm.setFieldsValue({ fee });
+                    }
+                  }}
+                  initialValues={{ fee: 100000 }}
+                >
                  <Form.Item label="License Plate" required>
                    <div className="flex gap-2">
                      <Form.Item name="plate" noStyle rules={[{ required: true, message: 'Please enter license plate' }]}>
@@ -1323,21 +1448,27 @@ export const ExceptionDeskScreen = () => {
                      <Button size="large" onClick={handleCheckZoneViolationPlate} loading={isCheckingZonePlate}>Check</Button>
                    </div>
                  </Form.Item>
-                 {checkedZoneVehicle && (
-                   <div className="mb-4">
-                     <Tag color="green" className="text-sm px-3 py-1 font-bold">
-                       VEHICLE FOUND: {checkedZoneVehicle.vehicleType}
-                     </Tag>
-                   </div>
-                 )}
-                 <Form.Item name="vehicleCategory" label="Vehicle Type" rules={[{ required: true }]}>
-                   <Select size="large">
-                     <Select.Option value="TWO_WHEEL">2-Wheeler (Motorbike/Bicycle)</Select.Option>
-                     <Select.Option value="FOUR_WHEEL">4-Wheeler (Car/Truck)</Select.Option>
-                   </Select>
+                 <Form.Item name="vehicleTypeId" label="Exact Vehicle Type" rules={[{ required: true, message: 'Please select vehicle type' }]}>
+                   <Select size="large" placeholder="Select exact vehicle type" options={vehicleTypesData.map((vt: any) => ({ label: vt.typeName, value: vt.id }))} />
                  </Form.Item>
+                 {checkedZoneVehicle && (
+                    <div className="mb-4">
+                      <Tag color="green" className="text-sm px-3 py-1 font-bold">
+                        VEHICLE FOUND: {checkedZoneVehicle.vehicleType}
+                      </Tag>
+                      {checkedZoneVehicle.hasMonthlyTicket && (
+                        <Tag color="purple" className="text-sm px-3 py-1 font-bold ml-2">
+                          MONTHLY TICKET ACTIVE
+                        </Tag>
+                      )}
+                    </div>
+                  )}
                  <Form.Item name="fee" label="Penalty Fee">
-                   <InputNumber size="large" className="w-full font-bold text-red-600" />
+                   <InputNumber 
+                        size="large" 
+                        className="w-full font-bold text-red-600" 
+                        disabled={checkedZoneVehicle?.hasMonthlyTicket} 
+                    />
                  </Form.Item>
                  <Form.Item name="description" label="Message / Notes" rules={[{ required: true, message: 'Please enter notes' }]}>
                    <TextArea rows={3} placeholder="Describe the violation..." />
@@ -1352,7 +1483,7 @@ export const ExceptionDeskScreen = () => {
                      <Button icon={<UploadOutlined />}>Upload Photo</Button>
                    </Upload>
                  </Form.Item>
-                 <Button type="primary" danger htmlType="submit" size="large" className="w-full font-bold mt-4" loading={createIncidentMutation.isPending}>
+                 <Button type="primary" danger htmlType="submit" size="large" className="w-full font-bold mt-4" loading={createIncidentMutation.isPending} disabled={!checkedZoneVehicle}>
                    Create Penalty Incident
                  </Button>
                </Form>
@@ -1380,11 +1511,10 @@ export const ExceptionDeskScreen = () => {
               <div className="bg-slate-100 p-4 rounded-xl min-h-[300px] border border-slate-200 shadow-inner">
                 {selectedZoneId ? (() => {
                   const zone = mapConfigData?.zones?.find((z: any) => z.id === selectedZoneId);
-                  const occupiedSlots = zone?.slots?.filter((s: any) => s.status === 'OCCUPIED') || [];
                   const suggestedVehicles = zone?.suggestedVehicles || [];
                   
-                  if (occupiedSlots.length === 0 && suggestedVehicles.length === 0) {
-                      return <div className="text-slate-400 text-center mt-10 italic">No vehicles suggested or parked in this zone</div>;
+                  if (suggestedVehicles.length === 0) {
+                      return <div className="text-slate-400 text-center mt-10 italic">No vehicles suggested for this zone</div>;
                   }
                   
                   return (
@@ -1401,18 +1531,6 @@ export const ExceptionDeskScreen = () => {
                           </div>
                         </div>
                       )}
-                      {occupiedSlots.length > 0 && (
-                        <div>
-                          <div className="text-sm font-bold text-gray-500 mb-2 uppercase">Occupied Slots</div>
-                          <div className="flex flex-wrap gap-2">
-                            {occupiedSlots.map((s: any) => (
-                              <Tag key={s.id} color={s.plate ? 'red' : 'default'} className="text-base py-1.5 px-3 m-0 cursor-pointer hover:opacity-80 shadow-sm" onClick={() => zoneViolationForm.setFieldsValue({ plate: s.plate })}>
-                                {s.name}: <span className="font-mono font-bold ml-1">{s.plate || 'Unknown Plate'}</span>
-                              </Tag>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })() : (
@@ -1420,6 +1538,7 @@ export const ExceptionDeskScreen = () => {
                 )}
               </div>
             </Card>
+            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center bg-slate-50"><CreditCardOutlined className="text-6xl text-slate-300 mb-4" /><Title level={4} className="text-slate-400">No Incident selected</Title><Text>Please select a Ticket from the Queue</Text></div>
@@ -1442,7 +1561,7 @@ export const ExceptionDeskScreen = () => {
         okText="Confirm / Proceed" 
         cancelText="Cancel" 
         width={600}
-        okButtonProps={{ disabled: !isManualPlateVerified }}
+        okButtonProps={{ disabled: !isManualPlateVerified && manualForm.getFieldValue('type') !== 'ZONE_VIOLATION' }}
       >
         <Form form={manualForm} layout="vertical" onFinish={handleCreateManualIncident} onValuesChange={(changed) => { if(changed.type) setIsManualPlateVerified(false); }}>
           <Form.Item name="type" label="Incident type" rules={[{ required: true }]}>
@@ -1465,6 +1584,11 @@ export const ExceptionDeskScreen = () => {
             >
               {({ getFieldValue }) => {
                 const type = getFieldValue('type');
+                if (type === 'ZONE_VIOLATION') return (
+                    <div className="col-span-2 p-4 bg-blue-50 text-blue-700 rounded-md">
+                        Clicking Confirm will redirect you to the Wrong Zone Verification screen.
+                    </div>
+                );
                 return (
                   <Form.Item label="License Plate declaration" required className="col-span-1">
                     <div className="flex flex-col gap-2">
@@ -1510,6 +1634,7 @@ export const ExceptionDeskScreen = () => {
           >
             {({ getFieldValue }) => {
               const type = getFieldValue('type');
+              if (type === 'ZONE_VIOLATION') return null;
               return (
                 <Button type="primary" size="large" className="w-full mb-4" loading={isCheckingManualPlate} onClick={handleCheckManualPlate}>
                   Check vehicle information
@@ -1556,23 +1681,7 @@ export const ExceptionDeskScreen = () => {
                         </Form.Item>
                       )}
                     </div>
-                  ) : manualCategory === 'ZONE_VIOLATION' ? (
-                    <>
-                      <Form.Item name="fineAmount" label="Penalty Fee (Optional)" className="mb-4">
-                        <InputNumber size="large" className="w-full font-bold text-red-600" placeholder="Default fee will be applied if left blank" />
-                      </Form.Item>
-                      <Form.Item label="Attached photo" required className="mb-4">
-                        <Upload 
-                          maxCount={1} 
-                          beforeUpload={(file) => { setUploadedFile(file); return false; }}
-                          onRemove={() => setUploadedFile(null)}
-                          listType="picture"
-                        >
-                          <Button icon={<UploadOutlined />} className="w-full">Download proof photos</Button>
-                        </Upload>
-                      </Form.Item>
-                    </>
-                  ) : manualCategory === 'BLACKLIST' ? (
+                  ) : manualCategory === 'ZONE_VIOLATION' ? null : manualCategory === 'BLACKLIST' ? (
                     null
                   ) : (
                     <Form.Item label="Attached photo" required className="mb-4">
@@ -1588,8 +1697,19 @@ export const ExceptionDeskScreen = () => {
                   );
                 }}
               </Form.Item>
-              <Form.Item name="description" label="Incident Description / Notes" rules={[{ required: true }]}>
-                <TextArea rows={3} placeholder="Detail description of the incidenteee" />
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) => prevValues.type !== currentValues.type}
+              >
+                {({ getFieldValue }) => {
+                  const type = getFieldValue('type');
+                  if (type === 'ZONE_VIOLATION') return null;
+                  return (
+                    <Form.Item name="description" label="Incident Description / Notes" rules={[{ required: true }]}>
+                      <TextArea rows={3} placeholder="Detail description of the incidenteee" />
+                    </Form.Item>
+                  );
+                }}
               </Form.Item>
             </>
           )}

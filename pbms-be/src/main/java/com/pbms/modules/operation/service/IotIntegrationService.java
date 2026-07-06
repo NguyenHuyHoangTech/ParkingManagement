@@ -4,6 +4,7 @@ import com.pbms.modules.infrastructure.domain.Slot;
 import com.pbms.modules.infrastructure.domain.Zone;
 import com.pbms.modules.infrastructure.repository.SlotRepository;
 import com.pbms.modules.operation.dto.IotSlotUpdateRequest;
+import com.pbms.modules.incident.repository.IncidentTicketRepository;
 import com.pbms.modules.operation.repository.MonthlyTicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class IotIntegrationService {
     private final ZoneTrendService zoneTrendService;
     private final ZoneRoutingService zoneRoutingService;
     private final MonthlyTicketRepository monthlyTicketRepository;
+    private final IncidentTicketRepository incidentTicketRepository;
 
     @Transactional
     public void updateSlotStatus(IotSlotUpdateRequest request) {
@@ -49,18 +51,19 @@ public class IotIntegrationService {
             if (vehicleTypeId != null) {
                 long monthlyCarsInside = monthlyTicketRepository.countActiveMonthlyTicketsInsideByVehicleType(vehicleTypeId);
                 long occupiedMonthlySlots = slotRepository.countByFunctionTypeAndVehicleTypeIdAndStatus("MONTHLY", vehicleTypeId, "OCCUPIED");
+                long penalizedCars = incidentTicketRepository.countUnresolvedByIssueTypeAndVehicleTypeId("ZONE_VIOLATION", "RESOLVED", vehicleTypeId);
 
-                if (occupiedMonthlySlots > monthlyCarsInside) {
-                    log.warn("ZONE VIOLATION DETECTED in Zone {}! Occupied: {}, Monthly Inside: {}", 
-                            zone.getZoneName(), occupiedMonthlySlots, monthlyCarsInside);
+                if (occupiedMonthlySlots > (monthlyCarsInside + penalizedCars)) {
+                    log.warn("ZONE VIOLATION DETECTED in Zone {}! Occupied: {}, Monthly Inside: {}, Penalized: {}", 
+                            zone.getZoneName(), occupiedMonthlySlots, monthlyCarsInside, penalizedCars);
                     
                     messagingTemplate.convertAndSend("/topic/alerts", 
                         (Object) java.util.Map.of(
                             "type", "MONTHLY_ZONE_VIOLATION",
                             "zoneId", zone.getId(),
                             "zoneName", zone.getZoneName(),
-                            "message", String.format("Parking violation detected at Zone %s! The total number of parked vehicles in Monthly zones for this vehicle type (%d) exceeds the number of monthly pass vehicles currently inside (%d).", 
-                                    zone.getZoneName(), occupiedMonthlySlots, monthlyCarsInside)
+                            "message", String.format("Phát hiện %d xe đỗ trái phép tại Zone %s! (Tổng chỗ bị chiếm: %d, Tổng vé tháng trong bãi: %d, Số xe đã phạt: %d)", 
+                                    occupiedMonthlySlots - monthlyCarsInside - penalizedCars, zone.getZoneName(), occupiedMonthlySlots, monthlyCarsInside, penalizedCars)
                         )
                     );
                 }

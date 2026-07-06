@@ -6,7 +6,10 @@ import com.pbms.modules.finance.service.RevenueService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -29,6 +32,30 @@ public class RevenueController {
         
         List<RevenueRecordDTO> data = revenueService.getRevenueDashboardData(startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success(data, "This is the most effective way to report monthly revenue."));
+    }
+
+    @GetMapping("/table")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<RevenueRecordDTO>>> getRevenueTable(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        org.springframework.data.domain.Page<RevenueRecordDTO> data = revenueService.getRevenueTableData(startDate, endDate, page, size);
+        return ResponseEntity.ok(ApiResponse.success(data, "Paginated revenue data retrieved successfully."));
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<StreamingResponseBody> exportRevenue(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        StreamingResponseBody stream = revenueService.exportRevenueCsv(startDate, endDate);
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"revenue_report.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(stream);
     }
 }
 

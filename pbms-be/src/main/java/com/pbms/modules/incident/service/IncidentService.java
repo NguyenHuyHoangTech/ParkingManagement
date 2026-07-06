@@ -55,6 +55,15 @@ public class IncidentService {
             if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(request.getVehicleTypeId())) {
                 throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");
             }
+            boolean exists = incidentTicketRepository.existsBySessionIdAndIssueTypeAndStatusNot(session.getId(), request.getIssueType(), "RESOLVED");
+            if (exists) {
+                throw new IllegalArgumentException("Đã tồn tại một sự cố loại " + request.getIssueType() + " đang chờ xử lý cho xe này trong phiên đỗ hiện tại!");
+            }
+        } else if (request.getPlate() != null && !request.getPlate().isBlank()) {
+            boolean exists = incidentTicketRepository.existsByReportedPlateAndIssueTypeAndStatusNot(request.getPlate().trim().toUpperCase(), request.getIssueType(), "RESOLVED");
+            if (exists) {
+                throw new IllegalArgumentException("Đã tồn tại một sự cố loại " + request.getIssueType() + " đang chờ xử lý cho biển số này!");
+            }
         }
 
         com.pbms.modules.identity.domain.User user = null;
@@ -132,9 +141,8 @@ public class IncidentService {
                 ticket.setActualZone(zoneRepository.findById(request.getActualZoneId()).orElse(null));
             }
             
-            ticket.setStatus("RESOLVED");
-            ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
-            ticket.setResolutionNotes("[CONSOLE] Processed zone violation, penalty fee applied.");
+            ticket.setStatus("WAITING_CHECKOUT");
+            ticket.setResolutionNotes("[CONSOLE] Processed zone violation, penalty fee applied, waiting for checkout.");
             
             messagingTemplate.convertAndSend("/topic/alerts", "Zone violation warning: " + request.getDescription());
         }
@@ -612,6 +620,11 @@ public class IncidentService {
     public java.util.Map<String, Object> checkPlateActiveInfo(String plate, Long vehicleTypeId) {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("isActive", false);
+        result.put("hasMonthlyTicket", false);
+        
+        monthlyTicketRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
+                .ifPresent(ticket -> result.put("hasMonthlyTicket", true));
+
         sessionRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
                 .ifPresent(session -> {
                     if (vehicleTypeId != null && session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
@@ -627,6 +640,11 @@ public class IncidentService {
     public java.util.Map<String, Object> checkPlateAndRfidActiveInfo(String plate, String rfid, Long vehicleTypeId) {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("isActive", false);
+        result.put("hasMonthlyTicket", false);
+        
+        monthlyTicketRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
+                .ifPresent(ticket -> result.put("hasMonthlyTicket", true));
+
         sessionRepository.findByPlateAndStatus(plate.trim().toUpperCase(), "ACTIVE")
                 .filter(session -> session.getRfidCard() != null && session.getRfidCard().getCardCode().equals(rfid.trim()))
                 .ifPresent(session -> {

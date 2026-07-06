@@ -1,7 +1,8 @@
 import { simulatedDayjs } from '../../core/utils/timeProvider';
+import { getImageUrl } from '../../core/utils/imageHelper';
 import React, { useState, useMemo } from 'react';
-import { Typography, Card, Row, Col, DatePicker, Button, Table, Statistic, Select, Tag } from 'antd';
-import { DownloadOutlined, NodeIndexOutlined, CalendarOutlined } from '@ant-design/icons';
+import { Typography, Card, Row, Col, DatePicker, Button, Table, Statistic, Select, Tag, Progress, Alert } from 'antd';
+import { DownloadOutlined, NodeIndexOutlined, CalendarOutlined, WarningOutlined } from '@ant-design/icons';
 import { 
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
@@ -14,23 +15,57 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 export const OperationalDashboardScreen = () => {
-  const [dateRange, setDateRange] = useState<any>([simulatedDayjs().subtract(7, 'day'), simulatedDayjs()]);
-  const [macroCategory, setMacroCategory] = useState('ALL');
   const [historyPage, setHistoryPage] = useState(1);
   const [historySize, setHistorySize] = useState(10);
+  const [historyDateRange, setHistoryDateRange] = useState<any>([simulatedDayjs(), simulatedDayjs()]);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedTrafficDate, setSelectedTrafficDate] = useState<any>(simulatedDayjs());
   const [hourlyTrafficCategory, setHourlyTrafficCategory] = useState<string>('ALL');
-  const [gaugeSegment, setGaugeSegment] = useState<string>('WALK_IN_BOOKING');
 
   // === Operational live data ===
-  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['parking-history', historyPage, historySize],
+  const { data: vehicleTypes } = useQuery({
+    queryKey: ['vehicleTypes'],
     queryFn: async () => {
-      const res = await axiosClient.get(`/operation/parking-sessions/all?page=${historyPage - 1}&size=${historySize}`);
+      const res = await axiosClient.get('/operation/vehicle-types?activeOnly=true');
+      return res.data?.data || [];
+    }
+  });
+
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['parking-history', historyPage, historySize, historyDateRange?.[0]?.format('YYYY-MM-DD'), historyDateRange?.[1]?.format('YYYY-MM-DD')],
+    queryFn: async () => {
+      let url = `/operation/parking-sessions/all?page=${historyPage - 1}&size=${historySize}`;
+      if (historyDateRange && historyDateRange[0] && historyDateRange[1]) {
+        url += `&startDate=${historyDateRange[0].format('YYYY-MM-DD')}&endDate=${historyDateRange[1].format('YYYY-MM-DD')}`;
+      }
+      const res = await axiosClient.get(url);
       return res.data.data;
     },
     refetchInterval: 5000
   });
+
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true);
+      let url = '/operation/parking-sessions/export';
+      if (historyDateRange && historyDateRange[0] && historyDateRange[1]) {
+        url += `?startDate=${historyDateRange[0].format('YYYY-MM-DD')}&endDate=${historyDateRange[1].format('YYYY-MM-DD')}`;
+      }
+      const response = await axiosClient.get(url, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const filename = `Vehicle_History_${historyDateRange?.[0]?.format('YYYYMMDD') || 'all'}_to_${historyDateRange?.[1]?.format('YYYYMMDD') || 'all'}.csv`;
+      link.href = window.URL.createObjectURL(blob);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Export failed", error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const { data: gatesData } = useQuery({
     queryKey: ['gates-status-report'],
@@ -72,17 +107,7 @@ export const OperationalDashboardScreen = () => {
     enabled: !!selectedTrafficDate
   });
 
-  // === Zone 5: MACRO TRENDS ===
-  const { data: macroTrends = {} } = useQuery({
-    queryKey: ['macro-trends', dateRange[0]?.format('YYYY-MM-DD'), dateRange[1]?.format('YYYY-MM-DD'), macroCategory],
-    queryFn: async () => {
-      const startDate = dateRange[0]?.format('YYYY-MM-DD');
-      const endDate = dateRange[1]?.format('YYYY-MM-DD');
-      const res = await axiosClient.get(`/finance/dashboard/macro-trends?startDate=${startDate}&endDate=${endDate}&category=${macroCategory}`);
-      return res.data.data;
-    },
-    enabled: !!dateRange[0] && !!dateRange[1]
-  });
+  // === Zone 5: MACRO TRENDS (REMOVED - Replaced by Revenue Dashboard) ===
 
   const liveData = useMemo(() => {
     if (dashboardData?.liveData) return dashboardData.liveData;
@@ -106,45 +131,71 @@ export const OperationalDashboardScreen = () => {
 
 
 
-  const renderGauge = (dataGroups: {value: number, color: string, label: string}[], capacity: number, title: string) => {
-    const totalOccupied = dataGroups.reduce((acc, curr) => acc + curr.value, 0);
-    let percent = 0;
-    if (capacity > 0) {
-      percent = Math.round((totalOccupied / capacity) * 100);
-    } else if (totalOccupied > 0) {
-      percent = 100;
-    }
-    
-    let pieData: any[] = [];
-    if (capacity > 0) {
-      pieData = dataGroups.map(d => ({ value: d.value, fill: d.color, label: d.label }));
-      pieData.push({ value: Math.max(capacity - totalOccupied, 0), fill: '#f0f0f0', label: 'Empty' });
-    } else if (totalOccupied > 0) {
-      pieData = dataGroups.map(d => ({ value: d.value, fill: d.color, label: d.label }));
-    } else {
-      pieData = [{ value: 0.0001, fill: '#d9d9d9' }, { value: 100, fill: '#f0f0f0' }];
-    }
+  // helper to calculate percent and color
+  const getProgressColor = (percent: number) => {
+    if (percent >= 90) return '#f5222d'; // Red
+    if (percent >= 70) return '#faad14'; // Yellow
+    return '#52c41a'; // Green
+  };
 
-    const mainColor = totalOccupied === 0 ? '#8c8c8c' : (percent > 90 ? '#f5222d' : (dataGroups.length === 1 ? dataGroups[0].color : '#52c41a'));
+  const renderProgressCard = (stat: any, index: number) => {
+    // Walk-in & Booking
+    const walkInCapacity = stat.capacityWalkIn || stat.capacity_walk_in || 0;
+    const walkInOccupied = (stat.occupiedWalkIn || stat.occupied_walk_in || 0) + (stat.occupiedBooking || stat.occupied_booking || 0);
+    const walkInPercent = walkInCapacity > 0 ? Math.round((walkInOccupied / walkInCapacity) * 100) : (walkInOccupied > 0 ? 100 : 0);
+
+    // Monthly
+    const monthlyCapacity = stat.capacityMonthly || stat.capacity_monthly || 0;
+    const monthlyOccupied = stat.occupiedMonthly || stat.occupied_monthly || 0;
+    const monthlyPercent = monthlyCapacity > 0 ? Math.round((monthlyOccupied / monthlyCapacity) * 100) : (monthlyOccupied > 0 ? 100 : 0);
+
+    // Icon helper
+    let iconElement: React.ReactNode = <span className="text-lg">🚘</span>;
+    const matchedVt = vehicleTypes?.find((v: any) => v.typeName === stat.name);
+    if (matchedVt && matchedVt.iconUrl) {
+      iconElement = <img src={getImageUrl(matchedVt.iconUrl)} style={{ width: 28, height: 28, objectFit: 'contain' }} alt={stat.name} />;
+    } else {
+      const nameLower = stat.name.toLowerCase();
+      if (nameLower.includes('motor')) iconElement = <span className="text-lg">🏍️</span>;
+      else if (nameLower.includes('bike') || nameLower.includes('bicycle')) iconElement = <span className="text-lg">🚲</span>;
+      else if (nameLower.includes('truck')) iconElement = <span className="text-lg">🚐</span>;
+    }
 
     return (
-      <div className="flex flex-col items-center">
-        <Text strong className="mb-2">{title}</Text>
-        <ResponsiveContainer width={120} height={120}>
-          <PieChart>
-            <Pie data={pieData} innerRadius={40} outerRadius={55} startAngle={180} endAngle={0} dataKey="value" stroke="none">
-              {pieData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value: any, name: any, props: any) => [value, props.payload?.label || '']} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="mt-[-40px] text-center">
-          <Title level={3} className="m-0" style={{ color: mainColor }}>
-            {percent}%
-          </Title>
-          <Text className="text-xs text-gray-500">{totalOccupied} / {capacity}</Text>
+      <div key={index} className="flex-1 min-w-[200px] max-w-[300px] bg-slate-50 border border-slate-200 p-3 rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          {iconElement}
+          <Text strong className="text-slate-700 uppercase tracking-wide">{stat.name}</Text>
+        </div>
+        
+        {/* Walk-in Zone */}
+        <div className="mb-2">
+          <div className="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Walk-in Zone</span>
+            <span className="font-medium text-slate-700">{walkInOccupied} / {walkInCapacity}</span>
+          </div>
+          <Progress 
+            percent={walkInPercent} 
+            strokeColor={getProgressColor(walkInPercent)} 
+            size="small" 
+            status={walkInPercent >= 100 ? 'exception' : 'normal'}
+            showInfo={false}
+          />
+        </div>
+
+        {/* Monthly Zone */}
+        <div>
+          <div className="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Monthly Zone</span>
+            <span className="font-medium text-slate-700">{monthlyOccupied} / {monthlyCapacity}</span>
+          </div>
+          <Progress 
+            percent={monthlyPercent} 
+            strokeColor={getProgressColor(monthlyPercent)} 
+            size="small" 
+            status={monthlyPercent >= 100 ? 'exception' : 'normal'}
+            showInfo={false}
+          />
         </div>
       </div>
     );
@@ -167,27 +218,6 @@ export const OperationalDashboardScreen = () => {
     ];
   }, [vehicleTypeKeys]);
 
-  const dailyNetFlowData = useMemo(() => {
-    if (!dateRange || !dateRange[0] || !dateRange[1]) return macroTrends.dailyNetFlow || [];
-    const start = dateRange[0];
-    const end = dateRange[1];
-    const dates = [];
-    let current = start;
-    while (current.isBefore(end) || current.isSame(end, 'day')) {
-      dates.push(current.format('YYYY-MM-DD'));
-      current = current.add(1, 'day');
-    }
-    
-    const originalData = macroTrends.dailyNetFlow || [];
-    const dataMap = new Map();
-    originalData.forEach((d: any) => dataMap.set(d.date, d));
-
-    return dates.map(date => {
-      if (dataMap.has(date)) return dataMap.get(date);
-      return { date, totalIn: 0, totalOut: 0 };
-    });
-  }, [macroTrends.dailyNetFlow, dateRange]);
-
   return (
     <div className="h-full overflow-y-auto bg-gray-50 p-6 pb-24">
       {/* Header */}
@@ -197,12 +227,6 @@ export const OperationalDashboardScreen = () => {
             <NodeIndexOutlined className="mr-3 text-blue-600" />  Operation Report
           </Title>
           <div className="flex items-center gap-3">
-            <Select
-              value={hourlyTrafficCategory}
-              onChange={setHourlyTrafficCategory}
-              style={{ width: 160 }}
-              options={vehicleTypeOptions}
-            />
             <DatePicker
               value={selectedTrafficDate}
               onChange={setSelectedTrafficDate}
@@ -224,66 +248,17 @@ export const OperationalDashboardScreen = () => {
 
         {/* Live KPI */}
       <Row gutter={16} className="mb-6">
-        <Col span={9}>
-          <Card className="shadow-sm h-full flex flex-col justify-start"
-                title={
-                  <div className="flex justify-between items-center text-sm font-normal">
-                    <span className="font-bold text-gray-700">Live Capacity</span>
-                    <Select 
-                      size="small" 
-                      value={gaugeSegment} 
-                      onChange={setGaugeSegment}
-                      options={[
-                        { value: 'WALK_IN_BOOKING', label: 'Walk-in & Booking' },
-                        { value: 'MONTHLY', label: 'Vé Tháng (Monthly)' },
-                        { value: 'INCIDENT', label: 'Vi Phạm (Incident)' }
-                      ]}
-                      style={{ width: 140 }}
-                    />
-                  </div>
-                }>
-            <div className="flex justify-around w-full flex-wrap gap-4 mt-2">
-              {liveData.vehicleStats && liveData.vehicleStats.length > 0 ? (
-                liveData.vehicleStats.map((stat: any, index: number) => {
-                  let capacity = 0;
-                  let dataGroups: any[] = [];
-                  
-                  if (gaugeSegment === 'WALK_IN_BOOKING') {
-                    capacity = stat.capacityWalkIn || stat.capacity_walk_in || 0;
-                    dataGroups = [
-                      { value: stat.occupiedWalkIn || stat.occupied_walk_in || 0, color: '#faad14', label: 'Walk-in' },
-                      { value: stat.occupiedBooking || stat.occupied_booking || 0, color: '#1890ff', label: 'Booking' }
-                    ];
-                  } else if (gaugeSegment === 'MONTHLY') {
-                    capacity = stat.capacityMonthly || stat.capacity_monthly || 0;
-                    dataGroups = [
-                      { value: stat.occupiedMonthly || stat.occupied_monthly || 0, color: '#722ed1', label: 'Monthly' }
-                    ];
-                  }
-
-                  return (
-                    <div key={index}>
-                      {renderGauge(dataGroups, capacity, stat.name)}
-                    </div>
-                  );
-                })
-              ) : (
-                <Text type="secondary" className="mx-auto mt-4">Loading capacity...</Text>
-              )}
-            </div>
-          </Card>
-        </Col>
-        <Col span={5}>
+        <Col span={8}>
           <Card className="shadow-sm h-full flex flex-col justify-center">
-            <Statistic title="Total Check-ins" value={liveData.checkIns} valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
+            <Statistic title="Total Check-ins (Today)" value={liveData.checkIns} valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
           </Card>
         </Col>
-        <Col span={5}>
+        <Col span={8}>
           <Card className="shadow-sm h-full flex flex-col justify-center">
-            <Statistic title="Total Check-outs" value={liveData.checkOuts} valueStyle={{ color: '#fa8c16', fontWeight: 'bold' }} />
+            <Statistic title="Total Check-outs (Today)" value={liveData.checkOuts} valueStyle={{ color: '#fa8c16', fontWeight: 'bold' }} />
           </Card>
         </Col>
-        <Col span={5}>
+        <Col span={8}>
           <Card className="shadow-sm h-full bg-blue-50 border-blue-200 flex flex-col justify-center">
             <Statistic 
               title="Peak Hour" 
@@ -295,6 +270,57 @@ export const OperationalDashboardScreen = () => {
         </Col>
       </Row>
 
+      {/* Live Capacity */}
+      <Card className="shadow-sm mb-6"
+            title={
+              <div className="flex justify-between items-center text-sm font-normal">
+                <span className="font-bold text-gray-700">Live Capacity</span>
+              </div>
+            }>
+        {/* Wrong Zone Alert */}
+        {(() => {
+          if (!liveData.vehicleStats) return null;
+          const violations = liveData.vehicleStats
+            .map((stat: any) => {
+              const occSlots = stat.occupied_slots_monthly || 0;
+              const occSoft = stat.occupied_monthly || 0;
+              const wrongZoneTickets = stat.wrong_zone_tickets_count || 0;
+              const diff = occSlots - wrongZoneTickets - occSoft;
+              return { name: stat.name, diff: diff > 0 ? diff : 0 };
+            })
+            .filter((v: any) => v.diff > 0);
+
+          if (violations.length === 0) return null;
+
+          return (
+            <Alert
+              message={<span className="font-bold">🚨 Mismatch in Monthly Zone Detected!</span>}
+              description={
+                <div className="mt-1">
+                  {violations.map((v: any, idx: number) => (
+                    <div key={idx}>
+                      Hardware sensors indicate <b>{v.diff} unauthorized {v.name}(s)</b> parked in the Monthly Zone without an active ticket. Please dispatch staff to investigate!
+                    </div>
+                  ))}
+                </div>
+              }
+              type="error"
+              showIcon
+              icon={<WarningOutlined />}
+              className="mb-4 border-red-400 bg-red-50"
+            />
+          );
+        })()}
+
+        <div className="flex flex-wrap gap-4 mt-2">
+          {liveData.vehicleStats && liveData.vehicleStats.length > 0 ? (
+            liveData.vehicleStats.map((stat: any, index: number) => renderProgressCard(stat, index))
+          ) : (
+            <Text type="secondary" className="mx-auto mt-4">Loading capacity...</Text>
+          )}
+        </div>
+      </Card>
+
       {/* === HOURLY TRAFFIC FLOW === */}
       <Card
         className="shadow-sm mb-6 border-blue-200"
@@ -303,6 +329,15 @@ export const OperationalDashboardScreen = () => {
             <NodeIndexOutlined className="text-blue-600 text-lg" />
             <span className="font-bold text-lg text-blue-800">Hourly Traffic Flow (In/Out)</span>
           </span>
+        }
+        extra={
+          <Select
+            value={hourlyTrafficCategory}
+            onChange={setHourlyTrafficCategory}
+            style={{ width: 200 }}
+            options={vehicleTypeOptions}
+            placeholder="Select Vehicle Type"
+          />
         }
       >
         <Row gutter={24}>
@@ -357,81 +392,7 @@ export const OperationalDashboardScreen = () => {
         </Row>
       </Card>
 
-      {/* === Zone 5: MACRO ANALYSIS === */}
-      <Row gutter={16} className="mb-6">
-        <Col span={12}>
-          <Card 
-            title="Daily Net Flow Trend" 
-            className="shadow-sm h-full"
-            extra={
-              <div className="flex items-center gap-3">
-                <Select
-                  value={macroCategory}
-                  onChange={setMacroCategory}
-                  style={{ width: 120 }}
-                  options={vehicleTypeOptions}
-                />
-                <RangePicker 
-                  value={dateRange} 
-                  onChange={(dates) => dates && setDateRange(dates)} 
-                  format="DD/MM/YYYY" 
-                  allowClear={false}
-                  style={{ width: 240 }}
-                />
-              </div>
-            }
-          >
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={dailyNetFlowData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fill: '#666', fontSize: 12 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: '#666', fontSize: 12 }} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend formatter={(value) => ({ totalIn: 'Total In', totalOut: 'Total Out' } as any)[value as any] || value} />
-                <Line type="monotone" dataKey="totalIn" stroke="#1890ff" strokeWidth={2} activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="totalOut" stroke="#f5222d" strokeWidth={2} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card title="Vehicle structure" className="shadow-sm h-full">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={macroTrends.vehicleTypeRatio || []} innerRadius={60} outerRadius={80} dataKey="value" stroke="none" label>
-                  {
-                    (macroTrends.vehicleTypeRatio || []).map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={entry.name === 'FOUR_WHEEL' ? '#1890ff' : '#f5222d'} />
-                    ))
-                  }
-                </Pie>
-                <Tooltip formatter={(value: any, name: any) => [value, name]} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card title="Customer structure" className="shadow-sm h-full">
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={macroTrends.customerSegmentRatio || []} innerRadius={60} outerRadius={80} dataKey="value" stroke="none" label>
-                  {
-                    (macroTrends.customerSegmentRatio || []).map((entry: any, index: number) => {
-                      let color = '#faad14'; // WALK_IN
-                      if (entry.name === 'BOOKING') color = '#52c41a';
-                      else if (entry.name === 'MONTHLY') color = '#722ed1';
-                      return <Cell key={`cell-${index}`} fill={color} />;
-                    })
-                  }
-                </Pie>
-                <Tooltip formatter={(value: any, name: any) => [value, name === 'WALK_IN' ? 'Walk-in' : name === 'BOOKING' ? 'Pre-booked' : 'Monthly Pass']} />
-                <Legend formatter={(value: string) => value === 'WALK_IN' ? 'Walk-in' : value === 'BOOKING' ? 'Pre-booked' : 'Monthly Pass'} />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
+      {/* MACRO ANALYSIS (REMOVED) */}
 
       {/* GATE STATUS REPORT */}
       <Card 
@@ -470,9 +431,25 @@ export const OperationalDashboardScreen = () => {
       <Card 
         className="mt-6 shadow-sm border-slate-200 rounded-xl"
         title={
-          <div className="flex items-center text-slate-800">
-            <span className="mr-2 text-xl">📜</span> 
-            <span className="font-bold tracking-wide">VEHICLE ENTRANCE / EXIT HISTORY</span>
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center text-slate-800">
+              <span className="mr-2 text-xl">📜</span> 
+              <span className="font-bold tracking-wide">VEHICLE ENTRANCE / EXIT HISTORY</span>
+            </div>
+            <div className="flex gap-4">
+              <RangePicker
+                value={historyDateRange}
+                onChange={(dates) => {
+                  setHistoryDateRange(dates);
+                  setHistoryPage(1); // Reset page on date change
+                }}
+                format="DD/MM/YYYY"
+                allowClear={true}
+              />
+              <Button type="primary" icon={<DownloadOutlined />} loading={isExporting} onClick={handleExportCSV}>
+                Export CSV
+              </Button>
+            </div>
           </div>
         }
       >

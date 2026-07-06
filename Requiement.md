@@ -21,7 +21,7 @@ Functional Requirements:
 - Quản lý phân tầng theo loại xe
 - Quản lý slot đỗ xe và trạng thái slot: theo dõi slot còn trống, đang sử dụng, đã đặt trước, bảo trì hoặc tạm khóa
 - Quản lý bảng giá, quy định chính sách tính phí gửi xe
-- Xem báo cáo lượt xe vào/ra, doanh thu, tỷ lệ lấp đầy, khung giờ cao điểm theo từng loại phương tiện
+- Xem báo cáo lượt xe vào/ra, doanh thu, khung giờ cao điểm theo từng loại phương tiện
 - Các quản lý nâng cao khác như: theo dõi các trường hợp mất vé, sai biển số, quá giờ, gửi sai khu vực, xe chưa thanh toán (optional)
 
 Parking Staff

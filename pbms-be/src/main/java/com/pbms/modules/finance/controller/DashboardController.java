@@ -21,15 +21,13 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
-    @GetMapping("/revenue")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getRevenueOverview(
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
-        
-        Map<String, Object> data = dashboardService.getRevenueOverview(startDate, endDate);
-        return ResponseEntity.ok(ApiResponse.success(data, "The amount of revenue is the same"));
-    }
 
+    /**
+     * GET /api/v1/finance/dashboard/operational?date=YYYY-MM-DD
+     * API chính cung cấp dữ liệu tổng quan cho Báo cáo Vận hành (Operational Dashboard).
+     * Trả về các chỉ số: Total Check-ins, Total Check-outs, Peak Hour và đặc biệt là
+     * Live Capacity (Sức chứa hiện tại của bãi xe chia theo Walk-in Zone và Monthly Zone).
+     */
     @GetMapping("/operational")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getOperationalOverview(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -39,41 +37,18 @@ public class DashboardController {
     }
 
     /**
-     * GET /api/v1/dashboard/occupancy?date=YYYY-MM-DD
-     * Tráº£ vá» dá»¯ liá»‡u lÆ°á»£ng xe trong bÃ£i theo tá»«ng giá» trong ngÃ y (biá»ƒu Ä‘á»“ dÃ¢ng nÆ°á»›c)
-     */
-    @GetMapping("/occupancy")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getHourlyOccupancy(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        
-        List<Map<String, Object>> data = dashboardService.getHourlyOccupancy(date);
-        return ResponseEntity.ok(ApiResponse.success(data, "Success"));
-    }
-
-    /**
-     * GET /api/v1/dashboard/hourly-flow?date=YYYY-MM-DD
-     * Tráº£ vá» dá»¯ liá»‡u lÆ°u lÆ°á»£ng vÃ o/ra giá» cao Ä‘iá»ƒm (Khu vá»±c 4)
+     * GET /api/v1/finance/dashboard/hourly-flow?date=YYYY-MM-DD
+     * Trả về dữ liệu lưu lượng xe vào/ra (Check-ins/Check-outs) theo từng khung giờ trong ngày.
+     * Dữ liệu này được dùng để vẽ biểu đồ "Hourly Traffic Flow", giúp người quản lý
+     * nhận biết các khung giờ cao điểm để điều phối nhân sự trực cổng.
      */
     @GetMapping("/hourly-flow")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getHourlyFlow(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         
         List<Map<String, Object>> data = dashboardService.getHourlyFlow(date);
-        return ResponseEntity.ok(ApiResponse.success(data, "The price of this product is as high as the price."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Hourly flow retrieved successfully."));
     }
 
-    /**
-     * GET /api/v1/dashboard/macro-trends?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-     * Tráº£ vá» tá»• há»£p dá»¯ liá»‡u phÃ¢n tÃ­ch vÄ© mÃ´ (Khu vá»±c 5)
-     */
-    @GetMapping("/macro-trends")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getMacroTrends(
-            @RequestParam String startDate,
-            @RequestParam String endDate,
-            @RequestParam(required = false) String category) {
-        
-        Map<String, Object> data = dashboardService.getMacroTrends(startDate, endDate, category);
-        return ResponseEntity.ok(ApiResponse.success(data, "This is a great solution to the problem."));
-    }
 }
 

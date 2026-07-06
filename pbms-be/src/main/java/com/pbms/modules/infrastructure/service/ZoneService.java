@@ -24,7 +24,9 @@ public class ZoneService {
     private final SystemConfigService systemConfigService;
 
     public List<ZoneDTO> getMapZones() {
-        List<Zone> zones = zoneRepository.findAll();
+        List<Zone> zones = zoneRepository.findAll().stream()
+                .filter(z -> !"DELETED".equals(z.getStatus()))
+                .collect(Collectors.toList());
         
         return zones.stream().map(zone -> {
             List<Slot> slots = slotRepository.findByZoneId(zone.getId());

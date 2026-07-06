@@ -7,6 +7,7 @@ import com.pbms.modules.infrastructure.domain.Gate;
 import com.pbms.modules.infrastructure.repository.GateRepository;
 import com.pbms.modules.operation.domain.ParkingSession;
 import com.pbms.modules.operation.repository.ParkingSessionRepository;
+import com.pbms.modules.incident.repository.IncidentTicketRepository;
 import com.pbms.modules.operation.repository.StaffWorkSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class WorkSessionService {
     private final UserRepository userRepository;
     private final GateRepository gateRepository;
     private final ParkingSessionRepository parkingSessionRepository;
+    private final IncidentTicketRepository incidentTicketRepository;
 
     @Transactional
     public StaffWorkSession startSession(String email, Long gateId, String gateType) {
@@ -135,6 +137,13 @@ public class WorkSessionService {
         return result;
     }
 
+    /**
+     * Preview the current shift's expected revenue before checking out.
+     * Calculates total expected revenue based on the gate type and the number of checkout sessions.
+     * Includes a specific edge case for PATROL staff who collect penalty fees directly.
+     * @param email Staff's email
+     * @return Map containing preview data (expected revenue, transaction count, etc.)
+     */
     public Map<String, Object> getPreviewSettlement(String email) {
         User staff = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Staff do not agree"));
@@ -176,11 +185,31 @@ public class WorkSessionService {
                     .map(ps -> ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
         } else {
-            // IN_OUT
+            // IN_OUT or PATROL
             totalTransactions = checkIns.size() + checkOuts.size();
             totalRevenue = checkOuts.stream()
                     .map(ps -> ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
+                    
+            // [CRITICAL FIX]: Account for Patrol penalty collections.
+            // Since PATROL gates don't have "check-outs", we query IncidentTickets directly 
+            // to count the cash they collected on the floor.
+            if ("PATROL".equals(session.getGate().getGateType())) {
+                List<com.pbms.modules.incident.domain.IncidentTicket> resolvedTickets = incidentTicketRepository
+                        .findByUserIdAndResolvedAtBetweenAndStatus(
+                                staff.getId(),
+                                session.getLoginTime(),
+                                com.pbms.common.utils.TimeProvider.now(),
+                                "RESOLVED"
+                        );
+                
+                BigDecimal patrolRevenue = resolvedTickets.stream()
+                        .map(t -> t.getFineAmount() != null ? t.getFineAmount() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
+                        
+                totalRevenue = totalRevenue.add(patrolRevenue);
+                totalTransactions += resolvedTickets.size();
+            }
         }
 
         Map<String, Object> preview = new HashMap<>();

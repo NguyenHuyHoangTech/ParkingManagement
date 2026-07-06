@@ -48,7 +48,7 @@ export const ManagerLayout = () => {
         icon: <DashboardOutlined />,
         children: [
           { key: '/manager/revenue-dashboard', label: 'Revenue Dashboard' },
-          { key: '/manager/operational-dashboard', label: 'Operate Dashboard' },
+          { key: '/manager/operational-dashboard', label: 'Operational Dashboard' },
         ],
       },
       {
@@ -78,7 +78,6 @@ export const ManagerLayout = () => {
         label: 'Revenue & Financial',
         icon: <DollarOutlined />,
         children: [
-          { key: '/manager/shift-revenue', label: 'Shift Revenue' },
           { key: '/manager/refund-management', label: 'Refund Management' },
         ],
       },

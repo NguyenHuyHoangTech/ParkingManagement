@@ -72,11 +72,13 @@ public class GateOperationService {
         java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         int windowMinutes = 30;
         try {
-            windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
+            windowMinutes = Integer
+                    .parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
         } catch (Exception e) {
         }
         for (Reservation res : pending) {
-            java.time.LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(res.getExpectedDurationMinutes());
+            java.time.LocalDateTime expireTime = res.getExpectedEntryTime()
+                    .plusMinutes(res.getExpectedDurationMinutes());
             java.time.LocalDateTime earlyWindow = res.getExpectedEntryTime().minusMinutes(windowMinutes);
             if (now.isAfter(expireTime)) {
                 res.setStatus("COMPLETED_UNUSED");
@@ -94,24 +96,29 @@ public class GateOperationService {
         if (plate != null && !plate.trim().isEmpty()) {
             Optional<MonthlyTicket> mt = monthlyTicketRepository.findByPlateAndStatus(plate, "ACTIVE");
             if (mt.isPresent() && mt.get().getValidUntil().isAfter(now)) {
-                if (type == null || (mt.get().getVehicleType() != null && mt.get().getVehicleType().getId().equals(type.getId()))) {
+                if (type == null || (mt.get().getVehicleType() != null
+                        && mt.get().getVehicleType().getId().equals(type.getId()))) {
                     return "MONTHLY";
                 }
             }
 
-            List<Reservation> activeReservations = reservationRepository.findByVehicle_PlateNumberAndStatus(plate, "ACTIVE");
-            if (!activeReservations.isEmpty()) return "PREBOOKED";
+            List<Reservation> activeReservations = reservationRepository.findByVehicle_PlateNumberAndStatus(plate,
+                    "ACTIVE");
+            if (!activeReservations.isEmpty())
+                return "PREBOOKED";
 
             List<Reservation> pendingReservations = getValidPendingReservations(plate);
-            if (!pendingReservations.isEmpty()) return "PREBOOKED";
+            if (!pendingReservations.isEmpty())
+                return "PREBOOKED";
         }
         if (rfid != null && !rfid.trim().isEmpty()) {
-             Optional<MonthlyTicket> mt = monthlyTicketRepository.findByRfidCard_CardCodeAndStatus(rfid, "ACTIVE");
-             if (mt.isPresent() && mt.get().getValidUntil().isAfter(now)) {
-                 if (type == null || (mt.get().getVehicleType() != null && mt.get().getVehicleType().getId().equals(type.getId()))) {
-                     return "MONTHLY";
-                 }
-             }
+            Optional<MonthlyTicket> mt = monthlyTicketRepository.findByRfidCard_CardCodeAndStatus(rfid, "ACTIVE");
+            if (mt.isPresent() && mt.get().getValidUntil().isAfter(now)) {
+                if (type == null || (mt.get().getVehicleType() != null
+                        && mt.get().getVehicleType().getId().equals(type.getId()))) {
+                    return "MONTHLY";
+                }
+            }
         }
         return "WALK-IN";
     }
@@ -136,22 +143,28 @@ public class GateOperationService {
             if (!reservations.isEmpty()) {
                 Reservation res = reservations.get(0);
                 if (!res.getVehicle().getVehicleType().getId().equals(type.getId())) {
-                    earlyBookingNotice = "Warning: Booking exists but vehicle type mismatch! Booking is for " + res.getVehicle().getVehicleType().getTypeName();
+                    earlyBookingNotice = "Warning: Booking exists but vehicle type mismatch! Booking is for "
+                            + res.getVehicle().getVehicleType().getTypeName();
                     suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
                 } else {
                     suggestedZone = res.getZone();
                     if (zoneRoutingService.isZonePhysicallyFull(suggestedZone.getId())) {
-                        log.info("Reserved zone {} is physically full, routing to fallback zone.", suggestedZone.getZoneName());
+                        log.info("Reserved zone {} is physically full, routing to fallback zone.",
+                                suggestedZone.getZoneName());
                         suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
                     }
                 }
             } else {
-                List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+                List<Reservation> allPending = reservationRepository
+                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
-                    Reservation earliest = allPending.stream().min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                    Reservation earliest = allPending.stream()
+                            .min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
                     if (earliest != null) {
-                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
-                        earlyBookingNotice = "Notice: This vehicle has a booking at " + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
+                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                                .ofPattern("HH:mm");
+                        earlyBookingNotice = "Notice: This vehicle has a booking at "
+                                + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
                     }
                 }
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
@@ -235,18 +248,22 @@ public class GateOperationService {
         if (session.getPlate() != null && !session.getPlate().isEmpty()) {
             relevantTicket = monthlyTicketRepository.findByPlateAndStatus(session.getPlate(), "ACTIVE");
             if (relevantTicket.isEmpty()) {
-                relevantTicket = monthlyTicketRepository.findTopByPlateAndStatusOrderByUpdatedAtDesc(session.getPlate(), "EXPIRED");
+                relevantTicket = monthlyTicketRepository.findTopByPlateAndStatusOrderByUpdatedAtDesc(session.getPlate(),
+                        "EXPIRED");
             }
         }
         if (relevantTicket.isEmpty() && rfidCode != null && !rfidCode.isEmpty()) {
             relevantTicket = monthlyTicketRepository.findByRfidCard_CardCodeAndStatus(rfidCode, "ACTIVE");
             if (relevantTicket.isEmpty()) {
-                relevantTicket = monthlyTicketRepository.findTopByRfidCard_CardCodeAndStatusOrderByUpdatedAtDesc(rfidCode, "EXPIRED");
+                relevantTicket = monthlyTicketRepository
+                        .findTopByRfidCard_CardCodeAndStatusOrderByUpdatedAtDesc(rfidCode, "EXPIRED");
             }
         }
 
-        if (relevantTicket.isPresent() && relevantTicket.get().getValidUntil().isAfter(session.getTimeIn()) && relevantTicket.get().getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now())) {
-            if (session.getVehicleType() != null && relevantTicket.get().getVehicleType() != null && session.getVehicleType().getId().equals(relevantTicket.get().getVehicleType().getId())) {
+        if (relevantTicket.isPresent() && relevantTicket.get().getValidUntil().isAfter(session.getTimeIn())
+                && relevantTicket.get().getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now())) {
+            if (session.getVehicleType() != null && relevantTicket.get().getVehicleType() != null
+                    && session.getVehicleType().getId().equals(relevantTicket.get().getVehicleType().getId())) {
                 feeStartTime = relevantTicket.get().getValidUntil();
             }
         }
@@ -291,7 +308,8 @@ public class GateOperationService {
         if (session.getSlot() != null && session.getSlot().getZone() != null) {
             info.setSuggestedZoneName(session.getSlot().getZone().getZoneName());
         } else if (session.getSuggestedZoneId() != null) {
-            info.setSuggestedZoneName(zoneRepository.findById(session.getSuggestedZoneId()).map(zone -> zone.getZoneName()).orElse("N/A"));
+            info.setSuggestedZoneName(zoneRepository.findById(session.getSuggestedZoneId())
+                    .map(zone -> zone.getZoneName()).orElse("N/A"));
         } else if (session.getReservation() != null && session.getReservation().getZone() != null) {
             info.setSuggestedZoneName(session.getReservation().getZone().getZoneName());
         } else {
@@ -301,7 +319,8 @@ public class GateOperationService {
         java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
         long duration = java.time.Duration.between(feeStartTime, now).toMinutes();
-        if (duration < 0) duration = 0;
+        if (duration < 0)
+            duration = 0;
         info.setDurationMinutes(duration);
         info.setTimeOut(now);
 
@@ -318,7 +337,8 @@ public class GateOperationService {
             info.setOvertimeMinutes(0L);
         } else if (session.getReservation() != null) {
             java.time.LocalDateTime bookedIn = session.getReservation().getExpectedEntryTime();
-            java.time.LocalDateTime bookedOut = bookedIn.plusMinutes(session.getReservation().getExpectedDurationMinutes());
+            java.time.LocalDateTime bookedOut = bookedIn
+                    .plusMinutes(session.getReservation().getExpectedDurationMinutes());
             info.setBookedTimeIn(bookedIn);
             info.setBookedTimeOut(bookedOut);
 
@@ -327,7 +347,8 @@ public class GateOperationService {
                 info.setOvertimeMinutes(overtime);
                 if (session.getVehicleType() != null) {
                     try {
-                        java.math.BigDecimal fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut, now);
+                        java.math.BigDecimal fee = pricingCalculatorService
+                                .calculateTotalFee(session.getVehicleType().getId(), bookedOut, now);
                         info.setExpectedFee(fee);
                     } catch (Exception e) {
                         info.setExpectedFee(java.math.BigDecimal.ZERO);
@@ -341,7 +362,8 @@ public class GateOperationService {
             }
         } else if (session.getVehicleType() != null) {
             try {
-                java.math.BigDecimal fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime, now);
+                java.math.BigDecimal fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(),
+                        feeStartTime, now);
                 log.info("CALCULATED FEE: " + fee + " for duration: " + duration);
                 info.setExpectedFee(fee);
             } catch (Exception e) {
@@ -407,20 +429,27 @@ public class GateOperationService {
             reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
                 if (!reservations.get(0).getVehicle().getVehicleType().getId().equals(type.getId())) {
-                    return GateResponseDTO.builder().status("ERROR").message("Loại phương tiện AI nhận diện không khớp với Đơn đặt chỗ (Booking). Vui lòng kiểm tra lại.").build();
+                    return GateResponseDTO.builder().status("ERROR").message(
+                            "Loại phương tiện AI nhận diện không khớp với Đơn đặt chỗ (Booking). Vui lòng kiểm tra lại.")
+                            .build();
                 }
                 suggestedZone = reservations.get(0).getZone();
                 if (zoneRoutingService.isZonePhysicallyFull(suggestedZone.getId())) {
-                    log.info("Reserved zone {} is physically full, routing to fallback zone.", suggestedZone.getZoneName());
+                    log.info("Reserved zone {} is physically full, routing to fallback zone.",
+                            suggestedZone.getZoneName());
                     suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
                 }
             } else {
-                List<Reservation> allPending = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+                List<Reservation> allPending = reservationRepository
+                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
-                    Reservation earliest = allPending.stream().min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                    Reservation earliest = allPending.stream()
+                            .min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
                     if (earliest != null) {
-                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
-                        earlyBookingNotice = "Notice: This vehicle has a booking at " + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
+                        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                                .ofPattern("HH:mm");
+                        earlyBookingNotice = "Notice: This vehicle has a booking at "
+                                + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
                     }
                 }
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
@@ -441,7 +470,8 @@ public class GateOperationService {
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
 
-        if (!"IN".equals(gate.getGateType()) && !"ENTRY".equals(gate.getGateType()) && !"IN_OUT".equals(gate.getGateType())) {
+        if (!"IN".equals(gate.getGateType()) && !"ENTRY".equals(gate.getGateType())
+                && !"IN_OUT".equals(gate.getGateType())) {
             return GateResponseDTO.builder()
                     .status("ERROR")
                     .message("Invalid gate type for check-in")
@@ -486,7 +516,8 @@ public class GateOperationService {
         }
 
         // Rule: Duplicate Entry Prevention
-        List<ParkingSession> existingSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate, type.getId(), "ACTIVE");
+        List<ParkingSession> existingSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate,
+                type.getId(), "ACTIVE");
         if (!existingSessions.isEmpty()) {
             return GateResponseDTO.builder()
                     .status("ERROR")
@@ -494,14 +525,15 @@ public class GateOperationService {
                     .build();
         }
 
-        boolean[] isBlacklistedRef = {false};
-        String[] blacklistReasonRef = {""};
+        boolean[] isBlacklistedRef = { false };
+        String[] blacklistReasonRef = { "" };
         vehicleRepository.findByPlateNumber(request.getPlateNumber()).ifPresent(v -> {
             if (Boolean.TRUE.equals(v.getIsBlacklisted())) {
                 isBlacklistedRef[0] = true;
                 blacklistReasonRef[0] = v.getBlacklistReason();
-                
-                // Clear blacklist flag upon re-entry as we are moving the penalty to the new session
+
+                // Clear blacklist flag upon re-entry as we are moving the penalty to the new
+                // session
                 v.setIsBlacklisted(false);
                 vehicleRepository.save(v);
             }
@@ -538,10 +570,11 @@ public class GateOperationService {
                 String configKey = is2W ? "PENALTY_BLACKLIST_UNPAID_2W" : "PENALTY_BLACKLIST_UNPAID_4W";
                 penaltyFee = new java.math.BigDecimal(systemConfigService.getConfigByKey(configKey).getConfigValue());
             } catch (Exception e) {
-                penaltyFee = new java.math.BigDecimal("500000"); 
+                penaltyFee = new java.math.BigDecimal("500000");
             }
 
-            com.pbms.modules.incident.domain.IncidentTicket ticket = com.pbms.modules.incident.domain.IncidentTicket.builder()
+            com.pbms.modules.incident.domain.IncidentTicket ticket = com.pbms.modules.incident.domain.IncidentTicket
+                    .builder()
                     .session(session)
                     .issueType("BLACKLIST_VIOLATION")
                     .priority("HIGH")
@@ -559,15 +592,18 @@ public class GateOperationService {
             }
             reservationRepository.save(activeRes);
 
-            messagingTemplate.convertAndSend("/topic/staff/notifications", 
-                String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Vehicle arrived.\"}", activeRes.getId()));
+            messagingTemplate.convertAndSend("/topic/staff/notifications",
+                    String.format(
+                            "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Vehicle arrived.\"}",
+                            activeRes.getId()));
         }
 
         GateResponseDTO response = GateResponseDTO.builder()
                 .sessionId(session.getId())
                 .plateNumber(session.getPlate())
                 .status(isBlacklistedRef[0] ? "WARNING" : "SUCCESS")
-                .message(isBlacklistedRef[0] ? "Vehicle has evaded before. Penalty added to session." : "Check-in successful")
+                .message(isBlacklistedRef[0] ? "Vehicle has evaded before. Penalty added to session."
+                        : "Check-in successful")
                 .suggestedZoneId(suggestedZone != null ? suggestedZone.getId() : null)
                 .suggestedZoneName(suggestedZone != null ? suggestedZone.getZoneName() : null)
                 .earlyBookingNotice(earlyBookingNotice)
@@ -583,14 +619,16 @@ public class GateOperationService {
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
 
-        if (!"OUT".equals(gate.getGateType()) && !"EXIT".equals(gate.getGateType()) && !"IN_OUT".equals(gate.getGateType())) {
+        if (!"OUT".equals(gate.getGateType()) && !"EXIT".equals(gate.getGateType())
+                && !"IN_OUT".equals(gate.getGateType())) {
             return GateResponseDTO.builder()
                     .status("ERROR")
                     .message("Invalid gate type for check-out")
                     .build();
         }
 
-        ParkingSession session = sessionRepository.findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
+        ParkingSession session = sessionRepository
+                .findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
                 .orElseThrow(() -> new IllegalArgumentException("No active session found for this card"));
 
         if (!session.getPlate().equals(request.getPlateNumber())) {
@@ -624,13 +662,15 @@ public class GateOperationService {
                 fee = request.getTotalFee();
             } else if (session.getReservation() != null) {
                 java.time.LocalDateTime bookedIn = session.getReservation().getExpectedEntryTime();
-                java.time.LocalDateTime bookedOut = bookedIn.plusMinutes(session.getReservation().getExpectedDurationMinutes());
+                java.time.LocalDateTime bookedOut = bookedIn
+                        .plusMinutes(session.getReservation().getExpectedDurationMinutes());
                 if (session.getTimeOut().isAfter(bookedOut)) {
-                    fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut, session.getTimeOut());
+                    fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut,
+                            session.getTimeOut());
                 }
             } else {
-                String rfidCode = (request.getRfid() != null) ? request.getRfid() : 
-                                  (session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null);
+                String rfidCode = (request.getRfid() != null) ? request.getRfid()
+                        : (session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null);
 
                 java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
 
@@ -640,9 +680,10 @@ public class GateOperationService {
         }
 
         BigDecimal penaltyFee = BigDecimal.ZERO;
-        List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = incidentTicketRepository.findBySessionId(session.getId()).stream()
-                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()) || 
-                            ("PENDING".equals(t.getStatus()) && "OVERSTAY".equals(t.getIssueType())))
+        List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = incidentTicketRepository
+                .findBySessionId(session.getId()).stream()
+                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()) ||
+                        ("PENDING".equals(t.getStatus()) && "OVERSTAY".equals(t.getIssueType())))
                 .collect(java.util.stream.Collectors.toList());
 
         for (com.pbms.modules.incident.domain.IncidentTicket t : waitingTickets) {
@@ -650,7 +691,8 @@ public class GateOperationService {
                 penaltyFee = penaltyFee.add(t.getFineAmount());
             }
             t.setStatus("RESOLVED");
-            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Tự động đóng do xe đã xuất bãi thành công" : "Resolved on checkout");
+            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Tự động đóng do xe đã xuất bãi thành công"
+                    : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             incidentTicketRepository.save(t);
         }
@@ -659,7 +701,8 @@ public class GateOperationService {
 
         // Apply discount if valid
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-            if (session.getDiscountValidUntil() == null || !com.pbms.common.utils.TimeProvider.now().isAfter(session.getDiscountValidUntil())) {
+            if (session.getDiscountValidUntil() == null
+                    || !com.pbms.common.utils.TimeProvider.now().isAfter(session.getDiscountValidUntil())) {
                 fee = fee.subtract(session.getDiscount());
                 if (fee.compareTo(BigDecimal.ZERO) < 0) {
                     fee = BigDecimal.ZERO;
@@ -686,7 +729,9 @@ public class GateOperationService {
                     .amount(fee)
                     .paymentMethod(payMethod)
                     .status("SUCCESS")
-                    .transactionReference("TXN-" + session.getId() + "-" + com.pbms.common.utils.TimeProvider.now().toInstant(java.time.ZoneOffset.UTC).toEpochMilli())
+                    .transactionReference("TXN-" + session.getId() + "-"
+                            + com.pbms.common.utils.TimeProvider.now().toInstant(java.time.ZoneOffset.UTC)
+                                    .toEpochMilli())
                     .build();
             transactionRepository.save(transaction);
             log.info("Transaction recorded: {} {} via {}", fee, "VND", payMethod);
@@ -711,4 +756,3 @@ public class GateOperationService {
         return response;
     }
 }
-

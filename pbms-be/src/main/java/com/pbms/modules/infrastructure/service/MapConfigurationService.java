@@ -63,14 +63,30 @@ public class MapConfigurationService {
         // Map active parking sessions to their slots to populate the plate field
         Map<Long, String> slotPlateMap = parkingSessionRepository.findAll().stream()
                 .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus())) && ps.getSlot() != null)
-                .collect(Collectors.toMap(ps -> ps.getSlot().getId(), ps -> ps.getPlate(), (p1, p2) -> p1));
+                .collect(Collectors.toMap(
+                    ps -> ps.getSlot().getId(), 
+                    ps -> {
+                        String plate = ps.getPlate();
+                        if (plate != null && !plate.trim().isEmpty()) return plate;
+                        if (ps.getRfidCard() != null) return "RFID " + ps.getRfidCard().getCardCode();
+                        return "Unknown";
+                    }, 
+                    (p1, p2) -> p1));
 
         // Group active parking sessions by suggested zone id
         Map<Long, List<String>> zoneSuggestedVehicles = parkingSessionRepository.findAll().stream()
-                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus())) && ps.getSuggestedZoneId() != null && ps.getPlate() != null)
+                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus())) && ps.getSuggestedZoneId() != null)
                 .collect(Collectors.groupingBy(
                     ps -> ps.getSuggestedZoneId(),
-                    Collectors.mapping(ps -> ps.getPlate(), Collectors.toList())
+                    Collectors.mapping(
+                        ps -> {
+                            String plate = ps.getPlate();
+                            if (plate != null && !plate.trim().isEmpty()) return plate;
+                            if (ps.getRfidCard() != null) return "RFID " + ps.getRfidCard().getCardCode();
+                            return "Unknown";
+                        }, 
+                        Collectors.toList()
+                    )
                 ));
 
         List<ZoneConfigDTO> zoneDTOs = zones.stream().map(z -> {
@@ -100,6 +116,11 @@ public class MapConfigurationService {
                 return !now.isBefore(startWindow) && !now.isAfter(endWindow);
             }).count();
 
+            List<String> suggested = new ArrayList<>();
+            if (zoneSuggestedVehicles.containsKey(z.getId())) {
+                suggested.addAll(zoneSuggestedVehicles.get(z.getId()));
+            }
+
             return ZoneConfigDTO.builder()
                     .id(z.getId())
                     .floorId(z.getFloor().getId())
@@ -114,7 +135,7 @@ public class MapConfigurationService {
                     .rotation(z.getRotation())
                     .overflowThreshold(z.getOverflowThreshold())
                     .activeReservationsCount(activeReservations)
-                    .suggestedVehicles(zoneSuggestedVehicles.getOrDefault(z.getId(), new ArrayList<>()))
+                    .suggestedVehicles(suggested)
                     .slots(slotDTOs)
                     .build();
         }).collect(Collectors.toList());

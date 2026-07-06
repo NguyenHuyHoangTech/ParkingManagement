@@ -397,91 +397,50 @@ Dưới đây là tài liệu thiết kế giao diện (UI/UX) và luồng xử 
     * *Trục Hoành (X):* Các ngày trong khoảng thời gian đã chọn.  
     * *Trục Tung (Y):* Tổng tiền.  
     * *Hiển thị:* Các cột đứng thể hiện tổng doanh thu của từng ngày. Giúp định vị nhanh ngày cao điểm/thấp điểm.  
-  * **Khối Bên Phải (30% \- Sidebar): Bộ 3 Biểu đồ Tròn (Pie/Donut Charts) xếp dọc**  
+  * **Khối Bên Phải (30% \- Sidebar): Bộ 2 Biểu đồ Tròn (Pie/Donut Charts) xếp dọc**  
     * *Biểu đồ 1:* Tỷ trọng Phương thức thanh toán (% PAYOS vs % CASH).  
     * *Biểu đồ 2:* Tỷ trọng Nguồn doanh thu (% Vãng lai, % Đặt chỗ, % Phạt).  
-    * *Biểu đồ 3:* Tỷ trọng Loại phương tiện (% CAR-4S, % CAR-7S, % MOTORBIKE).  
 * **Luồng xử lý:** React tự động bóc tách dữ liệu. Khối bên trái gộp tiền theo ngày; khối bên phải lần lượt gộp tiền theo từng tiêu chí tương ứng tính ra % để vẽ biểu đồ.
 
-### **KHU VỰC 4: PHÂN TÍCH BIẾN ĐỘNG CHI TIẾT (TOGGLE COMPARISON CHART)**
-
-* **Vị trí:** Dưới Khu vực 3\.  
-* **Thành phần UI:**  
-  * Một khối biểu đồ lớn dạng Đường nhiều màu (Multi-line Chart) hoặc Cột chồng (Stacked Bar Chart). Trục hoành là các Ngày.  
-  * Có một nhóm nút chuyển đổi (Toggle/Tabs) ở góc trên bên phải khối:  
-    * \[So sánh Loại Xe\]  
-    * \[So sánh Nguồn Thu\]  
-    * \[So sánh Phương Thức\]  
-* **Luồng xử lý:** \* Khi bấm chuyển tab, không có API nào được gọi thêm.  
-  * React tự động lấy lại tập dữ liệu Master, tái cấu trúc thành dạng ma trận và vẽ chồng các đường dữ liệu lên nhau. Ví dụ: Khi chọn \[So sánh Loại Xe\], đường màu xanh dương (Ô tô) và đường màu đỏ (Xe máy) sẽ chạy song song hoặc cắt nhau dọc theo trục thời gian để Manager so sánh biến động.
 
 ### **KHU VỰC 6: BẢNG DỮ LIỆU THÔ VÀ TRÍCH XUẤT (DATA TABLE & EXPORT)**
 
 * **Vị trí:** Dưới cùng màn hình.  
 * **Thành phần UI:**  
-  * Component DataTable có phân trang (Pagination), hiển thị chi tiết từng dòng dữ liệu tổng hợp: Ngày | Loại Xe | Nguồn Thu | Phương Thức | Tổng Tiền | Số Lượt.  
-  * Nút bấm hành động nổi bật: **"Xuất Báo Cáo (Excel/CSV)"**.  
-* **Luồng xử lý Export:** \* Khi Kế toán click vào nút Export, React sẽ đóng gói mảng dữ liệu đang hiển thị trên Table thành file .csv.  
-  * Thay vì sử dụng dấu phẩy (,) làm ký tự phân cách cột (Separator) theo chuẩn quốc tế, thuật toán Export bắt buộc phải sử dụng **dấu chấm phẩy (;)**.  
-  * Việc này đảm bảo tương thích tuyệt đối khi mở file trên phần mềm Microsoft Excel của các máy tính được thiết lập hệ thống Region (Khu vực) là tiếng Việt, giúp dữ liệu tự động tràn vào đúng các cột một cách vuông vắn, không bị vỡ hoặc dính chùm chuỗi.
+  * Component DataTable có phân trang (Server-side Pagination), truyền `page` và `limit` xuống Backend, hiển thị chi tiết từng dòng dữ liệu: Ngày | Loại Xe | Nguồn Thu | Phương Thức | Tổng Tiền | Số Lượt.  
+  * Nút bấm hành động nổi bật: **"Xuất Báo Cáo (Excel/CSV)"**. Gọi API riêng biệt stream file trực tiếp từ Backend.
+* **Luồng xử lý Export:**
+  * Thuật toán Export bắt buộc phải sử dụng **dấu chấm phẩy (;)** làm ký tự phân cách cột (Separator).
+  * Việc này đảm bảo tương thích tuyệt đối khi mở file trên phần mềm Microsoft Excel của các máy tính được thiết lập hệ thống Region là tiếng Việt.
 
-## **BÁO CÁO LƯU LƯỢNG, TỶ LỆ LẤP ĐẦY VÀ GIỜ CAO ĐIỂM**
+## **BÁO CÁO LƯỢT XE RA VÀO VÀ GIỜ CAO ĐIỂM**
 
 **(MÃ PHÂN HỆ: UC-MNG06 \- TAB 2: OPERATIONAL DASHBOARD)**  
-Phân hệ này đóng vai trò là Trung tâm Kiểm soát Điều phái Vật lý của toàn bộ hệ thống quản lý bãi xe thông minh. Mục tiêu cốt lõi là số hóa toàn bộ luồng phương tiện di chuyển qua các cổng kiểm soát (Barrier) và trạng thái chiếm dụng không gian thực tế dưới các hầm đỗ xe, giúp người quản lý (Operation Manager) tối ưu hóa mật độ phân bổ mặt bằng, bắt bài khung giờ cao điểm và điều phối luồng xe tự động.
+Phân hệ này đóng vai trò là Trung tâm Kiểm soát Lưu lượng, cung cấp các biểu đồ về lượng xe ra/vào và thống kê giờ cao điểm để Đội trưởng an ninh phân bổ nhân sự hợp lý.
 
-### **1\. KIẾN TRÚC DỮ LIỆU VÀ THUẬT TOÁN TỐI ƯU HIỆU NĂNG**
+### **1\. KIẾN TRÚC DỮ LIỆU TỐI ƯU**
 
-Để đảm bảo hệ thống có khả năng chịu tải cao trong các khung giờ cao điểm (tần suất xe ra vào liên tục), phân hệ này áp dụng kiến trúc **Event-Driven Pre-calculation (Tính toán sẵn hướng sự kiện)** kết hợp **Pivoted Backend Matrix**, loại bỏ hoàn toàn các tác vụ quét toàn bảng (Full Table Scan) đếm dữ liệu lịch sử thô khi người dùng mở giao diện báo cáo.
-
-#### **1.1. Cơ chế đồng bộ Lưới thẻ thời gian thực (Live KPI Grid)**
-
-* Hệ thống không sử dụng các câu lệnh SELECT COUNT(\*) xuống cơ sở dữ liệu để cập nhật số lượng xe hiện tại.  
-* Khi hệ thống khởi chạy, tổng số xe đang có trạng thái INSIDE sẽ được đếm một lần duy nhất và nạp vào bộ nhớ RAM (In-Memory Cache như Redis hoặc biến tĩnh của Spring Boot).  
-* Mỗi khi có sự kiện xe qua cổng thành công (Event Check-in/Check-out), Backend chỉ thực hiện phép toán tăng/giảm giá trị trên RAM (currentCount++ hoặc currentCount--), sau đó đẩy ngay payload dữ liệu mới qua giao thức **WebSockets** lên giao diện người dùng dưới 100ms. Dữ liệu ghi xuống SQL Server chỉ mang tính chất lưu vết lịch sử (Log).
-
-#### **1.2. Cơ chế "Nhảy giờ tự động" (Time-based Upsert) cho dữ liệu xu hướng**
-
-* Để vẽ được biểu đồ đường 24 giờ mà không dùng tiến trình chạy ngầm quét dữ liệu định kỳ (Cron Job gây nghẽn ổ cứng), hệ thống sử dụng chính mốc thời gian thực của sự kiện xe qua cổng (Event Timestamp) để kiểm soát dữ liệu.  
-* Khi xe qua cổng lúc 08:15:20, Backend thực hiện làm tròn thời gian về đầu giờ (08:00:00) và thực hiện một lệnh **UPSERT (MERGE trong SQL Server)** xuống bảng nén dữ liệu xu hướng giờ (zone\_hourly\_trends):  
-  * **Nếu chưa có dòng của giờ 08:00:00 (Nhảy sang giờ mới):** Thực hiện lệnh **INSERT** một bản ghi mới với giá trị phần trăm lấp đầy khởi tạo.  
-  * **Nếu đã có dòng của giờ 08:00:00 (Trong cùng một khung giờ):** Thực hiện lệnh **UPDATE** ghi đè tỷ lệ % lấp đầy mới nếu giá trị này cao hơn giá trị cũ trong giờ đó (peak\_rate).
+Thay vì sử dụng các cơ chế chạy ngầm (Cron Job) hoặc WebSocket theo thời gian thực (gây nghẽn hệ thống), phân hệ báo cáo này áp dụng kiến trúc **Truy vấn Gom nhóm (SQL Group By)** trực tiếp từ lịch sử lưu lượng.
+Khi người dùng chọn khoảng thời gian và bấm "Xem Báo cáo", hệ thống mới gọi API xuống Backend. Backend thực thi lệnh SQL đếm tổng số xe và phân nhóm theo từng khung giờ (HOUR) để trả về mảng dữ liệu cho biểu đồ. Cơ chế này giúp giao diện báo cáo nhẹ nhàng và cổng Barie không bị ảnh hưởng hiệu năng.
 
 ### **2\. ĐẶC TẢ CHI TIẾT CÁC KHU VỰC GIAO DIỆN (UI/UX REGIONAL SPECIFICATIONS)**
 
-Màn hình báo cáo vận hành được quy hoạch thành 6 khu vực chức năng rành mạch theo luồng tư duy từ Tổng quan (Vĩ mô) đến Chi tiết (Vi mô).
+Màn hình báo cáo vận hành được quy hoạch thành 3 khu vực chức năng rành mạch.
 
 #### **KHU VỰC 1: BỘ ĐIỀU KHIỂN TRUNG TÂM (GLOBAL FILTER)**
 
 * **Thành phần UI:** Component DateRangePicker (Bộ chọn khoảng ngày lịch sử: Từ ngày \- Đến ngày).  
-* **Vị trí:** Cố định ở thanh trên cùng của giao diện Tab 2\.  
-* **Logic xử lý:** Đóng vai trò cung cấp tham số đầu vào gốc (startDate, endDate) cho các API trích xuất dữ liệu của Khu vực 3, Khối xu hướng ngày của Khu vực 5, và Bảng dữ liệu Khu vực 6\. Khi thay đổi khoảng ngày, toàn bộ các cấu phần này đồng loạt tải lại dữ liệu mà không làm ảnh hưởng đến các thẻ thời gian thực ở Khu vực 2\.
+* **Vị trí:** Cố định ở thanh trên cùng của giao diện.  
+* **Logic xử lý:** Đóng vai trò cung cấp tham số đầu vào gốc (startDate, endDate) cho các API bên dưới.
 
-#### **KHU VỰC 2: LƯỚI THẺ CHỈ SỐ THỜI GIAN THỰC (LIVE KPI GRID)**
+#### **KHU VỰC 2: LƯỚI THẺ CHỈ SỐ LƯU LƯỢNG (TRAFFIC KPI GRID)**
 
-* **Hình thức:** Grid Layout chia làm 3 khối thông tin biệt lập (Grouped Containers). Nhận dữ liệu liên tục từ luồng WebSockets.  
-* **Khối 1: Trạng thái Ô tô (CAR KINETICS)**  
-  * *Thẻ Tỷ lệ lấp đầy Ô tô (%):* Hiển thị số phần trăm chiếm dụng của phân khu ô tô. Đi kèm một đồ thị vòng tròn (Donut Gauge) tự động đổi màu sắc cảnh báo theo ngưỡng cấu hình: Xanh lá ($\\le 75\\%$) $\\rightarrow$ Vàng cam ($76\\% \- 90\\%$) $\\rightarrow$ Đỏ rực cảnh báo nguy cơ quá tải ($\> 90\\%$).  
-  * *Thẻ Số Ô tô hiện tại (Units):* Tổng số xe hơi thực tế đang nằm dưới hầm.  
-  * *Thẻ Số chỗ Ô tô khả dụng (Slots):* Số lượng ô đỗ xe hơi còn trống thực tế tại giây phút hiện tại.  
-* **Khối 2: Trạng thái Xe máy (MOTORBIKE KINETICS)**  
-  * *Thẻ Tỷ lệ lấp đầy Xe máy (%):* Hiển thị số phần trăm chiếm dụng kèm vòng tròn đổi màu tương tự khối ô tô.  
-  * *Thẻ Số Xe máy hiện tại (Units):* Tổng số xe máy thực tế đang nằm dưới hầm.  
-  * *Thẻ Số chỗ Xe máy khả dụng (Slots):* Số lượng vị trí đỗ xe máy còn trống thực tế.  
-* **Khối 3: Tổng Lưu lượng Ngày (DAILY TRAFFIC VOLUMETRICS)**  
-  * *Thẻ Tổng lượt vào (Check-in Today):* Tổng số lượt xe đã quét thẻ vào bãi tính từ 00:00 cùng ngày.  
-  * *Thẻ Tổng lượt ra (Check-out Today):* Tổng số lượt xe đã quét thẻ/thanh toán ra khỏi bãi tính từ 00:00 cùng ngày.
+* **Hình thức:** Các thẻ KPI đơn giản, rõ ràng.
+* **Thành phần UI:**
+  * *Thẻ Tổng Lượt Xe Vào:* Tổng số xe đã vào bãi trong chu kỳ được lọc.
+  * *Thẻ Tổng Lượt Xe Ra:* Tổng số xe đã rời bãi trong chu kỳ được lọc.
 
-#### **KHU VỰC 3: BIỂU ĐỒ XU HƯỚNG TỶ LỆ LẤP ĐẦY THEO ZONE (ZONE OCCUPANCY TREND)**
-
-* **Hình thức trực quan:** Biểu đồ đa đường liên tục (Multi-line Chart).  
-* **Cấu trúc trục:** \* Trục hoành ($X$): 24 khung giờ trong ngày (từ 00:00 đến 23:00).  
-  * Trục tung ($Y$): Thang đo tỷ lệ phần trăm từ $0\\%$ đến $100\\%$.  
-* **Đường chỉ số đặc biệt:** Tích hợp một đường nét đứt màu đỏ cố định nằm ngang chạy suốt đồ thị tại mốc định vị $90\\%$ (Ngưỡng cảnh báo tới hạn).  
-* **Hiển thị dòng dữ liệu:** Mỗi đường uốn lượn mang một màu sắc độc lập đại diện cho một Zone vật lý (Ví dụ: Đường màu Xanh dương \- Zone Vãng lai hầm B1; Đường màu Tím \- Zone Khách đặt chỗ trước).  
-* **Giá trị tối ưu:** Giúp phát hiện gia tốc đầy chỗ của từng khu vực. Thuật toán điều hướng hệ thống sẽ đọc dữ liệu từ bảng này: khi một phân khu tiệm cận đường nét đứt 90%, hệ thống tự động đẩy lệnh ra bảng LED ngoài cổng để hướng dẫn dòng xe di chuyển sang phân khu khác còn thấp hơn.
-
-#### **KHU VỰC 4: LƯU LƯỢNG VÀO/RA VÀ KHUNG GIỜ CAO ĐIỂM (HOURLY TRAFFIC FLOW)**
+#### **KHU VỰC 3: BIỂU ĐỒ LƯU LƯỢNG VÀ KHUNG GIỜ CAO ĐIỂM (HOURLY TRAFFIC FLOW)**
 
 * **Hình thức trực quan:** Biểu đồ đa đường chồng chéo đan xen (Multi-line Chart).  
 * **Cấu trúc trục:** Trục hoành ($X$) là 24 khung giờ. Trục tung ($Y$) là Số lượt xe di chuyển qua các cổng Barrier (Lượt).  

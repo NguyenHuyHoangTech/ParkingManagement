@@ -12,6 +12,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.math.BigDecimal;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.stream.Stream;
 
 import com.pbms.common.utils.TimeProvider;
 import com.pbms.modules.finance.service.PricingCalculatorService;
@@ -103,10 +114,20 @@ public class ParkingSessionController {
     @GetMapping("/all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAllSessions(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timeIn"));
-        Page<ParkingSession> sessionPage = parkingSessionRepository.findAll(pageRequest);
+        Page<ParkingSession> sessionPage;
+        
+        if (startDate != null && endDate != null) {
+            LocalDateTime start = startDate.atStartOfDay();
+            LocalDateTime end = endDate.atTime(LocalTime.MAX);
+            sessionPage = parkingSessionRepository.findByTimeInBetween(start, end, pageRequest);
+        } else {
+            sessionPage = parkingSessionRepository.findAll(pageRequest);
+        }
         
         List<Map<String, Object>> content = sessionPage.getContent().stream()
                 .map(this::toSessionMap)
@@ -120,6 +141,73 @@ public class ParkingSessionController {
         
         return ResponseEntity.ok(ApiResponse.success(result, "Fetched all sessions"));
     }
+
+    /**
+     * GET /api/v1/operation/parking-sessions/export
+     * Stream CSV export of parking sessions
+     */
+    @GetMapping("/export")
+    @Transactional(readOnly = true)
+    public ResponseEntity<StreamingResponseBody> exportTable(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            
+        StreamingResponseBody stream = out -> {
+            try (PrintWriter writer = new PrintWriter(out, false, StandardCharsets.UTF_8)) {
+                writer.write('\ufeff'); // BOM for Excel
+                writer.println("ID,License Plate,Vehicle Type,RFID,Entry Time,Entry Gate,Exit Time,Exit Gate,Total Fee,Status");
+                
+                LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDate.of(2000, 1, 1).atStartOfDay();
+                LocalDateTime end = endDate != null ? endDate.atTime(LocalTime.MAX) : LocalDateTime.now().plusDays(1);
+                
+                try (Stream<ParkingSession> sessionStream = parkingSessionRepository.readByTimeInBetweenOrderByTimeInDesc(start, end)) {
+                    sessionStream.forEach(ps -> {
+                        String timeIn = ps.getTimeIn() != null ? ps.getTimeIn().toString() : "";
+                        String timeOut = ps.getTimeOut() != null ? ps.getTimeOut().toString() : "";
+                        String vType = ps.getVehicleType() != null ? ps.getVehicleType().getTypeName() : "";
+                        String rfid = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : "";
+                        String gateIn = ps.getGateIn() != null ? ps.getGateIn().getGateName() : "";
+                        String gateOut = ps.getGateOut() != null ? ps.getGateOut().getGateName() : "";
+                        String fee = ps.getTotalFee() != null ? ps.getTotalFee().toString() : "0";
+                        
+                        writer.printf("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
+                                ps.getId(),
+                                escapeCsv(ps.getPlate()),
+                                escapeCsv(vType),
+                                escapeCsv(rfid),
+                                timeIn,
+                                escapeCsv(gateIn),
+                                timeOut,
+                                escapeCsv(gateOut),
+                                fee,
+                                ps.getStatus()
+                        );
+                    });
+                }
+                writer.flush();
+            }
+        };
+
+        String filename = "history_export.csv";
+        if (startDate != null && endDate != null) {
+            filename = "history_export_" + startDate + "_to_" + endDate + ".csv";
+        }
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(stream);
+    }
+
+    private String escapeCsv(String data) {
+        if (data == null) return "";
+        String escapedData = data.replaceAll("\\R", " ");
+        if (data.contains(",") || data.contains("\"") || data.contains("'")) {
+            escapedData = "\"" + escapedData.replace("\"", "\"\"") + "\"";
+        }
+        return escapedData;
+    }
+
 
     private Map<String, Object> toSessionMap(ParkingSession ps) {
         Map<String, Object> map = new HashMap<>();

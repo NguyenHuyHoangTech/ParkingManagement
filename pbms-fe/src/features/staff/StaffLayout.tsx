@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Layout, Typography, Avatar, Dropdown, Button, Modal, Badge } from 'antd';
 import { 
   LogoutOutlined,
@@ -7,7 +7,8 @@ import {
   DollarOutlined,
   SettingOutlined,
   DesktopOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  WarningOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
@@ -20,6 +21,7 @@ import { useEffect } from 'react';
 import { Client } from '@stomp/stompjs';
 import { notification } from 'antd';
 import axiosClient from '../../core/api/axiosClient';
+import { useQuery } from '@tanstack/react-query';
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
@@ -38,6 +40,28 @@ export const StaffLayout = () => {
 
   const [monthlyConflictVisible, setMonthlyConflictVisible] = useState(false);
   const [monthlyConflictData, setMonthlyConflictData] = useState<any>(null);
+
+  // QUERY: GET /finance/dashboard/operational for live sensor monitoring
+  const { data: operationalData } = useQuery({
+    queryKey: ['operational_dashboard'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/finance/dashboard/operational');
+      return res.data?.data || {};
+    },
+    refetchInterval: 5000 // Poll every 5 seconds for sensor changes
+  });
+
+  const violations = useMemo(() => {
+    if (!operationalData?.liveData?.vehicleStats) return [];
+    return operationalData.liveData.vehicleStats
+      .map((stat: any) => {
+        const occSlots = stat.occupied_slots_monthly || 0;
+        const occSoft = stat.occupied_monthly || 0;
+        const wrongZoneTickets = stat.wrong_zone_tickets_count || 0;
+        const diff = occSlots - wrongZoneTickets - occSoft;
+        return { name: stat.name, diff: diff > 0 ? diff : 0, occSlots, occSoft, wrongZoneTickets };
+      });
+  }, [operationalData]);
 
   useEffect(() => {
     const client = new Client({
@@ -84,8 +108,12 @@ export const StaffLayout = () => {
         try {
             const data = JSON.parse(message.body);
             if (data.type === 'MONTHLY_ZONE_VIOLATION') {
-                setMonthlyConflictData(data);
-                setMonthlyConflictVisible(true);
+                notification.warning({
+                  message: '🚨 Monthly Zone Violation',
+                  description: data.message,
+                  placement: 'topRight',
+                  duration: 5
+                });
             }
         } catch(e) {}
       });
@@ -207,6 +235,44 @@ export const StaffLayout = () => {
             </div>
           </div>
 
+          {/* Wrong Zone Alert Box */}
+          {violations.length > 0 && (
+            <Dropdown
+              placement="bottomRight"
+              arrow
+              menu={{
+                items: [
+                  {
+                    key: 'info',
+                    label: (
+                      <div className="flex flex-col gap-2 p-2 w-64">
+                        <span className="font-bold text-red-600 border-b border-red-100 pb-1">🚨 Monthly Zone Status</span>
+                        {violations.map((v: any, idx: number) => (
+                          <div key={idx} className={`p-2 rounded border ${v.diff > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="text-sm"><b>{v.name}</b>: <span className={v.diff > 0 ? 'text-red-600 font-bold' : 'text-slate-500'}>{v.diff} unauthorized car(s)</span></div>
+                            <div className="text-[10px] text-gray-500 mt-1">
+                              Sensors: {v.occSlots} | Software: {v.occSoft} | Penalized: {v.wrongZoneTickets}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                ]
+              }}
+            >
+              <div className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-colors ${violations.reduce((acc: number, v: any) => acc + v.diff, 0) > 0 ? 'bg-red-50 hover:bg-red-100 border-red-300 animate-pulse' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'}`}>
+                <WarningOutlined className={`text-lg ${violations.reduce((acc: number, v: any) => acc + v.diff, 0) > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+                <div className="flex flex-col hidden sm:flex">
+                  <span className={`text-xs font-bold leading-none ${violations.reduce((acc: number, v: any) => acc + v.diff, 0) > 0 ? 'text-red-600' : 'text-slate-600'}`}>Wrong Zone</span>
+                  <span className={`text-[10px] mt-0.5 whitespace-nowrap font-medium ${violations.reduce((acc: number, v: any) => acc + v.diff, 0) > 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                    {violations.reduce((acc: number, v: any) => acc + v.diff, 0)} violations
+                  </span>
+                </div>
+              </div>
+            </Dropdown>
+          )}
+
           <Dropdown menu={conflictMenu} placement="bottomRight" arrow trigger={['click']}>
             <div className="flex items-center gap-2 cursor-pointer hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition-colors bg-white">
               <Badge count={pendingConflicts.length} showZero size="small">
@@ -243,12 +309,6 @@ export const StaffLayout = () => {
       />
 
 
-
-      <MonthlyZoneConflictModal
-        visible={monthlyConflictVisible}
-        onClose={() => setMonthlyConflictVisible(false)}
-        conflictData={monthlyConflictData}
-      />
     </Layout>
   );
 };

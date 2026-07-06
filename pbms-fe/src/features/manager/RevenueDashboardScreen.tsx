@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Card, DatePicker, Button, Typography, Table, Space, Row, Col, Statistic, Radio } from 'antd';
-import { SearchOutlined, DownloadOutlined, DollarOutlined, TransactionOutlined, AreaChartOutlined } from '@ant-design/icons';
+import { Card, DatePicker, Button, Typography, Table, Space, Row, Col, Statistic, Tabs } from 'antd';
+import { SearchOutlined, DownloadOutlined, DollarOutlined, TransactionOutlined, AreaChartOutlined, DashboardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { simulatedDayjs } from '../../core/utils/timeProvider';
 import axiosClient from '../../core/api/axiosClient';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -31,14 +31,63 @@ const RevenueDashboardScreen: React.FC = () => {
     simulatedDayjs().format('YYYY-MM-DD')
   ]);
   
-  // State for Toggle Comparison Chart
-  const [comparisonMode, setComparisonMode] = useState<'vehicleType' | 'revenueSource' | 'paymentMethod' | 'gateName'>('vehicleType');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  
+  const [shiftPage, setShiftPage] = useState(1);
+  const [shiftSize, setShiftSize] = useState(10);
 
-  // Fetch Master Dataset
-  const { data: masterData = [], isLoading } = useQuery({
+  /**
+   * [1] Fetch Master Dataset for Charts & KPIs
+   * Retrieves aggregated data (summed by date, vehicle type, gate, etc.)
+   */
+  const { data: masterData = [], isLoading: isChartsLoading } = useQuery({
     queryKey: ['revenue-dashboard', appliedDateRange],
     queryFn: async () => {
       const res = await axiosClient.get(`/finance/revenue/dashboard?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}`);
+      return res.data.data as RevenueRecord[];
+    }
+  });
+
+  /**
+   * [2] Fetch Paginated Dataset for the General Details Table
+   * Backend returns Page<RevenueRecordDTO> for heavy data slicing.
+   */
+  const { data: tableData, isLoading: isTableLoading } = useQuery({
+    queryKey: ['revenue-table', appliedDateRange, currentPage, pageSize],
+    queryFn: async () => {
+      const res = await axiosClient.get(`/finance/revenue/table?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${currentPage}&size=${pageSize}`);
+      return res.data.data;
+    }
+  });
+
+  /**
+   * [3] Fetch Shift Reconciliation Data
+   * Lists expected vs actual revenue collected by staff per shift.
+   */
+  const { data: shiftHistoryData, isLoading: isShiftLoading } = useQuery({
+    queryKey: ['shift-revenue-history', appliedDateRange, shiftPage, shiftSize],
+    queryFn: async () => {
+      const res = await axiosClient.get(`/identity/work-sessions/history?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${shiftPage - 1}&size=${shiftSize}`);
+      return res.data.data;
+    }
+  });
+
+  // Calculate Previous Date Range
+  const previousDateRange = useMemo(() => {
+    const start = dayjs(appliedDateRange[0]);
+    const end = dayjs(appliedDateRange[1]);
+    const diffDays = end.diff(start, 'day') + 1;
+    const prevStart = start.subtract(diffDays, 'day').format('YYYY-MM-DD');
+    const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+    return [prevStart, prevEnd];
+  }, [appliedDateRange]);
+
+  // Fetch Previous Master Dataset for Growth Calculation
+  const { data: previousMasterData = [] } = useQuery({
+    queryKey: ['revenue-dashboard-previous', previousDateRange],
+    queryFn: async () => {
+      const res = await axiosClient.get(`/finance/revenue/dashboard?startDate=${previousDateRange[0]}&endDate=${previousDateRange[1]}`);
       return res.data.data as RevenueRecord[];
     }
   });
@@ -51,6 +100,26 @@ const RevenueDashboardScreen: React.FC = () => {
       return acc;
     }, { totalRevenue: 0, totalTransactions: 0 });
   }, [masterData]);
+
+  const prevKpis = useMemo(() => {
+    return previousMasterData.reduce((acc, curr) => {
+      acc.totalRevenue += curr.totalRevenue;
+      acc.totalTransactions += curr.totalTransactions;
+      return acc;
+    }, { totalRevenue: 0, totalTransactions: 0 });
+  }, [previousMasterData]);
+
+  const growth = useMemo(() => {
+    const revGrowth = prevKpis.totalRevenue === 0 
+        ? (kpis.totalRevenue > 0 ? 100 : 0) 
+        : ((kpis.totalRevenue - prevKpis.totalRevenue) / prevKpis.totalRevenue) * 100;
+        
+    const transGrowth = prevKpis.totalTransactions === 0 
+        ? (kpis.totalTransactions > 0 ? 100 : 0) 
+        : ((kpis.totalTransactions - prevKpis.totalTransactions) / prevKpis.totalTransactions) * 100;
+        
+    return { revGrowth, transGrowth };
+  }, [kpis, prevKpis]);
 
   const arpu = kpis.totalTransactions > 0 ? kpis.totalRevenue / kpis.totalTransactions : 0;
 
@@ -89,72 +158,11 @@ const RevenueDashboardScreen: React.FC = () => {
   const paymentData = useMemo(() => processPieData('paymentMethod'), [masterData]);
   const sourceData = useMemo(() => processPieData('revenueSource'), [masterData]);
   const vehicleData = useMemo(() => processPieData('vehicleType'), [masterData]);
-  const gateData = useMemo(() => processPieData('gateName'), [masterData]);
-
-  // Process data for Toggle Comparison Chart
-  const comparisonChartData = useMemo(() => {
-    const start = dayjs(appliedDateRange[0]);
-    const end = dayjs(appliedDateRange[1]);
-    const dates = [];
-    let current = start;
-    while (current.isBefore(end) || current.isSame(end, 'day')) {
-      dates.push(current.format('YYYY-MM-DD'));
-      current = current.add(1, 'day');
-    }
-
-    // Collect ALL unique category values across ALL dates first
-    const allCategories = Array.from(new Set(masterData.map(r => String(r[comparisonMode]))));
-    
-    return dates.map(date => {
-      // Pre-fill ALL categories with 0 so every line has a point on every date
-      const row: any = { date };
-      allCategories.forEach(cat => { row[cat] = 0; });
-      
-      // Then add actual values
-      masterData.filter(d => d.date === date).forEach(r => {
-        const category = String(r[comparisonMode]);
-        row[category] = (row[category] || 0) + Number(r.totalRevenue);
-      });
-      return row;
-    });
-  }, [masterData, comparisonMode, appliedDateRange]);
-
-  // Extract unique keys for lines in Comparison Chart
-  const comparisonKeys = useMemo(() => {
-    const keys = new Set<string>();
-    masterData.forEach(r => keys.add(String(r[comparisonMode])));
-    return Array.from(keys);
-  }, [masterData, comparisonMode]);
 
   // Export CSV
   const handleExportCSV = () => {
-    if (!masterData.length) return;
-    const headers = ['Day', 'Vehicle Type', 'Gate', 'Revenue source', 'Payment method', 'Total amount', 'Total turn'];
-    const rows = masterData.map(r => [
-      r.date,
-      r.vehicleType,
-      r.gateName,
-      r.revenueSource,
-      r.paymentMethod,
-      r.totalRevenue.toString(),
-      r.totalTransactions.toString()
-    ]);
-    
-    // CSV string using semicolon separator
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(e => e.join(';'))
-    ].join('\n');
-    
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for UTF-8
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `bao-cao-doanh-thu-${appliedDateRange[0]}-to-${appliedDateRange[1]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Call separate export API that streams file directly
+    window.open(`http://localhost:8080/api/v1/finance/revenue/export?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}`, '_blank');
   };
 
   // Custom Tooltip for Currency
@@ -193,20 +201,22 @@ const RevenueDashboardScreen: React.FC = () => {
             type="primary" 
             size="large" 
             icon={<SearchOutlined />}
-            onClick={() => setAppliedDateRange([dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD')])}
-            loading={isLoading}
+            onClick={() => {
+               setAppliedDateRange([dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD')]);
+               setCurrentPage(1);
+            }}
+            loading={isChartsLoading || isTableLoading}
             className="bg-blue-600"
           >
-            
-                                  Apply
-                                </Button>
+            Apply
+          </Button>
         </Space>
       </div>
 
       {/* KPI Cards */}
       <Row gutter={24} className="mb-6">
         <Col span={8}>
-          <Card className="shadow-sm rounded-xl" style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 'none' }}>
+          <Card className="shadow-sm rounded-xl h-full flex flex-col justify-center" style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 'none' }}>
             <Statistic 
               title={<span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Revenue</span>}
               value={kpis.totalRevenue} 
@@ -215,20 +225,36 @@ const RevenueDashboardScreen: React.FC = () => {
               styles={{ content: { color: '#fff', fontWeight: 'bold', fontSize: '2rem' } }}
               prefix={<DollarOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
             />
+            <div className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              {growth.revGrowth >= 0 ? (
+                <span className="bg-white/20 px-2 py-0.5 rounded text-white font-medium">↑ {Math.abs(growth.revGrowth).toFixed(1)}%</span>
+              ) : (
+                <span className="bg-red-500/80 px-2 py-0.5 rounded text-white font-medium">↓ {Math.abs(growth.revGrowth).toFixed(1)}%</span>
+              )}
+              <span className="ml-2 text-xs opacity-80">vs previous period</span>
+            </div>
           </Card>
         </Col>
         <Col span={8}>
-          <Card className="shadow-sm rounded-xl" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}>
+          <Card className="shadow-sm rounded-xl h-full flex flex-col justify-center" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}>
             <Statistic 
               title={<span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Transactions</span>}
               value={kpis.totalTransactions} 
               styles={{ content: { color: '#fff', fontWeight: 'bold', fontSize: '2rem' } }}
               prefix={<TransactionOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
             />
+            <div className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              {growth.transGrowth >= 0 ? (
+                <span className="bg-white/20 px-2 py-0.5 rounded text-white font-medium">↑ {Math.abs(growth.transGrowth).toFixed(1)}%</span>
+              ) : (
+                <span className="bg-red-500/80 px-2 py-0.5 rounded text-white font-medium">↓ {Math.abs(growth.transGrowth).toFixed(1)}%</span>
+              )}
+              <span className="ml-2 text-xs opacity-80">vs previous period</span>
+            </div>
           </Card>
         </Col>
         <Col span={8}>
-          <Card className="shadow-sm rounded-xl" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', border: 'none' }}>
+          <Card className="shadow-sm rounded-xl h-full flex flex-col justify-center" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', border: 'none' }}>
             <Statistic 
               title={<span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>aRPU (Revenue TB/Turn)</span>}
               value={arpu} 
@@ -246,7 +272,7 @@ const RevenueDashboardScreen: React.FC = () => {
         {/* Left 62.5%: Hero Chart */}
         <Col span={15}>
           <Card className="shadow-sm border-slate-200 rounded-xl h-full" title="TOTAL REVENUE BY YEAR">
-            <div style={{ height: 460 }}>
+            <div style={{ height: 490 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={heroChartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -265,13 +291,13 @@ const RevenueDashboardScreen: React.FC = () => {
           <Card className="shadow-sm border-slate-200 rounded-xl h-full flex flex-col">
             <Title level={5} className="mb-4 text-slate-700 text-center">Revenue STRUCTURE</Title>
             
-            <div className="flex-1 grid grid-cols-2 gap-x-2 gap-y-12 content-center">
+            <div className="flex-1 flex flex-col gap-y-6 justify-center">
               {/* Pie 1: Payment Method */}
-              <div className="h-[200px]">
+              <div className="h-[150px]">
                 <Text strong className="block text-center text-xs text-slate-500 mb-1">Payment method</Text>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={paymentData} cx="50%" cy="45%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={2}>
+                    <Pie data={paymentData} cx="50%" cy="45%" innerRadius={25} outerRadius={45} dataKey="value" paddingAngle={2}>
                       {paymentData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip formatter={(val: any) => `${val.toLocaleString()} ₫`} />
@@ -281,11 +307,11 @@ const RevenueDashboardScreen: React.FC = () => {
               </div>
 
               {/* Pie 2: Revenue Source */}
-              <div className="h-[200px]">
+              <div className="h-[150px]">
                 <Text strong className="block text-center text-xs text-slate-500 mb-1">Revenue source</Text>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={sourceData} cx="50%" cy="45%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={2}>
+                    <Pie data={sourceData} cx="50%" cy="45%" innerRadius={25} outerRadius={45} dataKey="value" paddingAngle={2}>
                       {sourceData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[(index+2) % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip formatter={(val: any) => `${val.toLocaleString()} ₫`} />
@@ -295,26 +321,12 @@ const RevenueDashboardScreen: React.FC = () => {
               </div>
 
               {/* Pie 3: Vehicle Type */}
-              <div className="h-[200px]">
+              <div className="h-[150px]">
                 <Text strong className="block text-center text-xs text-slate-500 mb-1">Vehicle Type</Text>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={vehicleData} cx="50%" cy="45%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={2}>
-                      {vehicleData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[(index+4) % COLORS.length]} />)}
-                    </Pie>
-                    <RechartsTooltip formatter={(val: any) => `${val.toLocaleString()} ₫`} />
-                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', lineHeight: '14px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              
-              {/* Pie 4: Gate */}
-              <div className="h-[200px]">
-                <Text strong className="block text-center text-xs text-slate-500 mb-1">Gate</Text>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={gateData} cx="50%" cy="45%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={2}>
-                      {gateData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[(index+1) % COLORS.length]} />)}
+                    <Pie data={vehicleData} cx="50%" cy="45%" innerRadius={25} outerRadius={45} dataKey="value" paddingAngle={2}>
+                      {vehicleData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[(index+1) % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip formatter={(val: any) => `${val.toLocaleString()} ₫`} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', lineHeight: '14px' }} />
@@ -326,67 +338,87 @@ const RevenueDashboardScreen: React.FC = () => {
         </Col>
       </Row>
 
+      {/* Shift Reconciliation Table */}
       <Card 
-        className="shadow-sm border-slate-200 rounded-xl mb-6" 
-        title="Detail Fluctuations OVER TIME"
-        extra={
-          <Radio.Group value={comparisonMode} onChange={e => setComparisonMode(e.target.value)} buttonStyle="solid">
-            <Radio.Button value="vehicleType">Compare Vehicle Types</Radio.Button>
-            <Radio.Button value="gateName">Compare Gates</Radio.Button>
-            <Radio.Button value="revenueSource">Compare Revenue Sources</Radio.Button>
-            <Radio.Button value="paymentMethod">Compare Methods</Radio.Button>
-          </Radio.Group>
-        }
+        className="shadow-sm border-slate-200 rounded-xl mb-6"
+        title={<span><SafetyCertificateOutlined className="mr-2 text-blue-600" /> Shift Reconciliation</span>}
       >
-        {comparisonKeys.length <= 1 ? (
-          // Only 1 category → show a simple bar chart with note
-          <div style={{ height: 400 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={comparisonChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="date" tick={{fill: '#666'}} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={(val) => `${(val/1000).toFixed(0)}k`} tick={{fill: '#666'}} tickLine={false} axisLine={false} />
-                <RechartsTooltip content={<CustomTooltip />} />
-                <Legend />
-                {comparisonKeys.map((key, index) => (
-                  <Bar key={key} dataKey={key} fill={COLORS[index % COLORS.length]} radius={[4,4,0,0]} maxBarSize={60} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-            {comparisonKeys.length <= 1 && (
-              <p style={{ textAlign: 'center', color: '#aaa', fontSize: 12, marginTop: 8 }}>
-                
-                                              💡 There is only 1 group in this direction. Try switching to "Compare Revenue Sources" to see more directions.
-                                            </p>
-            )}
-          </div>
-        ) : (
-          // Multiple categories → show multi-line chart
-          <div style={{ height: 400 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={comparisonChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="date" tick={{fill: '#666'}} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={(val) => `${(val/1000).toFixed(0)}k`} tick={{fill: '#666'}} tickLine={false} axisLine={false} />
-                <RechartsTooltip content={<CustomTooltip />} />
-                <Legend />
-                {comparisonKeys.map((key, index) => (
-                  <Line 
-                    key={key} 
-                    type="monotone" 
-                    dataKey={key} 
-                    name={key}
-                    stroke={COLORS[index % COLORS.length]} 
-                    strokeWidth={3}
-                    dot={{ r: 5 }}
-                    activeDot={{ r: 7 }} 
-                    connectNulls
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <Table
+            dataSource={shiftHistoryData?.content || []}
+            rowKey="id"
+            loading={isShiftLoading}
+            pagination={{
+              current: shiftPage,
+              pageSize: shiftSize,
+              total: shiftHistoryData?.totalElements || 0,
+              onChange: (p, s) => {
+                setShiftPage(p);
+                setShiftSize(s);
+              },
+              showSizeChanger: true
+            }}
+            scroll={{ x: 1200 }}
+            bordered
+            size="middle"
+          >
+            <Table.Column title="Mã Ca" dataIndex="id" width={80} />
+            <Table.Column title="Staff" dataIndex="staffName" width={180} render={(val) => <strong className="text-blue-700">{val}</strong>} />
+            <Table.Column title="Gate" dataIndex="gateName" width={150} />
+            <Table.Column 
+              title="Working time" 
+              key="time" 
+              width={250}
+              render={(_, record: any) => (
+                <div>
+                  <div><Text type="secondary">Vào:</Text> <Text strong>{record.loginTime ? dayjs(record.loginTime).format('HH:mm DD/MM') : '-'}</Text></div>
+                  <div><Text type="secondary">Ra:</Text> <Text strong>{record.logoutTime ? dayjs(record.logoutTime).format('HH:mm DD/MM') : '-'}</Text></div>
+                </div>
+              )} 
+            />
+            <Table.Column 
+              title="System (VND)" 
+              dataIndex="expectedRevenue" 
+              width={150}
+              align="right"
+              render={(val) => val != null ? val.toLocaleString() : '-'} 
+            />
+            <Table.Column 
+              title="Net revenue (VND)" 
+              dataIndex="actualRevenue" 
+              width={150}
+              align="right"
+              render={(val) => val != null ? <strong className="text-gray-800">{val.toLocaleString()}</strong> : '-'} 
+            />
+            <Table.Column 
+              title="Difference" 
+              dataIndex="revenueVariance" 
+              width={150}
+              align="right"
+              render={(val) => {
+                if (val == null) return '-';
+                if (val === 0) return <span className="text-gray-400">0</span>;
+                return <strong className={val > 0 ? 'text-blue-600' : 'text-red-600'}>{val > 0 ? '+' : ''}{val.toLocaleString()}</strong>;
+              }} 
+            />
+            <Table.Column 
+              title="Status" 
+              dataIndex="discrepancyStatus" 
+              width={120}
+              align="center"
+              render={(val) => {
+                if (val === 'MATCH') return <span className="text-green-600 border border-green-600 px-2 py-1 rounded text-xs">Enough</span>;
+                if (val === 'SHORT') return <span className="text-red-600 border border-red-600 px-2 py-1 rounded text-xs">Lack</span>;
+                if (val === 'OVER') return <span className="text-blue-600 border border-blue-600 px-2 py-1 rounded text-xs">Excess</span>;
+                return <span className="text-gray-600 border border-gray-600 px-2 py-1 rounded text-xs">{val || 'N/A'}</span>;
+              }} 
+            />
+            <Table.Column 
+              title="Reason" 
+              dataIndex="varianceReason" 
+              width={250}
+              render={(val) => val ? <Text type="secondary" italic>{val}</Text> : '-'} 
+            />
+          </Table>
       </Card>
 
       {/* Data Table & Export */}
@@ -400,16 +432,23 @@ const RevenueDashboardScreen: React.FC = () => {
             onClick={handleExportCSV}
             className="bg-green-600 hover:bg-green-700 border-none"
           >
-            
-                            Export Excel (CSV)
-                          </Button>
+            Export Excel (CSV)
+          </Button>
         }
       >
         <Table 
-          dataSource={masterData} 
+          dataSource={tableData?.content || []} 
           rowKey={(r, i) => `${r.date}-${i}`}
-          loading={isLoading}
-          pagination={{ pageSize: 10 }}
+          loading={isTableLoading}
+          pagination={{ 
+            current: currentPage,
+            pageSize: pageSize,
+            total: tableData?.totalElements || 0,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            }
+          }}
           bordered
           size="middle"
         >
@@ -422,11 +461,11 @@ const RevenueDashboardScreen: React.FC = () => {
             title="Total Revenue" 
             dataIndex="totalRevenue" 
             align="right"
-            render={(val) => <span className="font-bold text-blue-600">{val.toLocaleString()} ₫</span>}
+            render={(val) => <span className="font-bold text-blue-600">{val?.toLocaleString()} ₫</span>}
           />
           <Table.Column title="Number of transactions" dataIndex="totalTransactions" align="center" />
         </Table>
-      </Card>
+          </Card>
     </div>
   );
 };

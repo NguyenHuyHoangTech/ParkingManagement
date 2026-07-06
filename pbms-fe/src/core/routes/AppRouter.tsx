@@ -24,7 +24,6 @@ const PricingConfigScreen = lazy(() => import('../../features/manager/PricingCon
 const PenaltyConfigScreen = lazy(() => import('../../features/manager/PenaltyConfigScreen').then(m => ({ default: m.PenaltyConfigScreen })));
 const MonthlyPassScreen = lazy(() => import('../../features/manager/MonthlyPassScreen').then(m => ({ default: m.MonthlyPassScreen })));
 const RevenueDashboardScreen = lazy(() => import('../../features/manager/RevenueDashboardScreen').then(m => ({ default: m.RevenueDashboardScreen })));
-const ShiftRevenueReportScreen = lazy(() => import('../../features/manager/ShiftRevenueReportScreen'));
 const OperationalDashboardScreen = lazy(() => import('../../features/manager/OperationalDashboardScreen').then(m => ({ default: m.OperationalDashboardScreen })));
 const RefundManagementScreen = lazy(() => import('../../features/manager/RefundManagementScreen').then(m => ({ default: m.RefundManagementScreen })));
 const CardManagementScreen = lazy(() => import('../../features/manager/CardManagementScreen').then(m => ({ default: m.CardManagementScreen })));
@@ -99,7 +98,6 @@ export const AppRouter = () => {
             <Route path="monthly-passes" element={<MonthlyPassScreen />} />
             <Route path="refund-management" element={<RefundManagementScreen />} />
             <Route path="revenue-dashboard" element={<RevenueDashboardScreen />} />
-            <Route path="shift-revenue" element={<ShiftRevenueReportScreen />} />
             <Route path="operational-dashboard" element={<OperationalDashboardScreen />} />
             <Route path="card-management" element={<CardManagementScreen />} />
             <Route path="routing" element={<VehicleRoutingScreen />} />
