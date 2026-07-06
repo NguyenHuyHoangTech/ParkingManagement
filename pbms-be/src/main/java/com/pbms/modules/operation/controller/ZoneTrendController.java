@@ -33,6 +33,10 @@ public class ZoneTrendController {
         if (endDate.isBefore(startDate)) {
             endDate = startDate;
         }
+
+        if (java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) > 31) {
+            throw new IllegalArgumentException("Khoảng thời gian xem biểu đồ mật độ bãi đỗ (Zone Trends) không được vượt quá 31 ngày để đảm bảo hiệu suất.");
+        }
         
         return ResponseEntity.ok(ApiResponse.success(
                 zoneTrendService.getZoneTrends(startDate, endDate, vehicleTypeId),

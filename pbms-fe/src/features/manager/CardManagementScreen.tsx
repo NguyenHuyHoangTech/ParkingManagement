@@ -40,6 +40,9 @@ export const CardManagementScreen = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards'] });
+    },
+    onError: (err: any) => {
+      message.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái thẻ');
     }
   });
 
@@ -243,63 +246,63 @@ export const CardManagementScreen = () => {
               </div>
             </div>
 
-            <Divider className="my-0" />
-
-            {/* Action Tools */}
+            <Divider className="my-0" />            {/* Action Tools */}
             <div>
               <Title level={5} className="text-gray-800 mb-4">Therapy Tools</Title>
               <div className="flex flex-col gap-3">
-                
-                <Tooltip title="The card will be completely locked and the Barrier will not open if someone uses this card" placement="left">
-                  <Button 
-                    danger 
-                    type="primary" 
-                    icon={<StopOutlined />} 
-                    className="w-full text-left flex justify-start items-center h-10"
-                    disabled={selectedRecord.status === 'LOST'}
-                    onClick={() => handleAction(selectedRecord.uid, 'LOST', 'Not determined', 'Card has been added to Blacklist and reported lost!')}
-                  >
-                    
-                                                          [Report Lost Card / Put on Blacklist]
-                                                        </Button>
-                </Tooltip>
+                {selectedRecord.status === 'IN_USE' && (
+                  <Alert type="info" showIcon message="Thẻ đang được sử dụng. Không thể thực hiện thao tác." />
+                )}
 
-                <Button 
-                  danger 
-                  icon={<WarningOutlined />} 
-                  className="w-full text-left flex justify-start items-center h-10 border-orange-400 text-orange-500 hover:text-orange-600 hover:border-orange-500"
-                  disabled={selectedRecord.status === 'DAMAGED'}
-                  onClick={() => handleAction(selectedRecord.uid, 'DAMAGED', 'Scrap warehouse', 'The card has been marked as physically damaged')}
-                >
-                  
-                                                    [Mark Broken Card]
-                                                  </Button>
+                {selectedRecord.status === 'AVAILABLE' && (
+                  <>
+                    <Tooltip title="Thẻ sẽ bị khóa hoàn toàn và Barrier sẽ không mở nếu có người dùng thẻ này" placement="left">
+                      <Button 
+                        danger 
+                        type="primary" 
+                        icon={<StopOutlined />} 
+                        className="w-full text-left flex justify-start items-center h-10"
+                        onClick={() => handleAction(selectedRecord.uid, 'LOST', 'Không xác định', 'Thẻ đã được báo mất và đưa vào Blacklist!')}
+                      >
+                        [Báo Mất Thẻ / Đưa vào Blacklist]
+                      </Button>
+                    </Tooltip>
 
-                <Tooltip title="Brainwash the card, cut off the connection with the old car to be ready for reuse" placement="left">
-                  <Button 
-                    type="primary" 
-                    ghost 
-                    icon={<RetweetOutlined />} 
-                    className="w-full text-left flex justify-start items-center h-10"
-                    onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Lying empty', 'Deleted blank data (Format) of Success card!')}
-                  >
-                    
-                                                          [Delete Blank Data (Format Card)]
-                                                        </Button>
-                </Tooltip>
+                    <Button 
+                      danger 
+                      icon={<WarningOutlined />} 
+                      className="w-full text-left flex justify-start items-center h-10 border-orange-400 text-orange-500 hover:text-orange-600 hover:border-orange-500"
+                      onClick={() => handleAction(selectedRecord.uid, 'DAMAGED', 'Kho phế liệu', 'Thẻ đã bị đánh dấu hỏng vật lý')}
+                    >
+                      [Đánh dấu Thẻ Hỏng]
+                    </Button>
+                  </>
+                )}
 
                 {selectedRecord.status === 'LOST' && (
                   <Button 
                     type="primary" 
-                    className="w-full bg-green-600 hover:bg-green-500 text-left flex justify-start items-center h-10 mt-4"
+                    className="w-full bg-green-600 hover:bg-green-500 text-left flex justify-start items-center h-10 mt-2"
                     icon={<UnlockOutlined />}
-                    onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Lying empty', 'Success card unlocked!')}
+                    onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Nằm trống', 'Thẻ đã được tìm thấy và khôi phục thành công!')}
                   >
-                    
-                                                          [Unlock Card] (Returned by customer)
-                                                        </Button>
+                    [Khôi Phục Thẻ Mất] (Đã tìm thấy)
+                  </Button>
                 )}
 
+                {selectedRecord.status === 'DAMAGED' && (
+                  <Tooltip title="Thẻ đã được sửa chữa hoặc cấp lại trắng, sẵn sàng tái sử dụng" placement="left">
+                    <Button 
+                      type="primary" 
+                      ghost 
+                      icon={<RetweetOutlined />} 
+                      className="w-full text-left flex justify-start items-center h-10 mt-2"
+                      onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Nằm trống', 'Thẻ hỏng đã được phục hồi thành công!')}
+                    >
+                      [Phục Hồi Thẻ Hỏng] (Sửa chữa xong)
+                    </Button>
+                  </Tooltip>
+                )}
               </div>
             </div>
 

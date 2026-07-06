@@ -122,6 +122,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 feePenalty: info.feePenalty || 0,
                 discount: info.discountFee || 0,
                 expectedFee: (info.expectedFee || 0) + (info.feePenalty || 0),
+                parkingFee: info.expectedFee || 0,
                 durationMinutes: info.durationMinutes || 0,
                 isBlacklisted: false,
                 warnings: [],
@@ -228,7 +229,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         imageBase64: scanData.imageOutBase64,
         lprImageBase64: scanData.lprImageOutBase64,
         paymentMethod: paymentMethod,
-        totalFee: scanData.expectedFee || 0
+        totalFee: scanData.parkingFee || 0
       };
       const response = await axiosClient.post('/operation/gates/check-out', payload);
       
@@ -280,7 +281,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             imageBase64: scanData.imageOutBase64,
             lprImageBase64: scanData.lprImageOutBase64,
             paymentMethod: paymentMethod,
-            totalFee: amount,
+            totalFee: scanData.parkingFee || 0,
             sessionId: scanData.sessionId
         };
         axiosClient.post('/finance/payments/initialize', { 

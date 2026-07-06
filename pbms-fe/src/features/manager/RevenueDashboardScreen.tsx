@@ -30,6 +30,7 @@ const RevenueDashboardScreen: React.FC = () => {
     simulatedDayjs().subtract(7, 'days').format('YYYY-MM-DD'),
     simulatedDayjs().format('YYYY-MM-DD')
   ]);
+  const [calendarDates, setCalendarDates] = useState<any>(null);
   
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -195,6 +196,15 @@ const RevenueDashboardScreen: React.FC = () => {
             size="large"
             value={dateRange}
             onChange={(dates) => dates && setDateRange([dates[0]!, dates[1]!])}
+            onCalendarChange={(val) => setCalendarDates(val)}
+            disabledDate={(current) => {
+              if (!calendarDates || calendarDates.length === 0 || !calendarDates[0] || calendarDates[1]) {
+                return false;
+              }
+              const tooLate = calendarDates[0] && current.diff(calendarDates[0], 'days') > 90;
+              const tooEarly = calendarDates[0] && calendarDates[0].diff(current, 'days') > 90;
+              return !!tooEarly || !!tooLate;
+            }}
             format="DD/MM/YYYY"
           />
           <Button 

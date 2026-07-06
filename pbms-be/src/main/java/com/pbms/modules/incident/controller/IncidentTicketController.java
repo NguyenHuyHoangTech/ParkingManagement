@@ -72,10 +72,13 @@ public class IncidentTicketController {
             String resolutionNotes = (String) requestBody.get("resolutionNotes");
             String uploadedDocUrl = (String) requestBody.get("uploadedDocUrl");
             String uploadedPicOutUrl = (String) requestBody.get("uploadedPicOutUrl");
-            java.math.BigDecimal totalFee = requestBody.get("totalFee") != null
-                    ? new java.math.BigDecimal(requestBody.get("totalFee").toString())
+            java.math.BigDecimal parkingFee = requestBody.get("parkingFee") != null
+                    ? new java.math.BigDecimal(requestBody.get("parkingFee").toString())
                     : null;
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, resolutionNotes, uploadedDocUrl, uploadedPicOutUrl, totalFee);
+            java.math.BigDecimal penaltyFee = requestBody.get("penaltyFee") != null
+                    ? new java.math.BigDecimal(requestBody.get("penaltyFee").toString())
+                    : null;
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, resolutionNotes, uploadedDocUrl, uploadedPicOutUrl, parkingFee, penaltyFee);
             return ResponseEntity.ok(ApiResponse.success(dto, "Incident resolved successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

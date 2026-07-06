@@ -58,6 +58,7 @@ export const VehicleRoutingScreen = () => {
   const [floors, setFloors] = useState<any[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
   const [zones, setZones] = useState<any[]>([]);
+  const [calendarDates, setCalendarDates] = useState<any>(null);
   
   const [confirmedFloor, setConfirmedFloor] = useState<number | null>(null);
   const [confirmedVehicle, setConfirmedVehicle] = useState<string>('');
@@ -503,6 +504,15 @@ export const VehicleRoutingScreen = () => {
               <DatePicker.RangePicker 
                 value={selectedTrendDateRange} 
                 onChange={setSelectedTrendDateRange} 
+                onCalendarChange={(val) => setCalendarDates(val)}
+                disabledDate={(current) => {
+                  if (!calendarDates || calendarDates.length === 0 || !calendarDates[0] || calendarDates[1]) {
+                    return false;
+                  }
+                  const tooLate = calendarDates[0] && current.diff(calendarDates[0], 'days') > 31;
+                  const tooEarly = calendarDates[0] && calendarDates[0].diff(current, 'days') > 31;
+                  return !!tooEarly || !!tooLate;
+                }}
                 format="DD/MM/YYYY" 
                 allowClear={false}
               />

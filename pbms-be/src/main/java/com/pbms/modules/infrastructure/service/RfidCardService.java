@@ -30,6 +30,7 @@ public class RfidCardService {
                 .collect(Collectors.toList());
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public void updateStatus(String uid, String newStatus) {
         RfidCard card = rfidCardRepository.findByCardCode(uid)
                 .orElseThrow(() -> new RuntimeException("RFID Card not found: " + uid));

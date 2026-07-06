@@ -501,9 +501,10 @@ public class GateOperationService {
         }
 
         if (!"AVAILABLE".equals(card.getStatus())) {
+            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất" : ("DAMAGED".equals(card.getStatus()) ? "Đã bị báo hỏng" : "Không hợp lệ");
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Card is not available (Status: " + card.getStatus() + ")")
+                    .message("Thẻ RFID " + statusVN + ". Không thể mở cổng. Vui lòng liên hệ Quản lý (Manager) để xử lý thẻ này!")
                     .build();
         }
 
@@ -631,6 +632,16 @@ public class GateOperationService {
                 .findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
                 .orElseThrow(() -> new IllegalArgumentException("No active session found for this card"));
 
+        RfidCard card = session.getRfidCard();
+        if (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus()))) {
+            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất" : "Đã bị báo hỏng";
+            return GateResponseDTO.builder()
+                    .sessionId(session.getId())
+                    .status("ERROR")
+                    .message("Thẻ RFID " + statusVN + ". Giao dịch bị khóa, Barrier không mở. Vui lòng liên hệ Quản lý (Manager)!")
+                    .build();
+        }
+
         if (!session.getPlate().equals(request.getPlateNumber())) {
             return GateResponseDTO.builder()
                     .sessionId(session.getId())
@@ -697,8 +708,6 @@ public class GateOperationService {
             incidentTicketRepository.save(t);
         }
 
-        fee = fee.add(penaltyFee);
-
         // Apply discount if valid
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
             if (session.getDiscountValidUntil() == null
@@ -711,9 +720,9 @@ public class GateOperationService {
         }
 
         session.setTotalFee(fee);
+        session.setPenaltyFee(penaltyFee);
         session.setStatus("COMPLETED");
 
-        RfidCard card = session.getRfidCard();
         if (card != null) {
             card.setStatus("AVAILABLE");
             card.setAssignedPlate(null);
@@ -722,11 +731,12 @@ public class GateOperationService {
 
         sessionRepository.save(session);
 
-        if (fee.compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal totalAmount = fee.add(penaltyFee);
+        if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             String payMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "CASH";
             Transaction transaction = Transaction.builder()
                     .parkingSession(session)
-                    .amount(fee)
+                    .amount(totalAmount)
                     .paymentMethod(payMethod)
                     .status("SUCCESS")
                     .transactionReference("TXN-" + session.getId() + "-"
@@ -734,7 +744,7 @@ public class GateOperationService {
                                     .toEpochMilli())
                     .build();
             transactionRepository.save(transaction);
-            log.info("Transaction recorded: {} {} via {}", fee, "VND", payMethod);
+            log.info("Transaction recorded: {} {} via {}", totalAmount, "VND", payMethod);
         }
 
         List<Reservation> activeRes = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(),
@@ -750,7 +760,7 @@ public class GateOperationService {
                 .plateNumber(session.getPlateOut())
                 .status("SUCCESS")
                 .message("Check-out successful")
-                .checkoutFee(fee)
+                .checkoutFee(totalAmount)
                 .build();
 
         return response;

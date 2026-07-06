@@ -272,7 +272,7 @@ public class IncidentService {
     }
 
     @Transactional
-    public IncidentTicketDTO resolveIncident(Long id, String resolutionNotes, String uploadedDocUrl, String uploadedPicOutUrl, java.math.BigDecimal totalFee) {
+    public IncidentTicketDTO resolveIncident(Long id, String resolutionNotes, String uploadedDocUrl, String uploadedPicOutUrl, java.math.BigDecimal parkingFee, java.math.BigDecimal penaltyFee) {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
 
@@ -286,8 +286,8 @@ public class IncidentService {
         if (uploadedDocUrl != null && !uploadedDocUrl.isBlank()) {
             ticket.setUploadedDocUrl(fileStorageService.storeBase64File(uploadedDocUrl));
         }
-        if (totalFee != null) {
-            ticket.setFineAmount(totalFee); // fineAmount currently stores totalFee in this flow
+        if (penaltyFee != null) {
+            ticket.setFineAmount(penaltyFee);
         }
 
         // Update ParkingSession to COMPLETED with fee and picOut
@@ -300,11 +300,11 @@ public class IncidentService {
             if (uploadedPicOutUrl != null && !uploadedPicOutUrl.isBlank()) {
                 session.setPicOutPanorama(uploadedPicOutUrl);
             }
-            if (totalFee != null) {
-                // If the user hasn't paused fee before, we just accept totalFee
-                // But normally totalFee = session.getTotalFee() + ticket.fineAmount
-                // The frontend sends totalFee as parkingFee + penalty.
-                session.setTotalFee(totalFee);
+            if (parkingFee != null) {
+                session.setTotalFee(parkingFee);
+            }
+            if (penaltyFee != null) {
+                session.setPenaltyFee(penaltyFee);
             }
             
             // Update the card status based on incident type

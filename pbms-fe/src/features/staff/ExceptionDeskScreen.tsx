@@ -502,7 +502,8 @@ export const ExceptionDeskScreen = () => {
         resolutionNotes: `[Phase 2] Fee collected: ${totalFee.toLocaleString()} VND (Parking fee: ${Number(parkingFee).toLocaleString()} + Penalty: ${Number(penaltyFee).toLocaleString()})${selectedTicket?.type === 'DAMAGED_CARD' ? (damagedCardFault === 'CUSTOMER_FAULT' ? ' - Damaged card due to customer' : ' - Card damage due to wear and tear') : ''}`,
         uploadedDocUrl,
         uploadedPicOutUrl,
-        totalFee
+        parkingFee: Number(parkingFee),
+        penaltyFee: Number(penaltyFee)
       });
     },
     onSuccess: () => {
