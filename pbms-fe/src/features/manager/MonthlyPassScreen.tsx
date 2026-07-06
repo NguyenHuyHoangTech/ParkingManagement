@@ -33,9 +33,11 @@ export const MonthlyPassScreen = () => {
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [threshold, setThreshold] = useState<number>(90);
   const { stompClient, connected } = useWebSocket();
+  const [discounts, setDiscounts] = useState<{ [key: string]: number }>({ '1': 0, '3': 5, '6': 10, '12': 15 });
 
   React.useEffect(() => {
     fetchThreshold();
+    fetchDiscounts();
   }, []);
 
   const fetchThreshold = async () => {
@@ -49,9 +51,32 @@ export const MonthlyPassScreen = () => {
     }
   };
 
-  const handleSaveThreshold = async () => {
+  const fetchDiscounts = async () => {
+    try {
+      const res = await axiosClient.get('/operation/monthly-tickets/config-discounts');
+      if (res.data.data) {
+        const data = res.data.data;
+        setDiscounts({
+          '1': (data['1'] || 0) * 100,
+          '3': (data['3'] || 0) * 100,
+          '6': (data['6'] || 0) * 100,
+          '12': (data['12'] || 0) * 100,
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveConfig = async () => {
     try {
       await axiosClient.post('/operation/monthly-tickets/config-threshold', { threshold });
+      await axiosClient.post('/operation/monthly-tickets/config-discounts', {
+        '1': discounts['1'] / 100,
+        '3': discounts['3'] / 100,
+        '6': discounts['6'] / 100,
+        '12': discounts['12'] / 100,
+      });
       notification.success({ message: 'Configuration saved successfully!' });
       setIsConfigModalOpen(false);
     } catch (e) {
@@ -274,24 +299,49 @@ export const MonthlyPassScreen = () => {
       </Drawer>
 
       <Modal
-        title="Monthly Zone Expansion Alert Configuration"
+        title="Monthly Pass Configuration"
         open={isConfigModalOpen}
-        onOk={handleSaveThreshold}
+        onOk={handleSaveConfig}
         onCancel={() => setIsConfigModalOpen(false)}
       >
         <div className="flex flex-col gap-4 mt-4">
-          <Text>
-            Enter the % of registered monthly tickets compared to the total slots in Monthly Zones.
-            If the registered tickets exceed this %, the system will send an alert to expand the Zone.
-          </Text>
-          <div className="flex items-center gap-2">
-            <Text strong>Alert Threshold (%):</Text>
-            <InputNumber
-              min={1}
-              max={200}
-              value={threshold}
-              onChange={(val) => setThreshold(val || 90)}
-            />
+          <div>
+            <Text strong className="text-lg">Zone Alert Configuration</Text>
+            <Text className="block text-gray-500 mb-2">
+              Enter the % of registered monthly tickets compared to the total slots.
+            </Text>
+            <div className="flex items-center gap-2">
+              <Text>Alert Threshold (%):</Text>
+              <InputNumber
+                min={1}
+                max={200}
+                value={threshold}
+                onChange={(val) => setThreshold(val || 90)}
+              />
+            </div>
+          </div>
+          <Divider className="my-2" />
+          <div>
+            <Text strong className="text-lg">Discount Configuration</Text>
+            <Text className="block text-gray-500 mb-4">
+              Configure the discount percentage for long-term monthly passes.
+            </Text>
+            <Row gutter={[16, 16]}>
+              {['1', '3', '6', '12'].map((months) => (
+                <Col span={12} key={months}>
+                  <div className="flex flex-col">
+                    <Text>{months} {months === '1' ? 'Month' : 'Months'} Discount (%):</Text>
+                    <InputNumber
+                      className="w-full"
+                      min={0}
+                      max={100}
+                      value={discounts[months]}
+                      onChange={(val) => setDiscounts({ ...discounts, [months]: val || 0 })}
+                    />
+                  </div>
+                </Col>
+              ))}
+            </Row>
           </div>
         </div>
       </Modal>

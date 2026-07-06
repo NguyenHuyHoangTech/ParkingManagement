@@ -120,5 +120,46 @@ public class MonthlyTicketController {
             return ResponseEntity.badRequest().body(ApiResponse.error(500, "Error: " + e.getMessage()));
         }
     }
-}
+    @GetMapping("/config-discounts")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Double>>> getDiscounts() {
+        java.util.Map<String, Double> discounts = new java.util.HashMap<>();
+        discounts.put("1", 0.0);
+        discounts.put("3", 0.05);
+        discounts.put("6", 0.10);
+        discounts.put("12", 0.15);
+        
+        try {
+            String val1 = systemConfigService.getConfigByKey("MONTHLY_DISCOUNT_1").getConfigValue();
+            if (val1 != null) discounts.put("1", Double.parseDouble(val1));
+            String val3 = systemConfigService.getConfigByKey("MONTHLY_DISCOUNT_3").getConfigValue();
+            if (val3 != null) discounts.put("3", Double.parseDouble(val3));
+            String val6 = systemConfigService.getConfigByKey("MONTHLY_DISCOUNT_6").getConfigValue();
+            if (val6 != null) discounts.put("6", Double.parseDouble(val6));
+            String val12 = systemConfigService.getConfigByKey("MONTHLY_DISCOUNT_12").getConfigValue();
+            if (val12 != null) discounts.put("12", Double.parseDouble(val12));
+        } catch (Exception e) {}
+        
+        return ResponseEntity.ok(ApiResponse.success(discounts, "Success"));
+    }
 
+    @PostMapping("/config-discounts")
+    public ResponseEntity<ApiResponse<Void>> setDiscounts(
+            @RequestBody java.util.Map<String, Double> payload) {
+        try {
+            for (java.util.Map.Entry<String, Double> entry : payload.entrySet()) {
+                String key = "MONTHLY_DISCOUNT_" + entry.getKey();
+                com.pbms.modules.system.domain.SystemConfig config = configRepo.findByConfigKey(key)
+                        .orElseGet(() -> {
+                            com.pbms.modules.system.domain.SystemConfig c = new com.pbms.modules.system.domain.SystemConfig();
+                            c.setConfigKey(key);
+                            return c;
+                        });
+                config.setConfigValue(String.valueOf(entry.getValue()));
+                configRepo.save(config);
+            }
+            return ResponseEntity.ok(ApiResponse.success(null, "Success"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(500, "Error: " + e.getMessage()));
+        }
+    }
+}

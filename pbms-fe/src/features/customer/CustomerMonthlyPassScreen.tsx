@@ -10,11 +10,11 @@ import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl as getGlobalImageUrl } from '../../core/utils/imageHelper';
 const { Title, Text } = Typography;
 
-const PACKAGES = [
-  { id: 1, name: '1 month', discount: 0 },
-  { id: 3, name: '3 Months', discount: 0.05 }, // 5% off
-  { id: 6, name: '6 Months', discount: 0.10 }, // 10% off
-  { id: 12, name: '12 Months', discount: 0.15 }, // 15% off
+const BASE_PACKAGES = [
+  { id: 1, name: '1 month' },
+  { id: 3, name: '3 Months' }, 
+  { id: 6, name: '6 Months' }, 
+  { id: 12, name: '12 Months' }, 
 ];
 
 const GATEWAYS = [
@@ -57,6 +57,19 @@ export const CustomerMonthlyPassScreen = () => {
       return res.data.data || [];
     }
   });
+
+  const { data: discountConfig = {} } = useQuery({
+    queryKey: ['config-discounts'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/operation/monthly-tickets/config-discounts');
+      return res.data.data || {};
+    }
+  });
+
+  const PACKAGES = BASE_PACKAGES.map(p => ({
+    ...p,
+    discount: discountConfig[p.id.toString()] || 0
+  }));
 
   const dynamicVehicles = pricingPolicies.map((p: any) => {
     const vt = vehicleTypes.find((v: any) => v.id === p.vehicleTypeId);
