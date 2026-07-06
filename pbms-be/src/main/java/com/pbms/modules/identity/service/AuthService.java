@@ -204,6 +204,7 @@ public class AuthService {
         String fullName = (String) payload.get("name");
 
         Optional<User> existingUserOpt = userRepository.findByEmail(email);
+        
         User user;
         boolean isNewUser = false;
 
@@ -211,11 +212,11 @@ public class AuthService {
             user = existingUserOpt.get();
 
             if ("INACTIVE".equals(user.getStatus())) {
-                throw new IllegalArgumentException("I'm going to lock you up, you're welcome");
+                throw new IllegalArgumentException("Account is locked or inactive.");
             }
 
-            // Update Google ID if not set
-            if (user.getGoogleId() == null) {
+            // Always update/set Google ID based on strict email matching
+            if (user.getGoogleId() == null || !user.getGoogleId().equals(googleId)) {
                 user.setGoogleId(googleId);
                 userRepository.save(user);
             }
@@ -260,17 +261,11 @@ public class AuthService {
     }
 
     @Transactional
-    public void linkGoogle(String email, GoogleAuthRequest request) {
-        GoogleIdToken.Payload payload = verifyGoogleToken(request.getGoogleIdToken());
-        String googleId = payload.getSubject();
-
-        // Check if googleId already exists
-        // if (userRepository.findByGoogleId(googleId).isPresent()) throw ConflictException;
-
+    public void updateProfile(String email, UpdateProfileRequest request) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        user.setGoogleId(googleId);
+        user.setFullName(request.getName());
         userRepository.save(user);
     }
 

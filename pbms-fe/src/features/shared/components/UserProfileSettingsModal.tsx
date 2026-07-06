@@ -45,10 +45,23 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
     }
   }, [isOpen, name, email, form, pwdForm]);
 
+  const updateProfileMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const response = await axiosClient.put('/identity/auth/profile', { name: values.name });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      updateProfile(variables.name);
+      message.success({ content: 'Update successful!', key: 'profile', duration: 2 });
+    },
+    onError: (error: any) => {
+      message.error({ content: error.response?.data?.message || 'Error when updating profile', key: 'profile', duration: 3 });
+    }
+  });
+
   const handleUpdateProfile = (values: any) => {
-    updateProfile(values.name);
-    message.success('Update successful!');
-    // Không tự động đóng để người dùng có thể thao tác tiếp nếu muốn
+    message.loading({ content: 'Saving...', key: 'profile' });
+    updateProfileMutation.mutate(values);
   };
 
   const linkGoogleMutation = useMutation({
@@ -143,23 +156,7 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
               
               {authProvider !== 'GOOGLE' ? (
                 <>
-                  <Text className="text-xs text-gray-500 block mb-3">Linking your Google account helps you Login quickly without needing to enter a Password or OTPe code</Text>
-                  <div className="flex justify-center mt-2">
-                    <GoogleLogin
-                      onSuccess={(credentialResponse) => {
-                        message.loading({ content: 'Authenticating with servereee', key: 'google' });
-                        if (credentialResponse.credential) {
-                          linkGoogleMutation.mutate(credentialResponse.credential);
-                        }
-                      }}
-                      onError={() => {
-                        message.error('Login Google Failed');
-                      }}
-                      useOneTap={false}
-                      theme="outline"
-                      text="continue_with"
-                    />
-                  </div>
+                  <Text className="text-xs text-gray-500 block mb-3">To link your Google account, simply log out and use the "Login with Google" button with the email: {email}</Text>
                 </>
               ) : (
                 <div className="flex items-center space-x-2 text-sm text-gray-600">

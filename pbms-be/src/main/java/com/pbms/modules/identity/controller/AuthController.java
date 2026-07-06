@@ -91,19 +91,21 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Success", "Success"));
     }
 
-    @PostMapping("/link-google")
-    public ResponseEntity<ApiResponse<String>> linkGoogle(
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<String>> updateProfile(
             Authentication authentication,
-            @Valid @RequestBody GoogleAuthRequest request) {
+            @Valid @RequestBody UpdateProfileRequest request) {
         
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
+        
         String email = authentication.getName();
-        authService.linkGoogle(email, request);
-        return ResponseEntity.ok(ApiResponse.success("Success", "Success"));
+        authService.updateProfile(email, request);
+        return ResponseEntity.ok(ApiResponse.success("Success", "Profile updated successfully"));
     }
+
+
 
     @GetMapping("/test-get-otp")
     public ResponseEntity<String> getOtpForTest(@RequestParam String email, @RequestParam String purpose) {

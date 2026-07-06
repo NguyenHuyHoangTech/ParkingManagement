@@ -11,7 +11,7 @@ import { getImageUrl } from '../../core/utils/imageHelper';
 const { Title, Text } = Typography;
 
 const GATEWAYS = [
-  { id: 'PAYPAL', name: 'PayPal', icon: 'https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_111x69.jpg' },
+  { id: 'PAYPAL', name: 'PayPal', icon: '/paypal_logo.webp' },
   { id: 'PAYOS', name: 'PayOS (VietQR)', icon: getImageUrl('/uploads/PayOS_Icon.webp') }
 ];
 

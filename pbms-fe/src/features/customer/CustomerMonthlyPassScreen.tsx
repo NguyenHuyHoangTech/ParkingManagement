@@ -18,7 +18,7 @@ const BASE_PACKAGES = [
 ];
 
 const GATEWAYS = [
-  { id: 'PAYPAL', name: 'PayPal Sandbox', icon: 'https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_111x69.jpg' },
+  { id: 'PAYPAL', name: 'PayPal Sandbox', icon: '/paypal_logo.webp' },
   { id: 'PAYOS', name: 'PayOS (VietQR)', icon: getGlobalImageUrl('/uploads/PayOS_Icon.webp') }
 ];
 

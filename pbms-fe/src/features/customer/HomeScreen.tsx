@@ -239,7 +239,7 @@ export const HomeScreen = () => {
         
         {/* Zone 1: HERO SECTION */}
         <section className="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 rounded-[2.5rem] p-10 shadow-2xl text-white relative overflow-hidden border border-white/10">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
+          <div className="absolute inset-0 bg-[url('/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
           <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
           <div className="relative z-10">
