@@ -31,7 +31,7 @@ export const AdminLayout = () => {
 
   const menuItems = [
     {
-      key: '/admin/identity/users',
+      key: '/admin/users',
       icon: <UserOutlined />,
       label: 'User Management',
     },

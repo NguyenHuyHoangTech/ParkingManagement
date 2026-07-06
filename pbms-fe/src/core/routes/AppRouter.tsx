@@ -71,7 +71,7 @@ export const AppRouter = () => {
           <Route 
             path="/admin" 
             element={
-              <ProtectedRoute allowedRoles={['ROLE_SUPER_ADMIN']}>
+              <ProtectedRoute allowedRoles={['ROLE_SUPER_ADMIN', 'ROLE_ADMIN']}>
                 <AdminLayout />
               </ProtectedRoute>
             }

@@ -35,7 +35,9 @@ export const LoginScreen = () => {
 
   const navigateByRole = (role: string) => {
     switch (role) {
-      case 'ROLE_SUPER_ADMIN': navigate('/admin/identity/users'); break;
+      case 'ROLE_SUPER_ADMIN':
+      case 'ROLE_ADMIN':
+        navigate('/admin/users'); break;
       case 'ROLE_MANAGER': navigate('/manager/building-profile'); break;
       case 'ROLE_STAFF': navigate('/staff/shift-management'); break;
       case 'ROLE_CUSTOMER': navigate('/customer/home'); break;

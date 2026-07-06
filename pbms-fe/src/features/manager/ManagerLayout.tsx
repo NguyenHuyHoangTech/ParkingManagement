@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
-import { 
-  DashboardOutlined, 
-  BlockOutlined, 
-  CarOutlined, 
-  DollarOutlined, 
-  IdcardOutlined, 
+import {
+  DashboardOutlined,
+  BlockOutlined,
+  CarOutlined,
+  DollarOutlined,
+  IdcardOutlined,
   BankOutlined,
   CreditCardOutlined,
   CustomerServiceOutlined,
@@ -41,56 +41,56 @@ export const ManagerLayout = () => {
     navigate('/login');
   };
 
-    const menuItems: any[] = [
-      {
-        key: 'sub-overview',
-        label: 'Overview',
-        icon: <DashboardOutlined />,
-        children: [
-          { key: '/manager/revenue-dashboard', label: 'Revenue Dashboard' },
-          { key: '/manager/operational-dashboard', label: 'Operational Dashboard' },
-        ],
-      },
-      {
-        key: 'sub-operations',
-        label: 'Operations',
-        icon: <CustomerServiceOutlined />,
-        children: [
-          { key: '/manager/space-map', label: 'Space Map', icon: <BlockOutlined /> },
-          { key: '/manager/routing', label: 'Routing', icon: <NodeIndexOutlined /> },
-          { key: '/manager/incidents', label: 'Incident Management', icon: <WarningOutlined /> },
-        ],
-      },
-      {
-        key: 'sub-assets-pricing',
-        label: 'Asset & Pricing',
-        icon: <CarOutlined />,
-        children: [
-          { key: '/manager/vehicle-types', label: 'Vehicle Type' },
-          { key: '/manager/pricing-config', label: 'Price Configuration' },
-          { key: '/manager/penalty-config', label: 'Penalty Configuration' },
-          { key: '/manager/monthly-passes', label: 'Monthly Passes', icon: <IdcardOutlined /> },
-          { key: '/manager/pre-bookings', label: 'Pre-booking Management', icon: <ScheduleOutlined /> },
-        ],
-      },
-      {
-        key: 'sub-revenue',
-        label: 'Revenue & Financial',
-        icon: <DollarOutlined />,
-        children: [
-          { key: '/manager/refund-management', label: 'Refund Management' },
-        ],
-      },
-      {
-        key: 'sub-system',
-        label: 'System & Storage',
-        icon: <SettingOutlined />,
-        children: [
-          { key: '/manager/card-management', label: 'Card Warehouse', icon: <CreditCardOutlined /> },
-          { key: '/manager/building-profile', label: 'Building Profile', icon: <BankOutlined /> },
-        ],
-      }
-    ];
+  const menuItems: any[] = [
+    {
+      key: 'sub-overview',
+      label: 'Overview',
+      icon: <DashboardOutlined />,
+      children: [
+        { key: '/manager/revenue-dashboard', label: 'Revenue Dashboard' },
+        { key: '/manager/operational-dashboard', label: 'Operational Dashboard' },
+      ],
+    },
+    {
+      key: 'sub-operations',
+      label: 'Operations',
+      icon: <CustomerServiceOutlined />,
+      children: [
+        { key: '/manager/space-map', label: 'Space Map', icon: <BlockOutlined /> },
+        { key: '/manager/routing', label: 'Routing', icon: <NodeIndexOutlined /> },
+        { key: '/manager/incidents', label: 'Incident Management', icon: <WarningOutlined /> },
+      ],
+    },
+    {
+      key: 'sub-assets-pricing',
+      label: 'Asset & Pricing',
+      icon: <CarOutlined />,
+      children: [
+        { key: '/manager/vehicle-types', label: 'Vehicle Type' },
+        { key: '/manager/pricing-config', label: 'Price Configuration' },
+        { key: '/manager/penalty-config', label: 'Penalty Configuration' },
+        { key: '/manager/monthly-passes', label: 'Monthly Passes', icon: <IdcardOutlined /> },
+        { key: '/manager/pre-bookings', label: 'Pre-booking Management', icon: <ScheduleOutlined /> },
+      ],
+    },
+    {
+      key: 'sub-revenue',
+      label: 'Revenue & Financial',
+      icon: <DollarOutlined />,
+      children: [
+        { key: '/manager/refund-management', label: 'Refund Management' },
+      ],
+    },
+    {
+      key: 'sub-system',
+      label: 'System & Storage',
+      icon: <SettingOutlined />,
+      children: [
+        { key: '/manager/card-management', label: 'Card Warehouse', icon: <CreditCardOutlined /> },
+        { key: '/manager/building-profile', label: 'Building Profile', icon: <BankOutlined /> },
+      ],
+    }
+  ];
 
   const userMenu: any = {
     items: [
@@ -102,9 +102,9 @@ export const ManagerLayout = () => {
 
   return (
     <Layout className="h-screen overflow-hidden">
-      <Sider 
-        trigger={null} 
-        collapsible 
+      <Sider
+        trigger={null}
+        collapsible
         collapsed={collapsed}
         theme="light"
         className="shadow-md z-10 flex flex-col h-screen"
@@ -116,14 +116,14 @@ export const ManagerLayout = () => {
               PBMS Manager
             </Text>
           )}
-          <div 
+          <div
             className={`cursor-pointer text-lg text-gray-600 hover:text-blue-600 transition-colors ${collapsed ? 'mx-auto' : ''}`}
             onClick={() => setCollapsed(!collapsed)}
           >
             {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </div>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
           <Menu
             theme="light"
@@ -150,7 +150,7 @@ export const ManagerLayout = () => {
           </Dropdown>
         </div>
       </Sider>
-      
+
       <Layout className="h-screen">
         <Header className="bg-white px-6 flex justify-end items-center shadow-sm z-10 sticky top-0 w-full h-16" style={{ backgroundColor: '#ffffff', gap: '16px' }}>
           <NotificationDropdown />
@@ -161,9 +161,9 @@ export const ManagerLayout = () => {
         </Content>
       </Layout>
 
-      <UserProfileSettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
+      <UserProfileSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </Layout>
   );
