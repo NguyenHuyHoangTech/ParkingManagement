@@ -118,11 +118,12 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 timeIn: info.timeIn ? simulatedDayjs(info.timeIn).format('DD/MM/YYYY HH:mm:ss') : '--:--',
                 timeOut: info.timeOut ? simulatedDayjs(info.timeOut).format('DD/MM/YYYY HH:mm:ss') : simulatedDayjs().format('DD/MM/YYYY HH:mm:ss'),
                 duration: info.durationMinutes ? `${info.durationMinutes} minutes` : '--',
-                feeBase: (info.expectedFee || 0) + (info.discountFee || 0),
+                feeBase: info.expectedFee || 0,
                 feePenalty: info.feePenalty || 0,
                 discount: info.discountFee || 0,
-                expectedFee: (info.expectedFee || 0) + (info.feePenalty || 0),
-                parkingFee: info.expectedFee || 0,
+                overtimeFee: info.overtimeFee || 0,
+                expectedFee: info.expectedFee || 0,
+                parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
                 durationMinutes: info.durationMinutes || 0,
                 isBlacklisted: false,
                 warnings: [],
@@ -152,7 +153,9 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 feeBase: 0,
                 feePenalty: 0,
                 discount: 0,
+                overtimeFee: 0,
                 expectedFee: 0,
+                parkingFee: 0,
                 durationMinutes: 0,
                 isBlacklisted: false,
                 warnings: ['No vehicle information found'],
@@ -271,7 +274,13 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   // Generate Payment URL when switching to digital method
   useEffect(() => {
     if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && scanData) {
-      const amount = scanData.expectedFee || 0;
+      const calculatedTotalFee = Math.max(0, 
+        (scanData.expectedFee || scanData.feeBase || 0) + 
+        (scanData.overtimeFee || 0) + 
+        (scanData.feePenalty || 0) - 
+        (scanData.discount || scanData.discountFee || 0)
+      );
+      const amount = calculatedTotalFee;
       if (amount > 0) {
         setIsLoading(true);
         const payload = {
@@ -281,7 +290,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             imageBase64: scanData.imageOutBase64,
             lprImageBase64: scanData.lprImageOutBase64,
             paymentMethod: paymentMethod,
-            totalFee: scanData.parkingFee || 0,
+            totalFee: amount,
             sessionId: scanData.sessionId
         };
         axiosClient.post('/finance/payments/initialize', { 
@@ -331,7 +340,16 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
               axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
                 .then(execRes => {
                     message.success(`Payment via ${paymentMethod} successful! Barrier opened!`);
-                    setPaymentConfirmed(true);
+                    
+                    // Reset UI to accept next vehicle
+                    setScanData(null);
+                    setEditablePlate('');
+                    setPaymentMethod('CASH');
+                    setPaymentConfirmed(false);
+                    setPaymentUrl(null);
+                    setPaymentQrCode('');
+                    setPaymentOrderId('');
+                    isProcessingRef.current = false;
                 })
                 .catch(execErr => {
                     message.error(execErr.response?.data?.message || 'System failed to checkout. A refund has been requested automatically.');
@@ -356,7 +374,12 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   }, [paymentConfirmed]);
 
   const renderOutGatePanel = () => {
-    const totalFee = scanData?.expectedFee || 0;
+    const totalFee = Math.max(0, 
+      (scanData?.expectedFee || scanData?.feeBase || 0) + 
+      (scanData?.overtimeFee || 0) + 
+      (scanData?.feePenalty || 0) - 
+      (scanData?.discount || scanData?.discountFee || 0)
+    );
     const duration = scanData?.durationMinutes || 0;
     const isInvalidEntry = scanData?.plateNumberIn === 'UNKNOWN' || scanData?.timeIn === '--:--';
     const isPlateMismatch = !isInvalidEntry && !!scanData?.plateNumberIn && (editablePlate.trim().toUpperCase() !== scanData.plateNumberIn.trim().toUpperCase());
@@ -389,14 +412,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         </div>
 
         {/* RIGHT SIDE: Info, Plates, Billing, Actions (55% width) */}
-        <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-hidden shadow-sm">
+        <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-y-auto overflow-x-hidden shadow-sm">
           
-          {/* STRICT ZERO-SCROLL Detail Area (Split into 2 internal columns) */}
-          <div className="flex-1 p-2 flex gap-2 min-h-0 overflow-hidden">
+          {/* Scrollable Detail Area (Split into 2 internal columns) */}
+          <div className="flex-1 p-2 flex flex-col xl:flex-row gap-2 min-h-0">
             {scanData ? (
               <>
                 {/* Internal Left: Info & Plates */}
-                <div className="w-1/2 flex flex-col gap-2 h-full">
+                <div className="w-full xl:w-1/2 flex flex-col gap-2 h-full">
                   
                   {/* Identity & Slot */}
                   <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex justify-between items-center flex-none">
@@ -489,7 +512,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 </div>
 
                 {/* Internal Right: Billing & Payment */}
-                <div className="w-1/2 flex flex-col h-full bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4">
+                <div className="w-full xl:w-1/2 flex flex-col h-full bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4">
                   {/* LOCKED SESSION BANNER */}
                   {scanData?.status === 'LOCKED' && (
                     <div className="mb-3 bg-red-600/20 border-2 border-red-500 rounded-xl p-3 flex items-center gap-3 animate-pulse">
@@ -502,8 +525,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   )}
                   <div className="flex flex-col gap-2 mb-4">
                     <div className="flex justify-between items-center text-sm text-slate-300">
-                      <span>Time sent:</span>
-                      <span className="font-bold text-white text-base">{duration}  minute</span>
+                      <span>Parking duration:</span>
+                      <span className="font-bold text-white text-base">{duration} minute</span>
                     </div>
                     
                     {scanData.customerType === 'BOOK' ? (
@@ -515,7 +538,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                         {scanData.overtimeMinutes > 0 ? (
                           <div className="flex justify-between items-center text-sm text-slate-300">
                             <span>Overtime fee ({scanData.overtimeMinutes}  minute):</span>
-                            <span className="font-bold text-red-400 text-base">+ {(scanData?.expectedFee || 0).toLocaleString()} ₫</span>
+                            <span className="font-bold text-red-400 text-base">+ {(scanData?.overtimeFee || scanData?.expectedFee || 0).toLocaleString()} ₫</span>
                           </div>
                         ) : (
                           <div className="flex justify-between items-center text-sm text-slate-300">
@@ -524,11 +547,26 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                           </div>
                         )}
                       </>
+                    ) : scanData.customerType === 'MONTHLY' && scanData.overtimeMinutes > 0 ? (
+                      <>
+                        <div className="flex justify-between items-center text-sm text-slate-300">
+                          <span>Basic fee (Monthly covered):</span>
+                          <span className="font-bold text-green-400 text-base">Covered until expired</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-slate-300">
+                          <span>Overtime fee (from expiration - {scanData.overtimeMinutes} minute):</span>
+                          <span className="font-bold text-red-400 text-base">+ {(scanData?.overtimeFee || 0).toLocaleString()} ₫</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-slate-300">
+                          <span>Penalty surcharge:</span>
+                          <span className="font-bold text-red-400 text-base">+ {(scanData?.feePenalty || 0).toLocaleString()} ₫</span>
+                        </div>
+                      </>
                     ) : (
                       <>
                         <div className="flex justify-between items-center text-sm text-slate-300">
                           <span>Basic fee:</span>
-                          <span className="font-bold text-white text-base">{(scanData?.feeBase || 0).toLocaleString()} ₫</span>
+                          <span className="font-bold text-white text-base">{(scanData?.expectedFee || scanData?.feeBase || 0).toLocaleString()} ₫</span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-slate-300">
                           <span>Penalty surcharge:</span>
@@ -539,7 +577,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
                     <div className="flex justify-between items-center text-sm text-slate-300">
                       <span>Discounts/Promotions:</span>
-                      <span className="font-bold text-green-400 text-base">- {(scanData?.discount || 0).toLocaleString()} ₫</span>
+                      <span className="font-bold text-green-400 text-base">- {(scanData?.discount || scanData?.discountFee || 0).toLocaleString()} ₫</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t border-slate-600">

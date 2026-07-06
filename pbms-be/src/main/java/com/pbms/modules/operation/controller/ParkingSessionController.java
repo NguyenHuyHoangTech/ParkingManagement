@@ -155,7 +155,7 @@ public class ParkingSessionController {
         StreamingResponseBody stream = out -> {
             try (PrintWriter writer = new PrintWriter(out, false, StandardCharsets.UTF_8)) {
                 writer.write('\ufeff'); // BOM for Excel
-                writer.println("ID,License Plate,Vehicle Type,RFID,Entry Time,Entry Gate,Exit Time,Exit Gate,Total Fee,Status");
+                writer.println("ID,License Plate,Vehicle Type,RFID,Entry Time,Entry Gate,Exit Time,Exit Gate,Total Fee,Overtime Fee,Penalty Fee,Status");
                 
                 LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDate.of(2000, 1, 1).atStartOfDay();
                 LocalDateTime end = endDate != null ? endDate.atTime(LocalTime.MAX) : TimeProvider.now().plusDays(1);
@@ -169,8 +169,10 @@ public class ParkingSessionController {
                         String gateIn = ps.getGateIn() != null ? ps.getGateIn().getGateName() : "";
                         String gateOut = ps.getGateOut() != null ? ps.getGateOut().getGateName() : "";
                         String fee = ps.getTotalFee() != null ? ps.getTotalFee().toString() : "0";
+                        String overtimeFee = ps.getOvertimeFee() != null ? ps.getOvertimeFee().toString() : "0";
+                        String penaltyFee = ps.getPenaltyFee() != null ? ps.getPenaltyFee().toString() : "0";
                         
-                        writer.printf("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
+                        writer.printf("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
                                 ps.getId(),
                                 escapeCsv(ps.getPlate()),
                                 escapeCsv(vType),
@@ -180,6 +182,8 @@ public class ParkingSessionController {
                                 timeOut,
                                 escapeCsv(gateOut),
                                 fee,
+                                overtimeFee,
+                                penaltyFee,
                                 ps.getStatus()
                         );
                     });
@@ -237,24 +241,35 @@ public class ParkingSessionController {
         map.put("suggestedZoneId", suggestedZoneId);
         
         BigDecimal currentFee = ps.getTotalFee();
+        BigDecimal currentBaseFee = ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO;
+        BigDecimal currentOvertimeFee = ps.getOvertimeFee() != null ? ps.getOvertimeFee() : BigDecimal.ZERO;
+        
+        if (currentFee != null && ps.getOvertimeFee() != null) {
+            currentFee = currentFee.add(ps.getOvertimeFee());
+        }
+        
         if (currentFee == null && ps.getVehicleType() != null && ps.getTimeIn() != null && 
             ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus()))) {
             try {
                 String rfidCode = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : null;
                 com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(rfidCode, ps.getPlate());
-                if (checkoutInfo != null && checkoutInfo.getExpectedFee() != null) {
-                    currentFee = checkoutInfo.getExpectedFee();
+                if (checkoutInfo != null && (checkoutInfo.getExpectedFee() != null || checkoutInfo.getOvertimeFee() != null)) {
+                    currentBaseFee = checkoutInfo.getExpectedFee() != null ? checkoutInfo.getExpectedFee() : BigDecimal.ZERO;
+                    currentOvertimeFee = checkoutInfo.getOvertimeFee() != null ? checkoutInfo.getOvertimeFee() : BigDecimal.ZERO;
+                    currentFee = currentBaseFee.add(currentOvertimeFee);
                 } else {
-                    currentFee = pricingCalculatorService.calculateTotalFee(
+                    currentBaseFee = pricingCalculatorService.calculateTotalFee(
                         ps.getVehicleType().getId(), 
                         ps.getTimeIn(), 
                         TimeProvider.now());
+                    currentFee = currentBaseFee;
                 }
             } catch (Exception e) {
-                currentFee = pricingCalculatorService.calculateTotalFee(
+                currentBaseFee = pricingCalculatorService.calculateTotalFee(
                     ps.getVehicleType().getId(), 
                     ps.getTimeIn(), 
                     TimeProvider.now());
+                currentFee = currentBaseFee;
             }
         }
 
@@ -272,6 +287,8 @@ public class ParkingSessionController {
         }
         
         map.put("totalFee", currentFee);
+        map.put("baseFee", currentBaseFee);
+        map.put("overtimeFee", currentOvertimeFee);
         map.put("status", ps.getStatus());
 
         if (incidentTickets != null && !incidentTickets.isEmpty()) {

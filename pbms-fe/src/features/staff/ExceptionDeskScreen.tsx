@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, Typography, Input, Button, message, Select, Tag, Modal, Form, List, Upload, InputNumber, Alert, Badge, Divider, Statistic } from 'antd';
 import { 
   WarningOutlined, CameraOutlined, LockOutlined, CreditCardOutlined,
-  CloseCircleOutlined, PlusOutlined, UploadOutlined, CheckCircleOutlined, MessageOutlined, SearchOutlined
+  CloseCircleOutlined, PlusOutlined, UploadOutlined, CheckCircleOutlined, MessageOutlined, SearchOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
@@ -677,7 +677,7 @@ export const ExceptionDeskScreen = () => {
   const filteredTickets = ticketsData.filter((t: any) => selectedCategory === 'ALL' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION'));
 
   const renderCardDispute = () => (
-    <div className="flex flex-col lg:flex-row flex-1 lg:h-full animate-fade-in bg-gray-100 p-2 lg:p-4 gap-4 overflow-y-auto lg:overflow-hidden">
+    <div className="flex flex-col lg:flex-row flex-1 lg:h-full animate-fade-in bg-gray-100 p-2 lg:p-4 gap-4 overflow-y-auto overflow-x-hidden">
       {/* Pane 1: Category Sidebar */}
       <div className={`w-full lg:w-64 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col lg:overflow-hidden shrink-0 ${selectedTicket && selectedCategory !== 'BLACKLIST' ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center shrink-0">
@@ -910,7 +910,7 @@ export const ExceptionDeskScreen = () => {
                     </Card>
                   </div>
                 </div>
-              ) : selectedTicket.phase === 2 ? (() => {
+              ) : selectedTicket.phase === 2 && selectedTicket.type !== 'ZONE_VIOLATION' ? (() => {
                 const isCardIncident = selectedTicket.type === 'LOST_CARD' || selectedTicket.type === 'DAMAGED_CARD';
                 const showFeeTable = isCardIncident || (selectedTicket.type === 'BLACKLIST_VIOLATION' && Number(selectedTicket.fineAmount) > 0) || (selectedTicket.type === 'ZONE_VIOLATION' && Number(selectedTicket.fineAmount) > 0);
                 const isPaused = !!selectedTicket.feePausedAt;
@@ -1266,13 +1266,22 @@ export const ExceptionDeskScreen = () => {
                     <div className="flex flex-col items-center justify-center p-6 bg-purple-50 border border-purple-200 rounded-xl">
                       <WarningOutlined className="text-5xl mb-2 text-purple-600" />
                       <Title level={4} className="text-purple-700 m-0">Vehicle is Blacklisted</Title>
-                      <Text className="text-purple-600 mt-1">Since {new Date(selectedTicket.resolvedAt).toLocaleString('vi-VN')}</Text>
+                      <Text className="text-purple-600 mt-1">Since {selectedTicket.resolvedAt ? new Date(selectedTicket.resolvedAt).toLocaleString('vi-VN') : 'now'}</Text>
+                    </div>
+                  ) : selectedTicket.type === 'ZONE_VIOLATION' && selectedTicket.phase === 2 ? (
+                    <div className="flex flex-col items-center justify-center p-6 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                      <ClockCircleOutlined className="text-5xl mb-3 text-blue-500 animate-pulse" />
+                      <Title level={4} className="text-blue-700 m-0">Waiting for Check-out</Title>
+                      <Text className="text-blue-600 mt-2 text-center max-w-md">
+                        The Zone Violation penalty of <strong className="text-red-600">{Number(selectedTicket.fineAmount || 0).toLocaleString()} ₫</strong> will be automatically added to the parking fee and collected when the customer checks out at the gate.
+                      </Text>
+                      <Tag color="blue" className="mt-4 px-3 py-1 font-bold rounded-full">Phase 2: Pending Checkout</Tag>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center p-6 bg-green-50 border border-green-200 rounded-xl">
                       <CheckCircleOutlined className="text-5xl mb-2 text-green-600" />
                       <Title level={4} className="text-green-700 m-0">Incidents have been resolved</Title>
-                      <Text className="text-green-600 mt-1">At {new Date(selectedTicket.resolvedAt).toLocaleString('vi-VN')}</Text>
+                      <Text className="text-green-600 mt-1">At {selectedTicket.resolvedAt ? new Date(selectedTicket.resolvedAt).toLocaleString('vi-VN') : 'Unknown'}</Text>
                     </div>
                   )}
                   

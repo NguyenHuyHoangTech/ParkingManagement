@@ -591,7 +591,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       <Row className="h-full w-full m-0">
         <>
           {/* LEFT PANEL: Action Console (IN) */}
-          <Col span={9} className="h-full p-4 flex flex-col border-r border-slate-300 bg-slate-50">
+          <Col span={9} className="h-full overflow-y-auto overflow-x-hidden p-4 flex flex-col border-r border-slate-300 bg-slate-50">
 
             <div className="flex justify-between items-center mb-2 shrink-0 gap-2">
               <Title level={4} className="m-0 text-slate-800 whitespace-nowrap flex items-center">

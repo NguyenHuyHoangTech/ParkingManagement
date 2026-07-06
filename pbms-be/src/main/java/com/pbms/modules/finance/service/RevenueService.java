@@ -63,6 +63,28 @@ public class RevenueService {
             CONVERT(VARCHAR(10), ps.time_out, 120) AS date_str, 
             COALESCE(vt.type_name, 'Unclear') AS vehicleType,
             COALESCE(g.gate_name, 'N/A') AS gateName, 
+            'Overtime Surcharge' AS revenueSource, 
+            COALESCE(t.payment_method, 'CASH') AS paymentMethod, 
+            SUM(ps.overtime_fee) AS totalRevenue, 
+            COUNT(ps.id) AS totalTransactions 
+        FROM parking_sessions ps 
+        LEFT JOIN vehicle_types vt ON ps.vehicle_type_id = vt.id 
+        LEFT JOIN gates g ON ps.gate_out_id = g.id 
+        LEFT JOIN monthly_tickets mt ON ps.plate = mt.plate AND mt.status = 'ACTIVE' 
+        LEFT JOIN transactions t ON ps.id = t.parking_session_id AND t.status = 'SUCCESS' 
+        WHERE ps.status = 'COMPLETED' AND ps.overtime_fee > 0
+          AND CAST(ps.time_out AS DATE) >= :startDate 
+          AND CAST(ps.time_out AS DATE) <= :endDate 
+        GROUP BY 
+            CONVERT(VARCHAR(10), ps.time_out, 120), 
+            COALESCE(vt.type_name, 'Unclear'),
+            COALESCE(g.gate_name, 'N/A'), 
+            COALESCE(t.payment_method, 'CASH')
+        UNION ALL
+        SELECT 
+            CONVERT(VARCHAR(10), ps.time_out, 120) AS date_str, 
+            COALESCE(vt.type_name, 'Unclear') AS vehicleType,
+            COALESCE(g.gate_name, 'N/A') AS gateName, 
             'Penalty' AS revenueSource, 
             COALESCE(t.payment_method, 'CASH') AS paymentMethod, 
             SUM(ps.penalty_fee) AS totalRevenue, 

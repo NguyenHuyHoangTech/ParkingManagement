@@ -87,6 +87,12 @@ public class ParkingSession {
     @Column(name = "total_fee", precision = 18, scale = 2)
     private BigDecimal totalFee;
 
+    @Column(name = "overtime_minutes")
+    private Long overtimeMinutes;
+
+    @Column(name = "overtime_fee", precision = 18, scale = 2)
+    private BigDecimal overtimeFee;
+
     @Column(nullable = false, length = 50)
     private String status; // ACTIVE, COMPLETED, EXCEPTION
 }

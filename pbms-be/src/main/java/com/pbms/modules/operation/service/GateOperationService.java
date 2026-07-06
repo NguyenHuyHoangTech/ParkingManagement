@@ -318,7 +318,7 @@ public class GateOperationService {
 
         java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
-        long duration = java.time.Duration.between(feeStartTime, now).toMinutes();
+        long duration = java.time.Duration.between(session.getTimeIn(), now).toMinutes();
         if (duration < 0)
             duration = 0;
         info.setDurationMinutes(duration);
@@ -335,6 +335,7 @@ public class GateOperationService {
         if ("MONTHLY".equals(customerType) || isExemptZone) {
             info.setExpectedFee(java.math.BigDecimal.ZERO);
             info.setOvertimeMinutes(0L);
+            info.setOvertimeFee(java.math.BigDecimal.ZERO);
         } else if (session.getReservation() != null) {
             java.time.LocalDateTime bookedIn = session.getReservation().getExpectedEntryTime();
             java.time.LocalDateTime bookedOut = bookedIn
@@ -349,29 +350,49 @@ public class GateOperationService {
                     try {
                         java.math.BigDecimal fee = pricingCalculatorService
                                 .calculateTotalFee(session.getVehicleType().getId(), bookedOut, now);
-                        info.setExpectedFee(fee);
+                        info.setExpectedFee(java.math.BigDecimal.ZERO);
+                        info.setOvertimeFee(fee);
                     } catch (Exception e) {
                         info.setExpectedFee(java.math.BigDecimal.ZERO);
+                        info.setOvertimeFee(java.math.BigDecimal.ZERO);
                     }
                 } else {
                     info.setExpectedFee(java.math.BigDecimal.ZERO);
+                    info.setOvertimeFee(java.math.BigDecimal.ZERO);
                 }
             } else {
                 info.setOvertimeMinutes(0L);
                 info.setExpectedFee(java.math.BigDecimal.ZERO);
+                info.setOvertimeFee(java.math.BigDecimal.ZERO);
             }
         } else if (session.getVehicleType() != null) {
             try {
                 java.math.BigDecimal fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(),
                         feeStartTime, now);
                 log.info("CALCULATED FEE: " + fee + " for duration: " + duration);
-                info.setExpectedFee(fee);
+                
+                // If feeStartTime is strictly after session timeIn, it means the Monthly ticket expired during the session
+                if (feeStartTime.isAfter(session.getTimeIn())) {
+                    info.setExpectedFee(java.math.BigDecimal.ZERO);
+                    info.setOvertimeFee(fee);
+                    info.setOvertimeMinutes(java.time.Duration.between(feeStartTime, now).toMinutes());
+                    // Force UI to recognize as MONTHLY so it shows overtime nicely
+                    info.setCustomerType("MONTHLY"); 
+                } else {
+                    info.setExpectedFee(fee);
+                    info.setOvertimeFee(java.math.BigDecimal.ZERO);
+                    info.setOvertimeMinutes(0L);
+                }
             } catch (Exception e) {
                 log.error("Error calculating fee for session " + session.getId(), e);
                 info.setExpectedFee(java.math.BigDecimal.ZERO);
+                info.setOvertimeFee(java.math.BigDecimal.ZERO);
+                info.setOvertimeMinutes(0L);
             }
         } else {
             info.setExpectedFee(java.math.BigDecimal.ZERO);
+            info.setOvertimeFee(java.math.BigDecimal.ZERO);
+            info.setOvertimeMinutes(0L);
         }
 
         java.math.BigDecimal penaltyFee = incidentTicketRepository.findBySessionId(session.getId()).stream()
@@ -381,26 +402,15 @@ public class GateOperationService {
 
         if (session.getDiscount() != null && session.getDiscountValidUntil() != null) {
             if (now.isBefore(session.getDiscountValidUntil())) {
-                java.math.BigDecimal totalFee = info.getExpectedFee().add(penaltyFee);
-                java.math.BigDecimal discountedTotal = totalFee.subtract(session.getDiscount());
-                if (discountedTotal.compareTo(java.math.BigDecimal.ZERO) < 0) {
-                    discountedTotal = java.math.BigDecimal.ZERO;
-                }
-
-                if (discountedTotal.compareTo(penaltyFee) >= 0) {
-                    info.setExpectedFee(discountedTotal.subtract(penaltyFee));
-                    info.setFeePenalty(penaltyFee);
-                } else {
-                    info.setExpectedFee(java.math.BigDecimal.ZERO);
-                    info.setFeePenalty(discountedTotal);
-                }
                 info.setDiscountFee(session.getDiscount());
             } else {
-                info.setFeePenalty(penaltyFee);
+                info.setDiscountFee(java.math.BigDecimal.ZERO);
             }
         } else {
-            info.setFeePenalty(penaltyFee);
+            info.setDiscountFee(java.math.BigDecimal.ZERO);
         }
+        
+        info.setFeePenalty(penaltyFee);
 
         return info;
     }
@@ -668,25 +678,40 @@ public class GateOperationService {
         }
 
         BigDecimal fee = BigDecimal.ZERO;
+        BigDecimal overtimeFee = BigDecimal.ZERO;
+        Long overtimeMinutes = 0L;
+
         if (!isMonthlyCovered) {
             if (request.getTotalFee() != null) {
-                fee = request.getTotalFee();
-            } else if (session.getReservation() != null) {
+                // If FE sends explicit fee, assume it's expectedFee (or combined). 
+                // We'll recalculate exactly to properly split it.
+            } 
+            
+            if (session.getReservation() != null) {
                 java.time.LocalDateTime bookedIn = session.getReservation().getExpectedEntryTime();
                 java.time.LocalDateTime bookedOut = bookedIn
                         .plusMinutes(session.getReservation().getExpectedDurationMinutes());
                 if (session.getTimeOut().isAfter(bookedOut)) {
-                    fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut,
+                    overtimeFee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut,
                             session.getTimeOut());
+                    overtimeMinutes = java.time.Duration.between(bookedOut, session.getTimeOut()).toMinutes();
                 }
             } else {
                 String rfidCode = (request.getRfid() != null) ? request.getRfid()
                         : (session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null);
 
                 java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
-
-                fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime,
-                        session.getTimeOut());
+                
+                if (feeStartTime.isAfter(session.getTimeIn())) {
+                    // Monthly expired mid-session
+                    overtimeFee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime,
+                            session.getTimeOut());
+                    overtimeMinutes = java.time.Duration.between(feeStartTime, session.getTimeOut()).toMinutes();
+                } else {
+                    // Walk-in
+                    fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime,
+                            session.getTimeOut());
+                }
             }
         }
 
@@ -712,14 +737,34 @@ public class GateOperationService {
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
             if (session.getDiscountValidUntil() == null
                     || !com.pbms.common.utils.TimeProvider.now().isAfter(session.getDiscountValidUntil())) {
-                fee = fee.subtract(session.getDiscount());
-                if (fee.compareTo(BigDecimal.ZERO) < 0) {
+                
+                BigDecimal remainingDiscount = session.getDiscount();
+                
+                // Subtract from fee first
+                if (fee.compareTo(remainingDiscount) >= 0) {
+                    fee = fee.subtract(remainingDiscount);
+                    remainingDiscount = BigDecimal.ZERO;
+                } else {
+                    remainingDiscount = remainingDiscount.subtract(fee);
                     fee = BigDecimal.ZERO;
+                }
+                
+                // Subtract from overtimeFee if any discount left
+                if (remainingDiscount.compareTo(BigDecimal.ZERO) > 0) {
+                    if (overtimeFee.compareTo(remainingDiscount) >= 0) {
+                        overtimeFee = overtimeFee.subtract(remainingDiscount);
+                    } else {
+                        overtimeFee = BigDecimal.ZERO;
+                    }
                 }
             }
         }
+        
+        BigDecimal totalParkingFee = fee.add(overtimeFee);
 
-        session.setTotalFee(fee);
+        session.setTotalFee(fee); // Save net base fee
+        session.setOvertimeFee(overtimeFee); // Save net overtime fee
+        session.setOvertimeMinutes(overtimeMinutes);
         session.setPenaltyFee(penaltyFee);
         session.setStatus("COMPLETED");
 
@@ -731,7 +776,7 @@ public class GateOperationService {
 
         sessionRepository.save(session);
 
-        BigDecimal totalAmount = fee.add(penaltyFee);
+        BigDecimal totalAmount = totalParkingFee.add(penaltyFee);
         if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             String payMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "CASH";
             Transaction transaction = Transaction.builder()

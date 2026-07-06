@@ -69,6 +69,9 @@ public class CheckOutSessionInfoDTO {
     /** Số phút đỗ quá giờ so với thời gian đặt trước (Dành cho khách đặt trước) */
     private Long overtimeMinutes;
 
+    /** Tiền phụ phí đỗ lố giờ (Dành cho vé tháng quá hạn hoặc đặt trước quá hạn) */
+    private java.math.BigDecimal overtimeFee;
+
     /** Trạng thái hiện tại của phiên đỗ xe (Ví dụ: ACTIVE, LOCKED, COMPLETED) */
     private String status;
 }

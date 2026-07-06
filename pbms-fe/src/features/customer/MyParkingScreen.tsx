@@ -183,6 +183,17 @@ export const MyParkingScreen = () => {
     setHasSearched(true);
   };
 
+  const handleViewParkingStatus = (plate: string) => {
+    setActiveTab('1');
+    navigate(`/customer/my-parking?tab=walkin`, { replace: true });
+    setPlateNumberInput(plate);
+    setRfidInput('');
+    setHasSearched(true);
+  };
+
+  const [selectedIncident, setSelectedIncident] = useState<any>(null);
+  const [isIncidentModalVisible, setIsIncidentModalVisible] = useState(false);
+
   const cancelBookingMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number | string; data: any }) => {
       await axiosClient.put(`/customer/reservations/${id}/cancel`, data);
@@ -398,13 +409,22 @@ export const MyParkingScreen = () => {
               </List.Item>
             )}
           />
-          <Divider className="my-4" />
-          <div className="flex justify-between items-center mb-6">
-            <Text strong className="text-lg">TOTAL FEE:</Text>
-            <Text strong className="text-2xl text-blue-600">{totalFee.toLocaleString()} ₫</Text>
-          </div>
-
           <div className="flex-1 flex flex-col bg-gray-50 rounded-xl border border-gray-200 p-4 mt-auto">
+            <div className="flex justify-between items-center mb-2">
+              <Text className="text-gray-500">Base fee:</Text>
+              <Text strong>{(session.baseFee || 0).toLocaleString()} ₫</Text>
+            </div>
+            {session.overtimeFee > 0 && (
+              <div className="flex justify-between items-center mb-2 text-red-500">
+                <Text>Overtime surcharge:</Text>
+                <Text strong>+ {(session.overtimeFee || 0).toLocaleString()} ₫</Text>
+              </div>
+            )}
+            <div className="flex justify-between items-center mb-4 mt-2 pt-2 border-t border-gray-200">
+              <Text strong className="text-lg">TOTAL FEE:</Text>
+              <Text strong className="text-2xl text-blue-600">{totalFee.toLocaleString()} ₫</Text>
+            </div>
+
             {session.incidentDetails && session.incidentDetails.length > 0 ? (
               <>
                 <Text strong className="text-red-600 mb-2 block uppercase text-xs tracking-wider"><WarningOutlined className="mr-1" /> Penalty & Incidents</Text>
@@ -416,6 +436,17 @@ export const MyParkingScreen = () => {
                         {inc.fineAmount > 0 && <Tag color="red">+{inc.fineAmount.toLocaleString()} ₫</Tag>}
                       </div>
                       <Text className="text-gray-600 text-xs block">{inc.description || 'Penalty applied due to violation.'}</Text>
+                      <Button 
+                        type="link" 
+                        size="small" 
+                        className="p-0 mt-2 text-xs" 
+                        onClick={() => {
+                          setSelectedIncident(inc);
+                          setIsIncidentModalVisible(true);
+                        }}
+                      >
+                        View details
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -519,7 +550,7 @@ export const MyParkingScreen = () => {
                   </div>
                   <div className="flex flex-col items-start sm:items-end mt-4 sm:mt-0 w-full sm:w-auto">
                     {displayStatus === 'PENDING' && (
-                      <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2 mb-2">
                         {dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isAfter(simulatedDayjs()) && (
                           <Button 
                             type="primary"
@@ -545,6 +576,16 @@ export const MyParkingScreen = () => {
                           Cancel Reservation
                         </Button>
                       </div>
+                    )}
+                    {['PENDING', 'ACTIVE'].includes(displayStatus) && (
+                      <Button
+                        type="default"
+                        className="w-full sm:w-auto border-blue-400 text-blue-600 hover:bg-blue-50"
+                        icon={<SearchOutlined />}
+                        onClick={() => handleViewParkingStatus(item.plateNumber)}
+                      >
+                        View Parking Status
+                      </Button>
                     )}
                     {displayStatus === 'PENDING_REFUND' && (
                       <Text type="secondary" className="text-sm italic mt-2">Expected processing: 1-2 days</Text>
@@ -606,6 +647,14 @@ export const MyParkingScreen = () => {
                         Edit Plate
                       </Button>
                     )}
+                    <Button
+                      type="default"
+                      className="border-blue-400 text-blue-600 hover:bg-blue-50"
+                      icon={<SearchOutlined />}
+                      onClick={() => handleViewParkingStatus(item.plate)}
+                    >
+                      Status
+                    </Button>
                     <Button 
                       type="default" 
                       icon={<HistoryOutlined />} 
@@ -1017,6 +1066,40 @@ export const MyParkingScreen = () => {
             </div>
           )}
         </div>
+      </Modal>
+
+      <Modal
+        title={<span className="text-red-600 font-bold"><WarningOutlined className="mr-2" /> Incident Details</span>}
+        open={isIncidentModalVisible}
+        onCancel={() => setIsIncidentModalVisible(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setIsIncidentModalVisible(false)}>Close</Button>
+        ]}
+      >
+        {selectedIncident && (
+          <div className="py-4">
+            <Title level={5} className="mb-2 text-red-700">{selectedIncident.type.replace('_', ' ')}</Title>
+            <Text className="block mb-4 text-slate-600">{selectedIncident.description || 'No additional description provided.'}</Text>
+            
+            {selectedIncident.fineAmount > 0 && (
+              <div className="mb-4">
+                <Text strong>Penalty Amount: </Text>
+                <Tag color="red">{selectedIncident.fineAmount.toLocaleString()} ₫</Tag>
+              </div>
+            )}
+
+            {selectedIncident.urls && selectedIncident.urls.length > 0 && (
+              <div>
+                <Text strong className="block mb-2">Evidence Images:</Text>
+                <div className="flex gap-2 overflow-x-auto">
+                  {selectedIncident.urls.map((url: string, uidx: number) => (
+                    <img key={uidx} src={getImageUrl(url)} alt="Incident Evidence" className="h-32 object-cover rounded-md border border-slate-200 shadow-sm" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
 

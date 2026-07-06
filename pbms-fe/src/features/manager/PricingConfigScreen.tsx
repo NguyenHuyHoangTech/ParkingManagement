@@ -396,25 +396,74 @@ export const PricingConfigScreen = () => {
 
   const handleAddShift = () => {
     const newId = `shift_${Date.now()}`;
-    let newStartTime = '00:00';
-    if (config.shifts.length > 0) {
-      newStartTime = config.shifts[config.shifts.length - 1].endTime;
-    }
-    const [h, m] = newStartTime.split(':').map(Number);
-    const endH = (h + 4) % 24; // Default new shift 4 hours
-    const newEndTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-    setConfig(prev => ({
-      ...prev,
-      shifts: [...prev.shifts, {
-        id: newId,
-        name: `New Shift ${prev.shifts.length + 1}`,
-        startTime: newStartTime,
-        endTime: newEndTime,
-        color: 'bg-gray-100 border-gray-300 text-gray-800',
-        slices: [{ id: `slice_${Date.now()}`, duration: null, price: 10000, isTail: true }]
-      }]
-    }));
+    // Calculate total timeline and find gaps
+    let timeline: { start: number, end: number }[] = [];
+    config.shifts.forEach(s => {
+      let st = parseTime(s.startTime);
+      let et = parseTime(s.endTime);
+      if (et <= st) {
+        timeline.push({ start: st, end: 1440 });
+        if (et > 0) timeline.push({ start: 0, end: et });
+      } else {
+        timeline.push({ start: st, end: et });
+      }
+    });
+
+    timeline.sort((a, b) => a.start - b.start);
+    let gaps: { start: number, end: number }[] = [];
+    let currentMaxEnd = 0;
+
+    for (let i = 0; i < timeline.length; i++) {
+      if (timeline[i].start > currentMaxEnd) {
+        gaps.push({ start: currentMaxEnd, end: timeline[i].start });
+      }
+      currentMaxEnd = Math.max(currentMaxEnd, timeline[i].end);
+    }
+    if (currentMaxEnd < 1440) {
+      gaps.push({ start: currentMaxEnd, end: 1440 });
+    }
+
+    let newStartTime = '00:00';
+    let newEndTime = '04:00';
+
+    if (gaps.length > 0) {
+      gaps.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+      const largestGap = gaps[0];
+      const startH = Math.floor(largestGap.start / 60);
+      const startM = largestGap.start % 60;
+      let endH = Math.floor(largestGap.end / 60);
+      const endM = largestGap.end % 60;
+      if (endH === 24 && endM === 0) {
+          endH = 0;
+      } else {
+          endH = endH % 24;
+      }
+      newStartTime = `${startH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
+      newEndTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+    } else {
+      // 24H full, insert a small 5min shift to adjust later
+      newStartTime = '12:00';
+      newEndTime = '12:05';
+    }
+
+    setConfig(prev => {
+      const newColor = prev.shifts.length % 2 === 0 
+        ? 'bg-blue-100 border-blue-300 text-blue-800' 
+        : 'bg-indigo-100 border-indigo-300 text-indigo-800';
+
+      return {
+        ...prev,
+        shifts: [...prev.shifts, {
+          id: newId,
+          name: `New Shift ${prev.shifts.length + 1}`,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          color: newColor,
+          slices: [{ id: `slice_${Date.now()}`, duration: null, price: 10000, isTail: true }]
+        }]
+      };
+    });
     setSelectedShiftId(newId);
   };
 

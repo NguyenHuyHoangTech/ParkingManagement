@@ -483,7 +483,18 @@ export const OperationalDashboardScreen = () => {
           <Table.Column title="Entry Gate" dataIndex="gateInName" render={(val) => val || '-'} />
           <Table.Column title="Exit Time" dataIndex="timeOut" render={(val) => val ? simulatedDayjs(val).format('HH:mm:ss DD/MM/YYYY') : '-'} />
           <Table.Column title="Exit Gate" dataIndex="gateOutName" render={(val) => val || '-'} />
-          <Table.Column title="Fees" dataIndex="totalFee" render={(val) => val != null ? <span className="font-bold text-green-600">{val.toLocaleString()}  VND</span> : '-'} />
+          <Table.Column title="Fees" dataIndex="totalFee" render={(val, record: any) => {
+            if (val == null) return '-';
+            const overtime = record.overtimeFee || 0;
+            return (
+              <div className="flex flex-col">
+                <span className="font-bold text-green-600">{val.toLocaleString()}  VND</span>
+                {overtime > 0 && (
+                  <span className="text-[10px] text-red-500 font-medium">Overtime: +{overtime.toLocaleString()}</span>
+                )}
+              </div>
+            );
+          }} />
           <Table.Column title="Status" dataIndex="status" render={(val: string) => {
             if (val === 'ACTIVE') return <Tag color="blue">Parked</Tag>;
             if (val === 'COMPLETED') return <Tag color="green">Completed</Tag>;

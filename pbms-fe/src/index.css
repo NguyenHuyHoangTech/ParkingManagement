@@ -6,6 +6,13 @@
   color-scheme: light;
 }
 
+/* Global REM scaling to shrink UI on smaller laptop screens */
+@media (max-width: 1600px) { html { font-size: 15px; } }
+@media (max-width: 1440px) { html { font-size: 14px; } }
+@media (max-width: 1280px) { html { font-size: 13px; } }
+@media (max-width: 1024px) { html { font-size: 12px; } }
+@media (max-width: 768px) { html { font-size: 14px; } } /* Reset for mobile readable */
+
 .ant-layout-sider-children {
   display: flex;
   flex-direction: column;

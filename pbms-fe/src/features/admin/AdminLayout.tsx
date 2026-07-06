@@ -109,7 +109,7 @@ export const AdminLayout = () => {
           </div>
         </Header>
         
-        <Content className="bg-gray-50 m-0">
+        <Content className="bg-gray-50 m-0 flex flex-col flex-1 overflow-y-auto">
           {/* This renders the nested child routes automatically */}
           <Outlet />
         </Content>
