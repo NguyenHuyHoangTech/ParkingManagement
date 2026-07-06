@@ -30,7 +30,7 @@ public class DashboardService {
      */
     public Map<String, Object> getOperationalOverview(LocalDate date) {
         if (date == null)
-            date = LocalDate.now();
+            date = com.pbms.common.utils.TimeProvider.now().toLocalDate();
         String vehicleStatsQuery = """
                     SELECT
                         v.type_name as name,

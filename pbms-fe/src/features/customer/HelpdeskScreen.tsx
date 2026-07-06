@@ -76,7 +76,7 @@ export const HelpdeskScreen = () => {
     queryKey: ['vehicleTypes'],
     queryFn: async () => {
       try {
-        const res = await axiosClient.get('/operation/vehicle-types');
+        const res = await axiosClient.get('/public/vehicle-types');
         return res.data.data || [];
       } catch (err) {
         return [];

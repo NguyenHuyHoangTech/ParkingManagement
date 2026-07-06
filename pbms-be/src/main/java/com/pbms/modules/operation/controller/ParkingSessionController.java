@@ -158,7 +158,7 @@ public class ParkingSessionController {
                 writer.println("ID,License Plate,Vehicle Type,RFID,Entry Time,Entry Gate,Exit Time,Exit Gate,Total Fee,Status");
                 
                 LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDate.of(2000, 1, 1).atStartOfDay();
-                LocalDateTime end = endDate != null ? endDate.atTime(LocalTime.MAX) : LocalDateTime.now().plusDays(1);
+                LocalDateTime end = endDate != null ? endDate.atTime(LocalTime.MAX) : TimeProvider.now().plusDays(1);
                 
                 try (Stream<ParkingSession> sessionStream = parkingSessionRepository.readByTimeInBetweenOrderByTimeInDesc(start, end)) {
                     sessionStream.forEach(ps -> {

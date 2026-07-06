@@ -159,7 +159,7 @@ public class GateOperationService {
                         .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
                     Reservation earliest = allPending.stream()
-                            .min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                            .min(java.util.Comparator.comparing(r -> r.getExpectedEntryTime())).orElse(null);
                     if (earliest != null) {
                         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
                                 .ofPattern("HH:mm");
@@ -444,7 +444,7 @@ public class GateOperationService {
                         .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
                 if (!allPending.isEmpty()) {
                     Reservation earliest = allPending.stream()
-                            .min(java.util.Comparator.comparing(Reservation::getExpectedEntryTime)).orElse(null);
+                            .min(java.util.Comparator.comparing(r -> r.getExpectedEntryTime())).orElse(null);
                     if (earliest != null) {
                         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
                                 .ofPattern("HH:mm");

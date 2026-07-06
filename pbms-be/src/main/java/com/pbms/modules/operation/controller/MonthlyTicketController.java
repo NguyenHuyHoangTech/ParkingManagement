@@ -144,9 +144,9 @@ public class MonthlyTicketController {
 
     @PostMapping("/config-discounts")
     public ResponseEntity<ApiResponse<Void>> setDiscounts(
-            @RequestBody java.util.Map<String, Double> payload) {
+            @RequestBody java.util.Map<String, Object> payload) {
         try {
-            for (java.util.Map.Entry<String, Double> entry : payload.entrySet()) {
+            for (java.util.Map.Entry<String, Object> entry : payload.entrySet()) {
                 String key = "MONTHLY_DISCOUNT_" + entry.getKey();
                 com.pbms.modules.system.domain.SystemConfig config = configRepo.findByConfigKey(key)
                         .orElseGet(() -> {
@@ -154,7 +154,13 @@ public class MonthlyTicketController {
                             c.setConfigKey(key);
                             return c;
                         });
-                config.setConfigValue(String.valueOf(entry.getValue()));
+                double val = 0.0;
+                if (entry.getValue() instanceof Number) {
+                    val = ((Number) entry.getValue()).doubleValue();
+                } else if (entry.getValue() instanceof String) {
+                    val = Double.parseDouble((String) entry.getValue());
+                }
+                config.setConfigValue(String.valueOf(val));
                 configRepo.save(config);
             }
             return ResponseEntity.ok(ApiResponse.success(null, "Success"));
