@@ -65,7 +65,9 @@ export const PreBookingManagementScreen = () => {
       const saveOrUpdate = async (key: string, val: string, desc: string) => {
         const obj = configs?.find((c: any) => c.configKey === key);
         if (obj) {
-          await axiosClient.put(`/system/configs/${obj.id}`, { ...obj, configValue: val });
+          if (obj.configValue !== val) {
+            await axiosClient.put(`/system/configs/${obj.id}`, { ...obj, configValue: val });
+          }
         } else {
           await axiosClient.post(`/system/configs`, { configKey: key, configValue: val, description: desc });
         }
