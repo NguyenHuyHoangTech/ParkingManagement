@@ -44,7 +44,7 @@ public class ReservationService {
     private final RefundRequestRepository refundRequestRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
-    private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
+    private final ReservationPolicyManager reservationPolicyManager;
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final org.springframework.scheduling.TaskScheduler taskScheduler;
     private final com.pbms.modules.operation.repository.ParkingSessionRepository parkingSessionRepository;
@@ -214,18 +214,13 @@ public class ReservationService {
         LocalDateTime entryTime = reservation.getExpectedEntryTime();
         long diffMins = java.time.temporal.ChronoUnit.MINUTES.between(now, entryTime);
 
-        int windowMinutes = 30;
-        try {
-            windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
-        } catch (Exception e) {
-            // ignore
-        }
+        int windowMinutes = reservationPolicyManager.getEarlyWindowMins();
 
         BigDecimal refundPercent = BigDecimal.ZERO;
         if (diffMins > windowMinutes) {
-            refundPercent = BigDecimal.ONE; // 100%
+            refundPercent = reservationPolicyManager.getRefundEarlyPercent();
         } else if (diffMins > 0 && diffMins <= windowMinutes) {
-            refundPercent = new BigDecimal("0.5"); // 50%
+            refundPercent = reservationPolicyManager.getRefundLatePercent();
         }
 
         BigDecimal amountPaid = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
@@ -330,16 +325,12 @@ public class ReservationService {
     public void scheduleReservationTasks(Reservation res) {
         cancelAllTasks(res.getId());
 
-        int windowMinutes = 30;
-        try {
-            windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
-        } catch (Exception e) {
-            // ignore
-        }
+        int windowMinutes = reservationPolicyManager.getEarlyWindowMins();
 
         LocalDateTime notifyTime = res.getExpectedEntryTime().minusMinutes(windowMinutes);
         LocalDateTime entryTime = res.getExpectedEntryTime();
-        LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(res.getExpectedDurationMinutes() != null ? res.getExpectedDurationMinutes() : 120);
+        int duration = res.getExpectedDurationMinutes() != null ? res.getExpectedDurationMinutes() : reservationPolicyManager.getDefaultDurationMins();
+        LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(duration);
 
         // Timer 1: Notification & 50% penalty activation
         if (res.getNotifiedEarlyArrival() == null || !res.getNotifiedEarlyArrival()) {

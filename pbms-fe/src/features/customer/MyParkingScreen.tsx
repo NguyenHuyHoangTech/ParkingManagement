@@ -120,15 +120,23 @@ export const MyParkingScreen = () => {
     }
   });
 
-  const { data: earlyMins = 30 } = useQuery<number>({
-    queryKey: ['system_config_early_mins'],
+  const { data: configs = { earlyMins: 30, refundLate: 0.5, refundEarly: 1.0 } } = useQuery({
+    queryKey: ['system_config_refunds'],
     queryFn: async () => {
-      try {
-        const res = await axiosClient.get('/public/config/RESERVATION_EARLY_MINS');
-        return parseInt(res.data.data, 10) || 30;
-      } catch (err) {
-        return 30;
-      }
+      const fetchConfig = async (key: string, fallback: number) => {
+        try {
+          const res = await axiosClient.get(`/public/config/${key}`);
+          return res.data.data ? parseFloat(res.data.data) : fallback;
+        } catch (err) {
+          return fallback;
+        }
+      };
+      
+      const earlyMins = await fetchConfig('RESERVATION_EARLY_MINS', 30);
+      const refundLate = await fetchConfig('RESERVATION_REFUND_LATE_PERCENT', 0.5);
+      const refundEarly = await fetchConfig('RESERVATION_REFUND_EARLY_PERCENT', 1.0);
+      
+      return { earlyMins, refundLate, refundEarly };
     }
   });
 
@@ -229,10 +237,10 @@ export const MyParkingScreen = () => {
     const diffMins = arrTime.diff(now, 'minute');
     let refundPercent = 0;
     
-    if (diffMins >= earlyMins) {
-      refundPercent = 1;
-    } else if (diffMins > 0 && diffMins < earlyMins) {
-      refundPercent = 0.5;
+    if (diffMins >= configs.earlyMins) {
+      refundPercent = configs.refundEarly;
+    } else if (diffMins > 0 && diffMins < configs.earlyMins) {
+      refundPercent = configs.refundLate;
     } else {
       refundPercent = 0;
     }
@@ -810,8 +818,8 @@ export const MyParkingScreen = () => {
                     {(() => {
                       return (
                         <>
-                          <li>Cancel {earlyMins}+ mins before: 100% Refund</li>
-                          <li>Cancel within {earlyMins} mins before: 50% Refund</li>
+                          <li>Cancel {configs.earlyMins}+ mins before: {configs.refundEarly * 100}% Refund</li>
+                          <li>Cancel within {configs.earlyMins} mins before: {configs.refundLate * 100}% Refund</li>
                           <li>Cancel after arrival time: No Refund (0%)</li>
                         </>
                       );

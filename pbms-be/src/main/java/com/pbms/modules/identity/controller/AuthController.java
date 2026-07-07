@@ -27,13 +27,13 @@ public class AuthController {
     @PostMapping("/send-otp")
     public ResponseEntity<ApiResponse<String>> sendOtp(@Valid @RequestBody SendOtpRequest request) {
         authService.sendOtp(request.getEmail(), request.getPurpose());
-        return ResponseEntity.ok(ApiResponse.success("Success", "CODE OTP"));
+        return ResponseEntity.ok(ApiResponse.success("Success", "OTP sent successfully"));
     }
 
     @PostMapping("/verify-otp")
     public ResponseEntity<ApiResponse<AuthResponse>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
         AuthResponse response = authService.verifyOtp(request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Check OTP status"));
+        return ResponseEntity.ok(ApiResponse.success(response, "OTP verified successfully"));
     }
 
     @PostMapping("/login")
@@ -45,19 +45,19 @@ public class AuthController {
     @PostMapping("/login/google")
     public ResponseEntity<ApiResponse<AuthResponse>> loginGoogle(@Valid @RequestBody GoogleAuthRequest request) {
         AuthResponse response = authService.googleLogin(request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Click on Google to listen"));
+        return ResponseEntity.ok(ApiResponse.success(response, "Google login successful"));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.success("Success", "CODE OTP"));
+        return ResponseEntity.ok(ApiResponse.success("Success", "OTP for password reset sent"));
     }
 
     @PostMapping("/verify-forgot-password")
     public ResponseEntity<ApiResponse<String>> verifyForgotPassword(@Valid @RequestBody VerifyForgotPasswordRequest request) {
         String resetToken = authService.verifyForgotPasswordOtp(request.getEmail(), request.getOtpCode());
-        return ResponseEntity.ok(ApiResponse.success(resetToken, "Check that OTP can hear you. Please feel free to comment."));
+        return ResponseEntity.ok(ApiResponse.success(resetToken, "OTP verified successfully"));
     }
 
     @PostMapping("/reset-password")
@@ -69,12 +69,12 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            return ResponseEntity.badRequest().body(ApiResponse.success(null, "It's quite different from other people."));
+            return ResponseEntity.badRequest().body(ApiResponse.success(null, "Passwords do not match"));
         }
 
         String email = authentication.getName();
         authService.resetPassword(email, request.getNewPassword());
-        return ResponseEntity.ok(ApiResponse.success("Success", "It's pretty cool and you can listen to it. Have fun."));
+        return ResponseEntity.ok(ApiResponse.success("Success", "Password reset successfully"));
     }
 
     @PostMapping("/set-password")

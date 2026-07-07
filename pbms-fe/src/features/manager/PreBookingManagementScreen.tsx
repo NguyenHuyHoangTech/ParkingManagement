@@ -2,14 +2,13 @@ import { simulatedDayjs } from '../../core/utils/timeProvider';
 import React, { useState } from 'react';
 import { 
   Card, Typography, Table, Tag, Button, Input, DatePicker, Select, 
-  Row, Col, Statistic, Drawer, Timeline, Divider, InputNumber, message, Space
+  Row, Col, Statistic, Drawer, Timeline, Divider, InputNumber, message, Space, Modal, Form
 } from 'antd';
 import { 
   ScheduleOutlined, SearchOutlined, CheckCircleOutlined, 
-  CloseCircleOutlined, SyncOutlined, ClockCircleOutlined, 
-  DollarOutlined, RightCircleOutlined, FilterOutlined
+  CloseCircleOutlined, ClockCircleOutlined, SettingOutlined,
+  RightCircleOutlined, FilterOutlined
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
@@ -36,6 +35,9 @@ interface PreBooking {
 export const PreBookingManagementScreen = () => {
   const [selectedRecord, setSelectedRecord] = useState<PreBooking | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
   const { data: configs } = useQuery({
@@ -46,29 +48,40 @@ export const PreBookingManagementScreen = () => {
     }
   });
 
-  const configObj = configs?.find((c: any) => c.configKey === 'RESERVATION_EARLY_MINS');
-  const defaultWindow = configObj ? parseInt(configObj.configValue) : 30;
-  const [windowMinutes, setWindowMinutes] = useState<number | null>(null);
+  const getCfg = (key: string, def: string) => configs?.find((c: any) => c.configKey === key)?.configValue || def;
 
-  React.useEffect(() => {
-    if (configObj && windowMinutes === null) {
-      setWindowMinutes(parseInt(configObj.configValue));
-    }
-  }, [configObj]);
+  const openSettings = () => {
+    form.setFieldsValue({
+      earlyMins: parseInt(getCfg('RESERVATION_EARLY_MINS', '30')),
+      refundLate: parseFloat(getCfg('RESERVATION_REFUND_LATE_PERCENT', '0.5')) * 100,
+      refundEarly: parseFloat(getCfg('RESERVATION_REFUND_EARLY_PERCENT', '1.0')) * 100,
+      defaultDur: parseInt(getCfg('RESERVATION_DEFAULT_DURATION_MINS', '120'))
+    });
+    setIsSettingsModalOpen(true);
+  };
 
-  const updateConfigMutation = useMutation({
-    mutationFn: async (val: number) => {
-      if (configObj) {
-        await axiosClient.put(`/system/configs/${configObj.id}`, { ...configObj, configValue: val.toString() });
-      } else {
-        await axiosClient.post(`/system/configs`, { configKey: 'RESERVATION_EARLY_MINS', configValue: val.toString(), description: 'Minutes before reservation time when staff are notified and early arrival is allowed without penalty' });
-      }
+  const updateConfigsMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const saveOrUpdate = async (key: string, val: string, desc: string) => {
+        const obj = configs?.find((c: any) => c.configKey === key);
+        if (obj) {
+          await axiosClient.put(`/system/configs/${obj.id}`, { ...obj, configValue: val });
+        } else {
+          await axiosClient.post(`/system/configs`, { configKey: key, configValue: val, description: desc });
+        }
+      };
+
+      await saveOrUpdate('RESERVATION_EARLY_MINS', values.earlyMins.toString(), 'Minutes before reservation time');
+      await saveOrUpdate('RESERVATION_REFUND_LATE_PERCENT', (values.refundLate / 100).toString(), 'Late refund %');
+      await saveOrUpdate('RESERVATION_REFUND_EARLY_PERCENT', (values.refundEarly / 100).toString(), 'Early refund %');
+      await saveOrUpdate('RESERVATION_DEFAULT_DURATION_MINS', values.defaultDur.toString(), 'Default duration in mins');
     },
     onSuccess: () => {
-      message.success('Settings updated!');
+      message.success('Settings updated successfully!');
       queryClient.invalidateQueries({ queryKey: ['system-configs'] });
+      setIsSettingsModalOpen(false);
     },
-    onError: () => message.error('Failed to update setting')
+    onError: () => message.error('Failed to update settings')
   });
 
   const { data: bookingsData } = useQuery({
@@ -91,8 +104,8 @@ export const PreBookingManagementScreen = () => {
     setIsDrawerOpen(true);
   };
 
-    const columns = [
-    { title: 'Single Code', dataIndex: 'id', key: 'id', render: (text: string) => <Text strong>{text}</Text> },
+  const columns = [
+    { title: 'Booking Code', dataIndex: 'id', key: 'id', render: (text: string) => <Text strong>{text}</Text> },
     { title: 'User Email', dataIndex: 'userEmail', key: 'userEmail', render: (text: string) => <Text>{text}</Text> },
     { title: 'License Plate', dataIndex: 'plateNumber', key: 'plateNumber', render: (text: string) => <Tag color="blue" className="font-bold text-base">{text}</Tag> },
     { 
@@ -100,17 +113,17 @@ export const PreBookingManagementScreen = () => {
       key: 'expected', 
       render: (_: any, record: PreBooking) => {
         const inTime = record.expectedEntryTime ? simulatedDayjs(record.expectedEntryTime).format('HH:mm DD/MM') : 'N/A';
-        return <Text><ClockCircleOutlined className="mr-1 text-gray-400"/>{inTime} ({record.expectedDurationMinutes}  minute)</Text>;
+        return <Text><ClockCircleOutlined className="mr-1 text-gray-400"/>{inTime} ({record.expectedDurationMinutes} mins)</Text>;
       } 
     },
     { 
-      title: 'Into reality', 
+      title: 'Actual In', 
       dataIndex: 'actualIn', 
       key: 'actualIn',
       render: (text: string) => text ? <Text strong className="text-green-600">{text}</Text> : <Text type="secondary">-</Text> 
     },
     { 
-      title: 'Out into reality', 
+      title: 'Actual Out', 
       dataIndex: 'actualOut', 
       key: 'actualOut',
       render: (text: string) => text ? <Text strong className="text-green-600">{text}</Text> : <Text type="secondary">-</Text>
@@ -135,7 +148,7 @@ export const PreBookingManagementScreen = () => {
       }
     },
     { 
-      title: 'Booking fee', 
+      title: 'Booking Fee', 
       dataIndex: 'reservationFee', 
       key: 'reservationFee',
       render: (fee: number) => <Text strong className="text-blue-600">{(fee || 0).toLocaleString()} ₫</Text> 
@@ -164,48 +177,39 @@ export const PreBookingManagementScreen = () => {
           </Title>
           <Text type="secondary">Monitor the expected traffic flow to the parking lot in Real-time</Text>
         </div>
-        <div className="bg-white px-4 py-2 rounded shadow-sm border border-gray-200">
-          <Text strong className="mr-2">Reservation Early Arrival Window (mins):</Text>
-          <Space>
-            <InputNumber 
-              min={0} max={120} 
-              value={windowMinutes !== null ? windowMinutes : defaultWindow} 
-              onChange={val => setWindowMinutes(val as number)} 
-            />
-            <Button 
-              type="primary" 
-              onClick={() => windowMinutes !== null && updateConfigMutation.mutate(windowMinutes)}
-              loading={updateConfigMutation.isPending}
-              disabled={windowMinutes === null || windowMinutes === defaultWindow}
-            >
-              Save
-            </Button>
-          </Space>
-        </div>
+        <Button 
+          type="primary" 
+          icon={<SettingOutlined />} 
+          onClick={openSettings}
+          size="large"
+          className="shadow-sm"
+        >
+          Configuration
+        </Button>
       </div>
 
       <Row gutter={16} className="mb-6">
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-blue-500 bg-blue-50/30">
-            <Statistic title="UPCOMING" value={upcomingCount} suffix="Xe" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
+            <Statistic title="UPCOMING" value={upcomingCount} suffix="Vehicles" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
             <Statistic 
               title={<span className="text-orange-600 animate-pulse font-semibold">ONGOING</span>} 
-              value={ongoingCount} suffix="Xe" valueStyle={{ color: '#d97706', fontWeight: 'bold' }} 
+              value={ongoingCount} suffix="Vehicles" valueStyle={{ color: '#d97706', fontWeight: 'bold' }} 
             />
           </Card>
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-green-500">
-            <Statistic title="COMPLETED" value={completedCount} suffix="Single" valueStyle={{ color: '#3f8600', fontWeight: 'bold' }} />
+            <Statistic title="COMPLETED" value={completedCount} suffix="Reservations" valueStyle={{ color: '#3f8600', fontWeight: 'bold' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-gray-400">
-            <Statistic title="Cancel (CaNCELLED)" value={cancelledCount} suffix="Single" valueStyle={{ color: '#6b7280', fontWeight: 'bold' }} />
+            <Statistic title="CANCELLED" value={cancelledCount} suffix="Reservations" valueStyle={{ color: '#6b7280', fontWeight: 'bold' }} />
           </Card>
         </Col>
       </Row>
@@ -216,13 +220,13 @@ export const PreBookingManagementScreen = () => {
           <Select defaultValue="ALL" className="w-48" options={[
             {label: 'All Status', value: 'ALL'},
             {label: 'Upcoming', value: 'UPCOMING'},
-            {label: 'In the yard', value: 'ONGOING'},
-            {label: 'Complete', value: 'COMPLETED'},
+            {label: 'In Parking Lot', value: 'ONGOING'},
+            {label: 'Completed', value: 'COMPLETED'},
             {label: 'Cancelled', value: 'CANCELLED'}
           ]} />
           <Button type="primary" icon={<FilterOutlined />}>Filter</Button>
           <Input 
-            placeholder="Type in Booking Code or License Plate xeeee" 
+            placeholder="Type in Booking Code or License Plate" 
             prefix={<SearchOutlined />} 
             className="w-80" 
             allowClear
@@ -239,8 +243,31 @@ export const PreBookingManagementScreen = () => {
         />
       </Card>
 
+      <Modal
+        title={<div><SettingOutlined className="mr-2" /> Reservation Configuration</div>}
+        open={isSettingsModalOpen}
+        onCancel={() => setIsSettingsModalOpen(false)}
+        onOk={() => form.submit()}
+        confirmLoading={updateConfigsMutation.isPending}
+      >
+        <Form form={form} layout="vertical" onFinish={(values) => updateConfigsMutation.mutate(values)}>
+          <Form.Item label="Early Arrival Window (mins)" name="earlyMins" extra="Minutes before reservation time when early arrival is allowed without penalty">
+            <InputNumber className="w-full" min={0} max={120} />
+          </Form.Item>
+          <Form.Item label="Late Refund Percentage (%)" name="refundLate" extra="Refund % if cancelled within the early arrival window">
+            <InputNumber className="w-full" min={0} max={100} />
+          </Form.Item>
+          <Form.Item label="Early Refund Percentage (%)" name="refundEarly" extra="Refund % if cancelled before the early arrival window">
+            <InputNumber className="w-full" min={0} max={100} />
+          </Form.Item>
+          <Form.Item label="Default Duration (mins)" name="defaultDur" extra="Default expected parking duration if not specified">
+            <InputNumber className="w-full" min={30} max={1440} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <Drawer
-        title={<span className="font-bold text-lg">Details Booking: {selectedRecord?.id}</span>}
+        title={<span className="font-bold text-lg">Booking Details: {selectedRecord?.id}</span>}
         placement="right"
         width={450}
         onClose={() => setIsDrawerOpen(false)}
@@ -255,25 +282,25 @@ export const PreBookingManagementScreen = () => {
                  <Tag color="blue" className="m-0 font-bold text-lg">{selectedRecord.plateNumber}</Tag>
                </div>
                <div className="text-right">
-                 <Text type="secondary" className="block text-xs uppercase mb-1">Parking location</Text>
+                 <Text type="secondary" className="block text-xs uppercase mb-1">Parking Location</Text>
                  {selectedRecord.slotName ? (
                    <Text strong className="text-xl text-indigo-700">{selectedRecord.slotName}</Text>
                  ) : (
-                   <Text type="secondary" className="italic">Not issued yet</Text>
+                   <Text type="secondary" className="italic">Not assigned yet</Text>
                  )}
                </div>
             </div>
 
             <div>
-              <Title level={5} className="text-gray-800 border-b pb-2">1e Order life cycle</Title>
+              <Title level={5} className="text-gray-800 border-b pb-2">1. Order Lifecycle</Title>
               <Timeline className="mt-4"
                 items={[
                   { 
                     color: 'blue', 
                     children: (
                       <div>
-                        <Text strong>Customer creates Booking order</Text><br/>
-                        <Text type="secondary" className="text-xs">At the time {selectedRecord.createdAt ? simulatedDayjs(selectedRecord.createdAt).format('HH:mm DD/MM') : 'N/A'}</Text>
+                        <Text strong>Customer created Reservation</Text><br/>
+                        <Text type="secondary" className="text-xs">At {selectedRecord.createdAt ? simulatedDayjs(selectedRecord.createdAt).format('HH:mm DD/MM') : 'N/A'}</Text>
                       </div>
                     )
                   },
@@ -289,19 +316,19 @@ export const PreBookingManagementScreen = () => {
                     color: 'red',
                     children: (
                       <div>
-                        <Text strong className="text-red-600">Application was cancelled</Text>
+                        <Text strong className="text-red-600">Reservation was cancelled</Text>
                         {(selectedRecord.refundAmount ?? 0) > 0 && (
                           <div className="mt-1">
                             <Text type="secondary" className="text-xs">Refund: </Text>
                             <Text strong className="text-blue-600">{selectedRecord.refundAmount!.toLocaleString()} ₫</Text>
                             <Tag color={selectedRecord.refundStatus === 'PENDING' ? 'gold' : 'green'} className="ml-2 text-[10px] leading-tight px-1 py-0">
-                              {selectedRecord.refundStatus === 'PENDING' ? 'WAIT FOR COMPLETION' : 'DONE'}
+                              {selectedRecord.refundStatus === 'PENDING' ? 'PENDING' : 'DONE'}
                             </Tag>
                           </div>
                         )}
                         {(selectedRecord.refundAmount ?? 0) === 0 && (
                           <div className="mt-1">
-                            <Text type="secondary" className="text-xs italic">No refund (Cancel late or invalid)</Text>
+                            <Text type="secondary" className="text-xs italic">No refund (Cancelled late or invalid)</Text>
                           </div>
                         )}
                       </div>
@@ -310,27 +337,27 @@ export const PreBookingManagementScreen = () => {
                     color: 'orange', 
                     children: (
                       <div>
-                        <Text strong>Vehicle entering the parking lot (Check-in)</Text><br/>
-                        <Text type="secondary" className="text-xs">At the time {selectedRecord.actualIn}</Text>
+                        <Text strong>Vehicle checked-in</Text><br/>
+                        <Text type="secondary" className="text-xs">At {selectedRecord.actualIn}</Text>
                       </div>
                     )
-                  } : { color: 'gray', children: <Text type="secondary">Wait for the car to enter the parking lot</Text> },
+                  } : { color: 'gray', children: <Text type="secondary">Waiting for vehicle check-in</Text> },
 
                   (selectedRecord.status !== 'CANCELLED' && selectedRecord.actualOut) ? { 
                     color: 'green', 
                     children: (
                       <div>
-                        <Text strong>Check-out</Text><br/>
-                        <Text type="secondary" className="text-xs">At the time {selectedRecord.actualOut}</Text>
+                        <Text strong>Checked-out</Text><br/>
+                        <Text type="secondary" className="text-xs">At {selectedRecord.actualOut}</Text>
                       </div>
                     )
-                  } : (selectedRecord.status !== 'CANCELLED') ? { color: 'gray', children: <Text type="secondary">Waiting for the car to leave the parking lot</Text> } : null,
+                  } : (selectedRecord.status !== 'CANCELLED') ? { color: 'gray', children: <Text type="secondary">Waiting for vehicle check-out</Text> } : null,
                 ].filter(Boolean) as any}
               />
             </div>
 
             <div>
-              <Title level={5} className="text-gray-800 border-b pb-2">2e Financial Control</Title>
+              <Title level={5} className="text-gray-800 border-b pb-2">2. Financial Control</Title>
               <div className="bg-slate-100 p-4 rounded-lg flex flex-col gap-2 mt-4">
                 <div className="flex justify-between">
                   <Text>Base Fee:</Text>
@@ -338,19 +365,18 @@ export const PreBookingManagementScreen = () => {
                 </div>
                 
                 <div className="flex justify-between text-red-600">
-                  <Text type="danger">Overtime fee (Penalty):</Text>
+                  <Text type="danger">Penalty Fee:</Text>
                   <Text strong>+ {(selectedRecord.penaltyFee || 0).toLocaleString()} ₫</Text>
                 </div>
                 {(selectedRecord.penaltyFee || 0) > 0 && (
                   <Text type="secondary" className="text-xs italic text-right mt-[-4px]">
-                    
-                                                          (Guests stay beyond the expected time)
-                                                        </Text>
+                    (Overstay penalty or No-Show)
+                  </Text>
                 )}
 
                 <Divider className="my-2" />
                 <div className="flex justify-between items-center">
-                  <Text strong className="text-base">Total Single Revenue:</Text>
+                  <Text strong className="text-base">Total Revenue:</Text>
                   <Text strong className="text-xl text-green-600">
                     {((selectedRecord.reservationFee || 0) + (selectedRecord.penaltyFee || 0)).toLocaleString()} ₫
                   </Text>
