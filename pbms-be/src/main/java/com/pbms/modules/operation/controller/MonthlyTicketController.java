@@ -146,6 +146,7 @@ public class MonthlyTicketController {
         return ResponseEntity.ok(ApiResponse.success(discounts, "Success"));
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "SystemConfig", description = "Set monthly ticket discount rates")
     @PostMapping("/config-discounts")
     public ResponseEntity<ApiResponse<Void>> setDiscounts(
             @RequestBody java.util.Map<String, Object> payload) {

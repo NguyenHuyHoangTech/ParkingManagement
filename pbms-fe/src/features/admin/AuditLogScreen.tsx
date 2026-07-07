@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Table, Typography, Card, Tag, Modal, Button, DatePicker } from 'antd';
-import { HistoryOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Typography, Card, Tag, Modal, Button, DatePicker, Input, Select, Space } from 'antd';
+import { HistoryOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -23,7 +23,14 @@ import { simulatedDayjs } from '../../core/utils/timeProvider';
 
 export const AuditLogScreen = () => {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  
+  // Filters & Pagination State
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([simulatedDayjs().startOf('day'), simulatedDayjs().endOf('day')]);
+  const [searchEmail, setSearchEmail] = useState<string>('');
+  const [filterAction, setFilterAction] = useState<string | null>(null);
+  const [filterResource, setFilterResource] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   const formatJsonSafely = (val: string | null) => {
     if (!val) return 'NULL';
@@ -34,32 +41,28 @@ export const AuditLogScreen = () => {
     }
   };
 
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['audit-logs'],
+  const { data, isLoading } = useQuery({
+    queryKey: ['audit-logs', currentPage, pageSize, dateRange, searchEmail, filterAction, filterResource],
     queryFn: async () => {
-      const res = await axiosClient.get('/system/audit-logs');
-      return res.data.data;
+      const params: any = {
+        page: currentPage - 1,
+        size: pageSize,
+      };
+      if (dateRange && dateRange[0] && dateRange[1]) {
+        params.startDate = dateRange[0].startOf('day').toISOString();
+        params.endDate = dateRange[1].endOf('day').toISOString();
+      }
+      if (searchEmail) params.email = searchEmail;
+      if (filterAction) params.action = filterAction;
+      if (filterResource) params.resource = filterResource;
+
+      const res = await axiosClient.get('/system/audit-logs', { params });
+      return res.data.data; // Now returns a Page object
     }
   });
 
-  const filteredAndSortedLogs = React.useMemo(() => {
-    let result = [...(logs as AuditLog[])];
-    
-    // 1. Filter by time
-    if (dateRange && dateRange[0] && dateRange[1]) {
-      const start = dateRange[0].startOf('day').valueOf();
-      const end = dateRange[1].endOf('day').valueOf();
-      result = result.filter(log => {
-        const time = new Date(log.createdAt).getTime();
-        return time >= start && time <= end;
-      });
-    }
-
-    // 2. Sort newest first
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
-    return result;
-  }, [logs, dateRange]);
+  const logs = data?.content || [];
+  const totalElements = data?.totalElements || 0;
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id' },
@@ -105,21 +108,75 @@ export const AuditLogScreen = () => {
         </div>
 
         <Card className="shadow-sm rounded-xl border-gray-200">
-          <div className="flex justify-between items-center mb-4">
-            <Text strong>Filter by Date:</Text>
-            <RangePicker 
-              value={dateRange as any}
-              defaultPickerValue={[simulatedDayjs(), simulatedDayjs()]}
-              onChange={(dates) => setDateRange(dates as [Dayjs, Dayjs] | null)} 
-              format="YYYY-MM-DD"
-            />
+          <div className="flex flex-wrap gap-4 justify-between items-center mb-6 bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <Space size="middle" wrap>
+              <div>
+                <Text strong className="block mb-1 text-xs text-gray-500 uppercase">Search by Email</Text>
+                <Input 
+                  placeholder="admin@example.com" 
+                  prefix={<SearchOutlined className="text-gray-400" />}
+                  allowClear
+                  value={searchEmail}
+                  onChange={(e) => setSearchEmail(e.target.value)}
+                  style={{ width: 220 }}
+                />
+              </div>
+              
+              <div>
+                <Text strong className="block mb-1 text-xs text-gray-500 uppercase">Action</Text>
+                <Select
+                  placeholder="All Actions"
+                  allowClear
+                  value={filterAction}
+                  onChange={setFilterAction}
+                  style={{ width: 140 }}
+                  options={[
+                    { value: 'CREATE', label: 'CREATE' },
+                    { value: 'UPDATE', label: 'UPDATE' },
+                    { value: 'DELETE', label: 'DELETE' }
+                  ]}
+                />
+              </div>
+
+              <div>
+                <Text strong className="block mb-1 text-xs text-gray-500 uppercase">Resource</Text>
+                <Input
+                  placeholder="e.g. User, Role..."
+                  prefix={<SearchOutlined className="text-gray-400" />}
+                  allowClear
+                  value={filterResource || ''}
+                  onChange={(e) => setFilterResource(e.target.value)}
+                  style={{ width: 180 }}
+                />
+              </div>
+
+              <div>
+                <Text strong className="block mb-1 text-xs text-gray-500 uppercase">Date Range</Text>
+                <RangePicker 
+                  value={dateRange as any}
+                  defaultPickerValue={[simulatedDayjs(), simulatedDayjs()]}
+                  onChange={(dates) => setDateRange(dates as [Dayjs, Dayjs] | null)} 
+                  format="YYYY-MM-DD"
+                  style={{ width: 280 }}
+                />
+              </div>
+            </Space>
           </div>
+
           <Table 
-            dataSource={filteredAndSortedLogs} 
+            dataSource={logs} 
             columns={columns} 
             rowKey="id"
             loading={isLoading}
-            pagination={{ pageSize: 15 }}
+            pagination={{ 
+              current: currentPage, 
+              pageSize: pageSize, 
+              total: totalElements,
+              onChange: (page, size) => {
+                setCurrentPage(page);
+                setPageSize(size);
+              }
+            }}
           />
         </Card>
 

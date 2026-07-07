@@ -71,7 +71,7 @@ export const MonthlyPassScreen = () => {
 
   const handleSaveConfig = async () => {
     try {
-      await axiosClient.post('/operation/monthly-tickets/config-threshold', { threshold });
+      await axiosClient.put('/operation/monthly-tickets/config-threshold', { threshold });
       await axiosClient.post('/operation/monthly-tickets/config-discounts', {
         '1': discounts['1'] / 100,
         '3': discounts['3'] / 100,

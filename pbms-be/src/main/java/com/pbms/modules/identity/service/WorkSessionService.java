@@ -202,7 +202,7 @@ public class WorkSessionService {
             }
             
             // Calculate revenue breakdown for checkouts
-            List<Long> checkoutIds = checkOuts.stream().map(ParkingSession::getId).toList();
+            List<Long> checkoutIds = checkOuts.stream().map(ps -> ps.getId()).toList();
             List<com.pbms.modules.finance.domain.Transaction> transactions = checkoutIds.isEmpty() ? new java.util.ArrayList<>() : transactionRepository.findByParkingSessionIdInAndStatus(checkoutIds, "SUCCESS");
             
             Map<Long, BigDecimal> otherRevenueMap = new HashMap<>();
@@ -238,7 +238,7 @@ public class WorkSessionService {
                 
                 BigDecimal patrolRevenue = resolvedTickets.stream()
                         .map(t -> t.getFineAmount() != null ? t.getFineAmount() : BigDecimal.ZERO)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
                         
                 totalRevenue = totalRevenue.add(patrolRevenue);
                 cashRevenue = cashRevenue.add(patrolRevenue); // Assume patrol fines are collected in cash on floor

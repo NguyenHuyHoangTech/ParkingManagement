@@ -6,9 +6,10 @@ import com.pbms.modules.system.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -16,10 +17,9 @@ public class AuditLogService {
     private final AuditLogRepository auditLogRepository;
 
     @Transactional(readOnly = true)
-    public List<AuditLogDTO> getRecentLogs() {
-        return auditLogRepository.findAll().stream()
-                .map(this::mapToDTO)
-                .collect(Collectors.toList());
+    public Page<AuditLogDTO> getLogs(String action, String resource, String email, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        return auditLogRepository.findWithFilters(action, resource, email, startDate, endDate, pageable)
+                .map(this::mapToDTO);
     }
 
     private AuditLogDTO mapToDTO(AuditLog log) {
