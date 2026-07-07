@@ -29,9 +29,9 @@ export const LoginScreen = () => {
   const [isOtpMode, setIsOtpMode] = useState(false); // login OTP mode
 
   const setAuth = useAuthStore((s) => s.setAuth);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const role = useAuthStore((s) => s.role);
   const navigate = useNavigate();
-
-  const clearMessages = () => { setError(''); setSuccessMsg(''); };
 
   const navigateByRole = (role: string) => {
     switch (role) {
@@ -44,6 +44,27 @@ export const LoginScreen = () => {
       default: navigate('/login');
     }
   };
+
+  // --- CONFIGURATION FOR TESTING ---
+  // Nếu bạn muốn mở nhiều tab và đăng nhập nhiều tài khoản khác nhau trên cùng một trình duyệt để test,
+  // hãy bôi đen đoạn React.useEffect dưới đây và bấm Ctrl + / (hoặc Cmd + / trên Mac) để comment nó lại.
+  // Khi đó màn hình Login sẽ không tự động chuyển hướng nữa.
+  React.useEffect(() => {
+    if (isAuthenticated && role) {
+      switch (role) {
+        case 'ROLE_SUPER_ADMIN':
+        case 'ROLE_ADMIN':
+          navigate('/admin/users'); break;
+        case 'ROLE_MANAGER': navigate('/manager/building-profile'); break;
+        case 'ROLE_STAFF': navigate('/staff/shift-management'); break;
+        case 'ROLE_CUSTOMER': navigate('/customer/home'); break;
+        default: navigate('/login');
+      }
+    }
+  }, [isAuthenticated, role, navigate]);
+  // ---------------------------------
+
+  const clearMessages = () => { setError(''); setSuccessMsg(''); };
 
   const handleSuccessAuth = (data: any) => {
     const d = data.data;

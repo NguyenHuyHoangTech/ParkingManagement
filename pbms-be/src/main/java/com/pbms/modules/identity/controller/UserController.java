@@ -33,7 +33,7 @@ public class UserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.asc("status"), Sort.Order.asc("role"), Sort.Order.desc("createdAt")));
         return ResponseEntity.ok(ApiResponse.success(userService.searchUsers(keyword, role, status, pageable), "Users fetched successfully"));
     }
 

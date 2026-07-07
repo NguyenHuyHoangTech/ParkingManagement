@@ -32,8 +32,8 @@ public class UserService {
         this.messagingTemplate = messagingTemplate;
     }
 
-    private void broadcastUserUpdate(String action, Long userId) {
-        messagingTemplate.convertAndSend("/topic/users", "{\"action\": \"" + action + "\", \"userId\": " + userId + "}");
+    private void broadcastUserUpdate(String action, Long userId, String email) {
+        messagingTemplate.convertAndSend("/topic/identity/users", "{\"action\": \"" + action + "\", \"userId\": " + userId + ", \"email\": \"" + email + "\"}");
     }
 
     private String generateRandomPassword() {
@@ -53,21 +53,25 @@ public class UserService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (keyword != null && !keyword.trim().isEmpty()) {
-                String searchPattern = "%" + keyword.toLowerCase() + "%";
+                String searchPattern = "%" + keyword.trim().toLowerCase() + "%";
                 Predicate nameMatch = cb.like(cb.lower(root.get("fullName")), searchPattern);
                 Predicate emailMatch = cb.like(cb.lower(root.get("email")), searchPattern);
                 predicates.add(cb.or(nameMatch, emailMatch));
             }
 
             if (role != null && !role.trim().isEmpty()) {
-                predicates.add(cb.equal(root.get("role"), role));
+                String normalizedRole = role.startsWith("ROLE_") ? role.substring(5) : role;
+                predicates.add(cb.or(
+                        cb.equal(root.get("role"), normalizedRole),
+                        cb.equal(root.get("role"), "ROLE_" + normalizedRole)
+                ));
             }
 
             if (status != null && !status.trim().isEmpty()) {
                 if (status.equalsIgnoreCase("ACTIVE")) {
                     predicates.add(cb.equal(root.get("status"), "ACTIVE"));
-                } else if (status.equalsIgnoreCase("INACTIVE")) {
-                    predicates.add(cb.equal(root.get("status"), "INACTIVE"));
+                } else if (status.equalsIgnoreCase("INACTIVE") || status.equalsIgnoreCase("LOCKED")) {
+                    predicates.add(cb.notEqual(root.get("status"), "ACTIVE"));
                 }
             }
 
@@ -103,7 +107,7 @@ public class UserService {
                 .build();
         
         userRepository.save(user);
-        broadcastUserUpdate("CREATE", user.getId());
+        broadcastUserUpdate("CREATE", user.getId(), user.getEmail());
 
         try {
             String htmlContent = "<p>Your account has been created.</p><p>Email: <b>" + request.getEmail() + "</b></p><p>Password: <b>" + rawPassword + "</b></p><p>Please change it after logging in.</p>";
@@ -126,7 +130,7 @@ public class UserService {
         user.setFullName(request.getName());
         user.setRole(normalizedRole);
         userRepository.save(user);
-        broadcastUserUpdate("UPDATE", user.getId());
+        broadcastUserUpdate("UPDATE", user.getId(), user.getEmail());
     }
 
     @Transactional
@@ -140,7 +144,7 @@ public class UserService {
 
         user.setStatus(activate ? "ACTIVE" : "INACTIVE");
         userRepository.save(user);
-        broadcastUserUpdate("STATUS_CHANGE", user.getId());
+        broadcastUserUpdate("STATUS_CHANGE", user.getId(), user.getEmail());
     }
 
     /** Strip ROLE_ prefix for consistent storage */
@@ -160,7 +164,7 @@ public class UserService {
         String rawPassword = generateRandomPassword();
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         userRepository.save(user);
-        broadcastUserUpdate("RESET_PASSWORD", user.getId());
+        broadcastUserUpdate("RESET_PASSWORD", user.getId(), user.getEmail());
 
         try {
             String htmlContent = "<p>Your password has been reset by the Admin.</p><p>New Password: <b>" + rawPassword + "</b></p><p>Please change it after logging in.</p>";

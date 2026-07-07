@@ -41,7 +41,9 @@ export const CardManagementScreen = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards'] });
     },
+    onError: (err: any) => {
       message.error(err.response?.data?.message || 'Error updating card status');
+    }
   });
 
   const [selectedRecord, setSelectedRecord] = useState<RfidCard | null>(null);

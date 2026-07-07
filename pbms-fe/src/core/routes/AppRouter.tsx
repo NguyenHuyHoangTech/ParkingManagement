@@ -4,6 +4,8 @@ import { setSimulatedOffset } from '../utils/timeProvider';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { GlobalLoading } from '../../features/shared/components/GlobalLoading';
+import { IdleTimeoutGuard } from '../../features/shared/components/IdleTimeoutGuard';
+import { useWebSocket } from '../websocket/useWebSocket';
 
 const LoginScreen = lazy(() => import('../../features/auth/LoginScreen').then(m => ({ default: m.LoginScreen })));
 const BuildingProfileScreen = lazy(() => import('../../features/system/BuildingProfileScreen').then(m => ({ default: m.BuildingProfileScreen })));
@@ -51,6 +53,24 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
 };
 
 export const AppRouter = () => {
+  const { stompClient, connected } = useWebSocket();
+  const email = useAuthStore(state => state.email);
+  const logout = useAuthStore(state => state.logout);
+
+  useEffect(() => {
+    if (stompClient && connected && email) {
+      const sub = stompClient.subscribe('/topic/identity/users', (msg) => {
+        try {
+          const data = JSON.parse(msg.body);
+          if (data.action === 'UPDATE' && data.email === email) {
+            logout();
+          }
+        } catch (e) {}
+      });
+      return () => sub.unsubscribe();
+    }
+  }, [stompClient, connected, email, logout]);
+
   useEffect(() => {
     // Fetch time offset on startup
     axiosClient.get('/public/time-offset').then((res: any) => {
@@ -63,6 +83,7 @@ export const AppRouter = () => {
 
   return (
     <BrowserRouter>
+      <IdleTimeoutGuard />
       <Suspense fallback={<GlobalLoading />}>
         <Routes>
           <Route path="/login" element={<LoginScreen />} />

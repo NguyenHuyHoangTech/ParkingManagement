@@ -43,9 +43,14 @@ public class JwtProvider {
                 .compact();
     }
 
+    private io.jsonwebtoken.Clock getSimulatedClock() {
+        return () -> java.util.Date.from(com.pbms.common.utils.TimeProvider.now().atZone(java.time.ZoneId.systemDefault()).toInstant());
+    }
+
     public String getEmailFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
+                .clock(getSimulatedClock())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload()
@@ -55,6 +60,7 @@ public class JwtProvider {
     public String getRoleFromToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
+                .clock(getSimulatedClock())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload()
@@ -63,7 +69,7 @@ public class JwtProvider {
 
     public boolean validateToken(String authToken) {
         try {
-            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(authToken);
+            Jwts.parser().verifyWith(getSigningKey()).clock(getSimulatedClock()).build().parseSignedClaims(authToken);
             return true;
         } catch (Exception e) {
             return false;
