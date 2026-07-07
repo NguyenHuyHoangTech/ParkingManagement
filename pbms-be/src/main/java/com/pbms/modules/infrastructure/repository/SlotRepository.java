@@ -12,6 +12,8 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
     
     @Query("SELECT COUNT(s) FROM Slot s WHERE s.zone.functionType = :functionType AND s.zone.vehicleType.id = :vehicleTypeId AND s.status = :status")
     long countByFunctionTypeAndVehicleTypeIdAndStatus(@Param("functionType") String functionType, @Param("vehicleTypeId") Long vehicleTypeId, @Param("status") String status);
+    @Query("SELECT COUNT(s) FROM Slot s WHERE s.zone.vehicleType.id = :vehicleTypeId")
+    long countByVehicleTypeId(@Param("vehicleTypeId") Long vehicleTypeId);
 
     long countByZoneId(Long zoneId);
     java.util.List<Slot> findByZoneId(Long zoneId);

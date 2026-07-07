@@ -14,5 +14,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Modifying
     @Query(value = "UPDATE transactions SET created_at = :createdAt WHERE id = :id", nativeQuery = true)
     void updateCreatedAtNative(@Param("id") Long id, @Param("createdAt") java.time.LocalDateTime createdAt);
+
+    java.util.List<Transaction> findByParkingSessionIdInAndStatus(java.util.List<Long> parkingSessionIds, String status);
 }
 

@@ -133,21 +133,12 @@ export const ShiftManagementScreen = () => {
     }
   });
 
-  const systemCash = settlementPreview?.data?.totalRevenue || 0;
-
-  const [revenueMode, setRevenueMode] = useState<'MATCH' | 'DISCREPANCY'>('MATCH');
-  const [varianceReason, setVarianceReason] = useState<string>('');
-
+    // Cash is now blind-dropped, no systemCash or variance reasoning shown here.
   const endShiftMutation = useMutation({
     mutationFn: async () => {
-      let finalCash = declaredCash;
-      if (revenueMode === 'MATCH') {
-        finalCash = systemCash;
-      }
-      
       const res = await axiosClient.put('/identity/work-sessions/end', {
-        declaredCash: finalCash,
-        varianceReason: revenueMode === 'DISCREPANCY' ? varianceReason : null
+        declaredCash: declaredCash !== null ? declaredCash : 0,
+        varianceReason: null
       });
       return res.data;
     },
@@ -159,8 +150,6 @@ export const ShiftManagementScreen = () => {
       sessionStorage.removeItem('activeGateType');
       setIsCloseModalVisible(false);
       setDeclaredCash(null);
-      setVarianceReason('');
-      setRevenueMode('MATCH');
       queryClient.invalidateQueries({ queryKey: ['shift-settlement-preview'] });
       queryClient.invalidateQueries({ queryKey: ['gates'] });
       // Automatically open new shift selection form
@@ -170,9 +159,6 @@ export const ShiftManagementScreen = () => {
       message.error('Failed to close shift: ' + (error as any)?.response?.data?.message || 'Unknown error');
     }
   });
-
-  const variance = (declaredCash || 0) - systemCash;
-
   const handleOpenShift = () => {
     if (selectedPostType === 'PATROL') {
       sessionStorage.setItem('activeGateType', 'PATROL');
@@ -196,13 +182,9 @@ export const ShiftManagementScreen = () => {
       setIsStartModalVisible(true);
       return;
     }
-    if ((activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT') && revenueMode === 'DISCREPANCY') {
-      if (declaredCash === null) {
-        message.error('Please enter the actual cash amount received');
-        return;
-      }
-      if (!varianceReason.trim()) {
-        message.error('Please clearly state the reason for the difference');
+    if (activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT') {
+      if (declaredCash === null || declaredCash < 0) {
+        message.error('Please enter the actual cash amount you counted');
         return;
       }
     }
@@ -411,7 +393,7 @@ export const ShiftManagementScreen = () => {
           onCancel={() => setIsCloseModalVisible(false)}
           footer={[
             <Button key="back" onClick={() => setIsCloseModalVisible(false)}>Cancel</Button>,
-            <Button key="submit" type="primary" danger loading={endShiftMutation.isPending} onClick={handleCloseShift} disabled={(activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT') && revenueMode === 'DISCREPANCY' && (declaredCash === null || !varianceReason.trim())}>
+            <Button key="submit" type="primary" danger loading={endShiftMutation.isPending} onClick={handleCloseShift} disabled={(activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT') && (declaredCash === null || declaredCash < 0)}>
               
                               Confirm Handover & Close shift
                             </Button>,
@@ -422,66 +404,22 @@ export const ShiftManagementScreen = () => {
             <div className="py-4">
               {activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT' ? (
                 <>
-                  <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200 text-center">
-                    <Text className="text-gray-500 font-medium">Cash Recorded System (VND)</Text>
-                    <Title level={2} className="m-0 text-gray-800 mt-1">{systemCash.toLocaleString()}</Title>
+                  <div className="mb-6">
+                    <Text className="block font-bold text-gray-800 mb-2">Enter Cash Collected (VND):</Text>
+                    <InputNumber 
+                      className="w-full text-lg" 
+                      size="large"
+                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => Number(value?.replace(/\$\s?|(,*)/g, ''))}
+                      onChange={(val) => setDeclaredCash(val as number)}
+                      value={declaredCash}
+                      placeholder="e.g. 500,000"
+                      min={0}
+                    />
+                    <Text type="secondary" className="block mt-2">
+                      Please count the physical cash in your drawer and enter the exact amount. The system will calculate any discrepancies.
+                    </Text>
                   </div>
-
-                  <div className="mb-4">
-                    <Text className="block font-bold mb-2">Confirm Cash Revenue:</Text>
-                    <Radio.Group 
-                      value={revenueMode} 
-                      onChange={(e) => setRevenueMode(e.target.value)} 
-                      className="w-full flex gap-2"
-                      optionType="button"
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value="MATCH" className="flex-1 text-center h-10 leading-9">
-                        
-                                                                      Match the amount
-                                                                    </Radio.Button>
-                      <Radio.Button value="DISCREPANCY" className="flex-1 text-center h-10 leading-9">
-                        
-                                                                      There is a difference
-                                                                    </Radio.Button>
-                    </Radio.Group>
-                  </div>
-
-                  {revenueMode === 'DISCREPANCY' && (
-                    <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg mb-4 animate-fade-in">
-                      <div className="mb-4">
-                        <Text className="block font-bold mb-2 text-orange-800">Enter actual cash amount (VND) <span className="text-red-500">*</span></Text>
-                        <InputNumber 
-                          className="w-full" 
-                          size="large"
-                          formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                          parser={value => Number(value?.replace(/\$\s?|(,*)/g, ''))}
-                          value={declaredCash}
-                          onChange={value => setDeclaredCash(value as number)}
-                          placeholder="VD: 450,000"
-                        />
-                      </div>
-
-                      {declaredCash !== null && (
-                        <div className={`p-3 rounded-md flex justify-between items-center mb-4 ${variance === 0 ? 'bg-green-100 text-green-800' : (variance > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800')}`}>
-                          <Text strong>Spread:</Text>
-                          <Text strong className="text-lg">
-                            {variance > 0 ? '+' : ''}{variance.toLocaleString()} VND
-                          </Text>
-                        </div>
-                      )}
-
-                      <div>
-                        <Text className="block font-bold mb-2 text-orange-800">Reason difference <span className="text-red-500">*</span></Text>
-                        <Input.TextArea 
-                          rows={3} 
-                          placeholder="For example: Customer lacks change, System calculates time wrong"
-                          value={varianceReason}
-                          onChange={(e: any) => setVarianceReason(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </>
               ) : (
                 <div className="text-center p-6 bg-green-50 rounded-lg border border-green-200">

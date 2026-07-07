@@ -34,6 +34,7 @@ public class VehicleController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Blacklist vehicle")
     @PostMapping("/{id}/blacklist")
     public ResponseEntity<ApiResponse<VehicleDTO>> blacklistVehicle(
             @PathVariable Long id,
@@ -47,6 +48,7 @@ public class VehicleController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Blacklist vehicle by plate")
     @PostMapping("/blacklist-by-plate")
     public ResponseEntity<ApiResponse<VehicleDTO>> blacklistVehicleByPlate(
             @RequestBody Map<String, String> payload) {
@@ -62,6 +64,7 @@ public class VehicleController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Unblacklist vehicle by plate")
     @PostMapping("/unblacklist-by-plate")
     public ResponseEntity<ApiResponse<VehicleDTO>> unblacklistVehicleByPlate(
             @RequestBody Map<String, String> payload) {
@@ -80,6 +83,7 @@ public class VehicleController {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
         }
     }
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Blacklist active session")
     @PostMapping("/sessions/{sessionId}/blacklist")
     public ResponseEntity<ApiResponse<Void>> blacklistSession(
             @PathVariable Long sessionId,
@@ -96,6 +100,7 @@ public class VehicleController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Unblacklist vehicle")
     @PostMapping("/{id}/unblacklist")
     public ResponseEntity<ApiResponse<VehicleDTO>> unblacklistVehicle(@PathVariable Long id) {
         try {

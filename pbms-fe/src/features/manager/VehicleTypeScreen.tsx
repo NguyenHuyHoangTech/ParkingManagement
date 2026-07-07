@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 export const VehicleTypeScreen = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
@@ -61,6 +62,7 @@ export const VehicleTypeScreen = () => {
       setEditingRecord(null);
       form.resetFields();
     }
+    setIsDirty(false);
     setIsModalOpen(true);
   };
 
@@ -166,13 +168,17 @@ export const VehicleTypeScreen = () => {
           title={editingRecord ? "Edit Vehicle Type" : "Add New Vehicle Type"}
           open={isModalOpen}
           onOk={handleSave}
-          onCancel={() => setIsModalOpen(false)}
+          onCancel={() => {
+            setIsModalOpen(false);
+            setIsDirty(false);
+          }}
           okText="Save config"
+          okButtonProps={{ disabled: !isDirty }}
           cancelText="Cancel"
           width={600}
           confirmLoading={saveMutation.isPending}
         >
-          <Form form={form} layout="vertical" className="mt-4" initialValues={{ category: 'FOUR_WHEEL' }}>
+          <Form form={form} layout="vertical" className="mt-4" initialValues={{ category: 'FOUR_WHEEL' }} onValuesChange={() => setIsDirty(true)}>
             <Form.Item name="typeName" label="Display Name (E.g. 4-seat car, Scooter)" rules={[{ required: true }]}>
               <Input placeholder="Enter display name..." />
             </Form.Item>
@@ -186,12 +192,18 @@ export const VehicleTypeScreen = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <Form.Item name="matrixWidth" label="Width (Grid cells)" rules={[{ required: true }]}>
-                <InputNumber className="w-full" min={1} max={100} placeholder="VD: 3" />
+                <InputNumber disabled={editingRecord?.hasMapSlots} className="w-full" min={1} max={100} placeholder="VD: 3" />
               </Form.Item>
               <Form.Item name="matrixHeight" label="Height (Grid cells)" rules={[{ required: true }]}>
-                <InputNumber className="w-full" min={1} max={100} placeholder="VD: 5" />
+                <InputNumber disabled={editingRecord?.hasMapSlots} className="w-full" min={1} max={100} placeholder="VD: 5" />
               </Form.Item>
             </div>
+            
+            {editingRecord && editingRecord.hasMapSlots && (
+              <div className="text-red-500 text-sm mb-4">
+                * You cannot change the dimensions because there are slots of this type currently on the map.
+              </div>
+            )}
 
             {editingRecord && (
               <Form.Item label="Vehicle Icon (Upload Image)">

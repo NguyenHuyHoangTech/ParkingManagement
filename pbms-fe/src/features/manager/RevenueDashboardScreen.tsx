@@ -266,7 +266,7 @@ const RevenueDashboardScreen: React.FC = () => {
         <Col span={8}>
           <Card className="shadow-sm rounded-xl h-full flex flex-col justify-center" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', border: 'none' }}>
             <Statistic 
-              title={<span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>aRPU (Revenue TB/Turn)</span>}
+              title={<span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ARPU (Avg. Revenue Per Unit)</span>}
               value={arpu} 
               precision={0}
               suffix="₫"
@@ -281,7 +281,7 @@ const RevenueDashboardScreen: React.FC = () => {
       <Row gutter={24} className="mb-6">
         {/* Left 62.5%: Hero Chart */}
         <Col span={15}>
-          <Card className="shadow-sm border-slate-200 rounded-xl h-full" title="TOTAL REVENUE BY YEAR">
+          <Card className="shadow-sm border-slate-200 rounded-xl h-full" title="TOTAL REVENUE OVER TIME">
             <div style={{ height: 490 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={heroChartData}>
@@ -299,12 +299,12 @@ const RevenueDashboardScreen: React.FC = () => {
         {/* Right 37.5%: Sidebar Pies */}
         <Col span={9}>
           <Card className="shadow-sm border-slate-200 rounded-xl h-full flex flex-col">
-            <Title level={5} className="mb-4 text-slate-700 text-center">Revenue STRUCTURE</Title>
+            <Title level={5} className="mb-4 text-slate-700 text-center">REVENUE STRUCTURE</Title>
             
             <div className="flex-1 flex flex-col gap-y-6 justify-center">
               {/* Pie 1: Payment Method */}
               <div className="h-[150px]">
-                <Text strong className="block text-center text-xs text-slate-500 mb-1">Payment method</Text>
+                <Text strong className="block text-center text-xs text-slate-500 mb-1">Payment Method</Text>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={paymentData} cx="50%" cy="45%" innerRadius={25} outerRadius={45} dataKey="value" paddingAngle={2}>
@@ -318,7 +318,7 @@ const RevenueDashboardScreen: React.FC = () => {
 
               {/* Pie 2: Revenue Source */}
               <div className="h-[150px]">
-                <Text strong className="block text-center text-xs text-slate-500 mb-1">Revenue source</Text>
+                <Text strong className="block text-center text-xs text-slate-500 mb-1">Revenue Source</Text>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={sourceData} cx="50%" cy="45%" innerRadius={25} outerRadius={45} dataKey="value" paddingAngle={2}>
@@ -371,7 +371,7 @@ const RevenueDashboardScreen: React.FC = () => {
             bordered
             size="middle"
           >
-            <Table.Column title="Mã Ca" dataIndex="id" width={80} />
+            <Table.Column title="Shift ID" dataIndex="id" width={80} />
             <Table.Column title="Staff" dataIndex="staffName" width={180} render={(val) => <strong className="text-blue-700">{val}</strong>} />
             <Table.Column title="Gate" dataIndex="gateName" width={150} />
             <Table.Column 
@@ -380,17 +380,31 @@ const RevenueDashboardScreen: React.FC = () => {
               width={250}
               render={(_, record: any) => (
                 <div>
-                  <div><Text type="secondary">Vào:</Text> <Text strong>{record.loginTime ? dayjs(record.loginTime).format('HH:mm DD/MM') : '-'}</Text></div>
-                  <div><Text type="secondary">Ra:</Text> <Text strong>{record.logoutTime ? dayjs(record.logoutTime).format('HH:mm DD/MM') : '-'}</Text></div>
+                  <div><Text type="secondary">In:</Text> <Text strong>{record.loginTime ? dayjs(record.loginTime).format('HH:mm DD/MM') : '-'}</Text></div>
+                  <div><Text type="secondary">Out:</Text> <Text strong>{record.logoutTime ? dayjs(record.logoutTime).format('HH:mm DD/MM') : '-'}</Text></div>
                 </div>
               )} 
             />
             <Table.Column 
-              title="System (VND)" 
+              title="System Total" 
               dataIndex="expectedRevenue" 
-              width={150}
+              width={130}
               align="right"
               render={(val) => val != null ? val.toLocaleString() : '-'} 
+            />
+            <Table.Column 
+              title="System Cash" 
+              dataIndex="expectedCashRevenue" 
+              width={130}
+              align="right"
+              render={(val) => val != null ? <span className="text-orange-600">{val.toLocaleString()}</span> : '-'} 
+            />
+            <Table.Column 
+              title="System Other" 
+              dataIndex="expectedOtherRevenue" 
+              width={130}
+              align="right"
+              render={(val) => val != null ? <span className="text-purple-600">{val.toLocaleString()}</span> : '-'} 
             />
             <Table.Column 
               title="Net revenue (VND)" 
@@ -416,9 +430,9 @@ const RevenueDashboardScreen: React.FC = () => {
               width={120}
               align="center"
               render={(val) => {
-                if (val === 'MATCH') return <span className="text-green-600 border border-green-600 px-2 py-1 rounded text-xs">Enough</span>;
-                if (val === 'SHORT') return <span className="text-red-600 border border-red-600 px-2 py-1 rounded text-xs">Lack</span>;
-                if (val === 'OVER') return <span className="text-blue-600 border border-blue-600 px-2 py-1 rounded text-xs">Excess</span>;
+                if (val === 'MATCH') return <span className="text-green-600 border border-green-600 px-2 py-1 rounded text-xs">Match</span>;
+                if (val === 'SHORT') return <span className="text-red-600 border border-red-600 px-2 py-1 rounded text-xs">Short</span>;
+                if (val === 'OVER') return <span className="text-blue-600 border border-blue-600 px-2 py-1 rounded text-xs">Over</span>;
                 return <span className="text-gray-600 border border-gray-600 px-2 py-1 rounded text-xs">{val || 'N/A'}</span>;
               }} 
             />
@@ -434,7 +448,7 @@ const RevenueDashboardScreen: React.FC = () => {
       {/* Data Table & Export */}
       <Card 
         className="shadow-sm border-slate-200 rounded-xl"
-        title="GENERAL DATA TABLE Detail"
+        title="General Data Table"
         extra={
           <Button 
             type="primary" 
@@ -462,10 +476,10 @@ const RevenueDashboardScreen: React.FC = () => {
           bordered
           size="middle"
         >
-          <Table.Column title="Day" dataIndex="date" render={(_, r: any) => <strong>{dayjs(r.date).format('DD/MM/YYYY')}</strong>} />
+          <Table.Column title="Date" dataIndex="date" render={(_, r: any) => <strong>{dayjs(r.date).format('DD/MM/YYYY')}</strong>} />
           <Table.Column title="Vehicle Type" dataIndex="vehicleType" />
           <Table.Column title="Gate" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
-          <Table.Column title="Revenue source" dataIndex="revenueSource" />
+          <Table.Column title="Revenue Source" dataIndex="revenueSource" />
           <Table.Column title="Method" dataIndex="paymentMethod" />
           <Table.Column 
             title="Total Revenue" 
@@ -473,7 +487,7 @@ const RevenueDashboardScreen: React.FC = () => {
             align="right"
             render={(val) => <span className="font-bold text-blue-600">{val?.toLocaleString()} ₫</span>}
           />
-          <Table.Column title="Number of transactions" dataIndex="totalTransactions" align="center" />
+          <Table.Column title="Total Transactions" dataIndex="totalTransactions" align="center" />
         </Table>
           </Card>
     </div>

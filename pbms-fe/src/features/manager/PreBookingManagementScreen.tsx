@@ -176,6 +176,7 @@ export const PreBookingManagementScreen = () => {
               type="primary" 
               onClick={() => windowMinutes !== null && updateConfigMutation.mutate(windowMinutes)}
               loading={updateConfigMutation.isPending}
+              disabled={windowMinutes === null || windowMinutes === defaultWindow}
             >
               Save
             </Button>

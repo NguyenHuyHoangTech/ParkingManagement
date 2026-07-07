@@ -66,7 +66,23 @@ export const VehicleRoutingScreen = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [timeFrames, setTimeFrames] = useState<TimeFrameRuleDTO[]>([]);
+  const [initialTimeFrames, setInitialTimeFrames] = useState<TimeFrameRuleDTO[]>([]);
   const [chartDataRaw, setChartDataRaw] = useState<ZoneTrendDTO[]>([]);
+  
+  // Helper for deep comparison
+  const deepEqual = (obj1: any, obj2: any): boolean => {
+    if (obj1 === obj2) return true;
+    if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 == null || obj2 == null) return false;
+    let keys1 = Object.keys(obj1);
+    let keys2 = Object.keys(obj2);
+    if (keys1.length !== keys2.length) return false;
+    for (let key of keys1) {
+      if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) return false;
+    }
+    return true;
+  };
+
+  const isDirty = initialTimeFrames.length > 0 && !deepEqual(timeFrames, initialTimeFrames);
   const [selectedTrendDateRange, setSelectedTrendDateRange] = useState<any>([simulatedDayjs().subtract(1, 'day'), simulatedDayjs()]);
   const simulatedToday = useSystemTime().format('YYYY-MM-DD');
   const [displayRouting, setDisplayRouting] = useState<boolean>(true);
@@ -122,6 +138,7 @@ export const VehicleRoutingScreen = () => {
       const res = await axiosClient.get(url);
       const data: TimeFrameRuleDTO[] = res.data.data || [];
       setTimeFrames(data);
+      setInitialTimeFrames(JSON.parse(JSON.stringify(data)));
     } catch (error) {
       message.error("Error loading dispatcher configuration");
     } finally {
@@ -129,9 +146,9 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
-  const fetchTrends = async () => {
+  const fetchTrends = async (overrideVehicleTypeId?: number) => {
     try {
-      const targetVehicleTypeId = vehicleTypes.find(v => v.typeName === confirmedVehicle)?.id;
+      const targetVehicleTypeId = overrideVehicleTypeId || vehicleTypes.find(v => v.typeName === confirmedVehicle)?.id;
       const startDateStr = selectedTrendDateRange?.[0]?.format('YYYY-MM-DD') || simulatedDayjs().format('YYYY-MM-DD');
       const endDateStr = selectedTrendDateRange?.[1]?.format('YYYY-MM-DD') || simulatedDayjs().format('YYYY-MM-DD');
       
@@ -200,8 +217,16 @@ export const VehicleRoutingScreen = () => {
       if (floorObj) {
         const validVehicles = vehicleTypes.filter(v => v.category === floorObj.type);
         if (validVehicles.length > 0) {
-          setSelectedVehicle(validVehicles[0].typeName);
-          if (!confirmedVehicle) setConfirmedVehicle(validVehicles[0].typeName);
+          const typeName = validVehicles[0].typeName;
+          setSelectedVehicle(typeName);
+          
+          // Auto-fetch on initial load
+          if (!confirmedVehicle || confirmedFloor === null) {
+            setConfirmedVehicle(typeName);
+            setConfirmedFloor(selectedFloor);
+            fetchRules(typeName, selectedFloor);
+            fetchTrends(validVehicles[0].id);
+          }
         } else {
           setSelectedVehicle('');
         }
@@ -276,7 +301,7 @@ export const VehicleRoutingScreen = () => {
     setTimeFrames(prev => prev.map(tf => {
       if (tf.timeFrameId !== frameId) return tf;
       const newRules = [...tf.rules];
-      newRules[index].fillThresholdPct = value;
+      newRules[index] = { ...newRules[index], fillThresholdPct: value };
       return { ...tf, rules: newRules };
     }));
   };
@@ -395,7 +420,7 @@ export const VehicleRoutingScreen = () => {
       setIsAiLoading(true);
       setAiResponse(null);
 
-      // Lọc dữ liệu biểu đồ để chỉ gửi các zone WALK_IN cho AI
+      // Filter chart data to only send WALK_IN zones to AI
       const targetVehicleTypeId = vehicleTypes.find(v => v.typeName === confirmedVehicle)?.id;
       const walkInZoneIds = new Set<number>();
       zones.forEach(zoneObj => {
@@ -704,6 +729,7 @@ export const VehicleRoutingScreen = () => {
               size="large" 
               icon={<SaveOutlined />} 
               onClick={handleSave}
+              disabled={!isDirty}
               loading={saving}
               className="bg-blue-600 hover:bg-blue-500 font-bold px-8 h-12 text-lg shadow-md"
             >

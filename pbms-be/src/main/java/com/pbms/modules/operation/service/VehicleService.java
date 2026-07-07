@@ -5,12 +5,14 @@ import com.pbms.modules.operation.dto.VehicleDTO;
 import com.pbms.modules.operation.repository.VehicleRepository;
 import com.pbms.modules.infrastructure.repository.RfidCardRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VehicleService {
@@ -20,6 +22,15 @@ public class VehicleService {
     private final com.pbms.modules.incident.repository.IncidentTicketRepository incidentTicketRepository;
     private final RfidCardRepository rfidCardRepository;
     private final com.pbms.common.service.FileStorageService fileStorageService;
+    private final com.pbms.modules.identity.repository.UserRepository userRepository;
+
+    private com.pbms.modules.identity.domain.User getCurrentUser() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
+            return userRepository.findByEmail(auth.getName()).orElse(null);
+        }
+        return null;
+    }
 
     @Transactional(readOnly = true)
     public List<VehicleDTO> getAllVehicles() {
@@ -103,6 +114,7 @@ public class VehicleService {
                         t.setDescription(t.getDescription() + " | Unblacklisted due to mistake.");
                         t.setResolutionNotes("Unblacklisted and returned to ACTIVE");
                         t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+                        t.setStaff(getCurrentUser());
                         incidentTicketRepository.save(t);
                     });
             });
@@ -130,6 +142,8 @@ public class VehicleService {
                 String resolution = t.getResolutionNotes();
                 t.setResolutionNotes((resolution != null ? resolution + "\n" : "") + "UNBLACKLISTED: " + reason);
                 t.setStatus("RESOLVED");
+                t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+                t.setStaff(getCurrentUser());
                 incidentTicketRepository.save(t);
             });
         }

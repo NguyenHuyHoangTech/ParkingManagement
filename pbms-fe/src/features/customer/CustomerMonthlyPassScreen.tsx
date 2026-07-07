@@ -250,7 +250,7 @@ export const CustomerMonthlyPassScreen = () => {
                 <Text className="block font-bold mb-2 text-slate-700">Email to receive invoice:</Text>
                 <Input 
                   size="large" 
-                  value={email || 'khachhang@example.com'}
+                  value={email || 'customer@example.com'}
                   disabled
                   className="rounded-lg h-12 bg-slate-100 text-slate-500"
                 />

@@ -85,10 +85,13 @@ export const PricingConfigScreen = () => {
     }]
   });
 
-  const [config, setConfig] = useState<VehicleConfig>(defaultEmptyConfig(null));
+  const [config, setConfig] = useState<VehicleConfig>(defaultEmptyConfig(0));
+  const [initialConfig, setInitialConfig] = useState<VehicleConfig | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [selectedSliceId, setSelectedSliceId] = useState<string | null>(null);
   const [activeAccordion, setActiveAccordion] = useState<string | string[]>(['1', '2']);
+  
+  const isDirty = initialConfig ? JSON.stringify(config) !== JSON.stringify(initialConfig) : false;
 
   // Calculator State
   const [timeIn, setTimeIn] = useState<Dayjs | null>(simulatedDayjs('08:00', 'HH:mm'));
@@ -104,6 +107,8 @@ export const PricingConfigScreen = () => {
       return res.data.data; // List of PricingPolicyDTO
     }
   });
+
+
 
   useEffect(() => {
     if (vehicleTypesData && vehicleTypesData.length > 0 && !activeTabId) {
@@ -151,10 +156,12 @@ export const PricingConfigScreen = () => {
           })
         };
         setConfig(mappedConfig);
+        setInitialConfig(mappedConfig);
         setSelectedShiftId(mappedConfig.shifts[0]?.id || null);
       } else {
         const empty = defaultEmptyConfig(activeTabId);
         setConfig(empty);
+        setInitialConfig(empty);
         setSelectedShiftId(empty.shifts[0]?.id || null);
       }
       setSelectedSliceId(null);
@@ -319,6 +326,7 @@ export const PricingConfigScreen = () => {
       message.success('Price list configuration saved Success!');
       setIsConfirmModalOpen(false);
       setConfirmInput('');
+      setInitialConfig(config);
       queryClient.invalidateQueries({ queryKey: ['pricing-policies'] });
     },
     onError: (error: any) => {
@@ -978,6 +986,7 @@ export const PricingConfigScreen = () => {
             size="large" type="primary" icon={<SaveOutlined />}
             className="flex-[2] bg-blue-600 hover:bg-blue-500 border-none font-bold shadow-md"
             onClick={() => setIsConfirmModalOpen(true)}
+            disabled={!isDirty}
           >
 
             SAVE PRICE LIST

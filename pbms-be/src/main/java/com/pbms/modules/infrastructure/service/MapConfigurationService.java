@@ -38,6 +38,9 @@ public class MapConfigurationService {
     private final ReservationRepository reservationRepository;
     private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
     private final ParkingSessionRepository parkingSessionRepository;
+    
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     @Transactional(readOnly = true)
     public MapConfigDTO getMapConfiguration() {
@@ -62,32 +65,36 @@ public class MapConfigurationService {
 
         // Map active parking sessions to their slots to populate the plate field
         Map<Long, String> slotPlateMap = parkingSessionRepository.findAll().stream()
-                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus())) && ps.getSlot() != null)
+                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus()))
+                        && ps.getSlot() != null)
                 .collect(Collectors.toMap(
-                    ps -> ps.getSlot().getId(), 
-                    ps -> {
-                        String plate = ps.getPlate();
-                        if (plate != null && !plate.trim().isEmpty()) return plate;
-                        if (ps.getRfidCard() != null) return "RFID " + ps.getRfidCard().getCardCode();
-                        return "Unknown";
-                    }, 
-                    (p1, p2) -> p1));
+                        ps -> ps.getSlot().getId(),
+                        ps -> {
+                            String plate = ps.getPlate();
+                            if (plate != null && !plate.trim().isEmpty())
+                                return plate;
+                            if (ps.getRfidCard() != null)
+                                return "RFID " + ps.getRfidCard().getCardCode();
+                            return "Unknown";
+                        },
+                        (p1, p2) -> p1));
 
         // Group active parking sessions by suggested zone id
         Map<Long, List<String>> zoneSuggestedVehicles = parkingSessionRepository.findAll().stream()
-                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus())) && ps.getSuggestedZoneId() != null)
+                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus()))
+                        && ps.getSuggestedZoneId() != null)
                 .collect(Collectors.groupingBy(
-                    ps -> ps.getSuggestedZoneId(),
-                    Collectors.mapping(
-                        ps -> {
-                            String plate = ps.getPlate();
-                            if (plate != null && !plate.trim().isEmpty()) return plate;
-                            if (ps.getRfidCard() != null) return "RFID " + ps.getRfidCard().getCardCode();
-                            return "Unknown";
-                        }, 
-                        Collectors.toList()
-                    )
-                ));
+                        ps -> ps.getSuggestedZoneId(),
+                        Collectors.mapping(
+                                ps -> {
+                                    String plate = ps.getPlate();
+                                    if (plate != null && !plate.trim().isEmpty())
+                                        return plate;
+                                    if (ps.getRfidCard() != null)
+                                        return "RFID " + ps.getRfidCard().getCardCode();
+                                    return "Unknown";
+                                },
+                                Collectors.toList())));
 
         List<ZoneConfigDTO> zoneDTOs = zones.stream().map(z -> {
             List<SlotConfigDTO> slotDTOs = slotRepository.findByZoneId(z.getId()).stream()
@@ -96,23 +103,27 @@ public class MapConfigurationService {
                             .name(s.getSlotName())
                             .status(s.getStatus())
                             .plate(slotPlateMap.get(s.getId()))
-                            .build()).collect(Collectors.toList());
+                            .build())
+                    .collect(Collectors.toList());
 
             VehicleType vt = vehicleTypes.get(z.getVehicleType().getId());
-            
+
             // Calculate active reservations for the zone
             java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
-            List<com.pbms.modules.operation.domain.Reservation> pendingList = reservationRepository.findByZoneIdAndStatus(z.getId(), "PENDING");
+            List<com.pbms.modules.operation.domain.Reservation> pendingList = reservationRepository
+                    .findByZoneIdAndStatus(z.getId(), "PENDING");
             int windowMinutes = 30;
             try {
-                windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
+                windowMinutes = Integer
+                        .parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
             } catch (Exception e) {
                 // ignore
             }
             final int finalWindowMinutes = windowMinutes;
             long activeReservations = pendingList.stream().filter(r -> {
                 java.time.LocalDateTime startWindow = r.getExpectedEntryTime().minusMinutes(finalWindowMinutes);
-                java.time.LocalDateTime endWindow = r.getExpectedEntryTime().plusMinutes(r.getExpectedDurationMinutes());
+                java.time.LocalDateTime endWindow = r.getExpectedEntryTime()
+                        .plusMinutes(r.getExpectedDurationMinutes());
                 return !now.isBefore(startWindow) && !now.isAfter(endWindow);
             }).count();
 
@@ -177,9 +188,23 @@ public class MapConfigurationService {
         BuildingProfile defaultBuilding = buildingProfileRepository.findAll().stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("No building profile configured"));
 
+        try {
+            com.pbms.common.context.AuditContext context = com.pbms.common.context.AuditContextHolder.getContext();
+            if (context != null) {
+                MapConfigDTO oldConfig = getMapConfiguration();
+                if (oldConfig.getZones() != null) {
+                    oldConfig.getZones().forEach(z -> z.setSlots(new java.util.ArrayList<>()));
+                }
+                context.setOldValue(objectMapper.writeValueAsString(oldConfig));
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+
         // 1. Process Floors
         List<Floor> currentFloors = floorRepository.findAll();
-        Map<Long, Floor> floorMap = currentFloors.stream().collect(Collectors.toMap(f -> f.getId(), Function.identity()));
+        Map<Long, Floor> floorMap = currentFloors.stream()
+                .collect(Collectors.toMap(f -> f.getId(), Function.identity()));
 
         for (FloorConfigDTO fDTO : mapConfig.getFloors()) {
             Floor floor;
@@ -199,21 +224,25 @@ public class MapConfigurationService {
                 Long oldId = fDTO.getId();
                 fDTO.setId(floor.getId());
                 final Long newFloorId = floor.getId();
-                mapConfig.getZones().stream().filter(z -> z.getFloorId().equals(oldId)).forEach(z -> z.setFloorId(newFloorId));
-                mapConfig.getGates().stream().filter(g -> g.getFloorId().equals(oldId)).forEach(g -> g.setFloorId(newFloorId));
+                mapConfig.getZones().stream().filter(z -> z.getFloorId().equals(oldId))
+                        .forEach(z -> z.setFloorId(newFloorId));
+                mapConfig.getGates().stream().filter(g -> g.getFloorId().equals(oldId))
+                        .forEach(g -> g.setFloorId(newFloorId));
             } else {
                 floor = floorMap.get(fDTO.getId());
-                
+
                 // Rule: Cannot change floorType if it has zones with status != DELETED
                 final Long currentFloorId = floor.getId();
                 if (!floor.getFloorType().equals(fDTO.getType())) {
                     boolean hasZones = zoneRepository.findAll().stream()
-                            .anyMatch(z -> z.getFloor().getId().equals(currentFloorId) && !"DELETED".equals(z.getStatus()));
+                            .anyMatch(z -> z.getFloor().getId().equals(currentFloorId)
+                                    && !"DELETED".equals(z.getStatus()));
                     if (hasZones) {
-                        throw new RuntimeException("Cannot change floor type because it has active zones: " + floor.getFloorName());
+                        throw new RuntimeException(
+                                "Cannot change floor type because it has active zones: " + floor.getFloorName());
                     }
                 }
-                
+
                 floor.setFloorName(fDTO.getName());
                 floor.setFloorType(fDTO.getType());
                 floor.setMapCols(fDTO.getMapCols());
@@ -225,7 +254,7 @@ public class MapConfigurationService {
         // 2. Process Zones
         List<Zone> currentZones = zoneRepository.findAll();
         Map<Long, Zone> zoneMap = currentZones.stream().collect(Collectors.toMap(z -> z.getId(), Function.identity()));
-        
+
         // Find deleted zones
         List<Long> incomingZoneIds = mapConfig.getZones().stream()
                 .filter(z -> z.getId() < 1000000000L)
@@ -253,7 +282,8 @@ public class MapConfigurationService {
                     Zone cz = zoneMap.get(zDTO.getId());
                     List<Slot> cSlots = slotRepository.findByZoneId(cz.getId());
                     if (cSlots.stream().anyMatch(s -> "OCCUPIED".equals(s.getStatus()))) {
-                        throw new RuntimeException("Cannot delete zone because it has occupied slots: " + cz.getZoneName());
+                        throw new RuntimeException(
+                                "Cannot delete zone because it has occupied slots: " + cz.getZoneName());
                     }
                     cz.setStatus("DELETED");
                     zoneRepository.save(cz);
@@ -286,7 +316,7 @@ public class MapConfigurationService {
                         .status("ACTIVE")
                         .build();
                 zone = zoneRepository.save(zone);
-                
+
                 // updated for future reference if needed
                 zDTO.setId(zone.getId()); // updated for future reference if needed
             } else {
@@ -303,7 +333,8 @@ public class MapConfigurationService {
             }
 
             List<Slot> existingSlots = slotRepository.findByZoneId(zone.getId());
-            Map<Long, Slot> existingSlotMap = existingSlots.stream().collect(Collectors.toMap(s -> s.getId(), Function.identity()));
+            Map<Long, Slot> existingSlotMap = existingSlots.stream()
+                    .collect(Collectors.toMap(s -> s.getId(), Function.identity()));
             List<Long> incomingSlotIds = zDTO.getSlots().stream().map(s -> s.getId()).collect(Collectors.toList());
 
             // Delete missing slots
@@ -364,7 +395,7 @@ public class MapConfigurationService {
             if (gDTO.getVehicleTypeId() != null) {
                 gvt = vehicleTypeRepository.findById(gDTO.getVehicleTypeId()).orElse(null);
             }
-            
+
             Gate gate;
             if (gDTO.getId() == null || gDTO.getId() > 1000000000L || !gateMap.containsKey(gDTO.getId())) {
                 gate = Gate.builder()
@@ -395,6 +426,17 @@ public class MapConfigurationService {
                 gateRepository.save(gate);
             }
         }
+
+        try {
+            com.pbms.common.context.AuditContext context = com.pbms.common.context.AuditContextHolder.getContext();
+            if (context != null) {
+                if (mapConfig.getZones() != null) {
+                    mapConfig.getZones().forEach(z -> z.setSlots(new java.util.ArrayList<>()));
+                }
+                context.setNewValue(objectMapper.writeValueAsString(mapConfig));
+            }
+        } catch (Exception e) {
+            // ignore
+        }
     }
 }
-

@@ -17,5 +17,6 @@ public class VehicleTypeDTO {
     private String category;
     private String status;
     private String iconUrl;
+    private Boolean hasMapSlots;
 }
 

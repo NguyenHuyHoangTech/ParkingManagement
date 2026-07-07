@@ -30,8 +30,9 @@ interface MonthlyPass {
 export const MonthlyPassScreen = () => {
   const [selectedRecord, setSelectedRecord] = useState<MonthlyPass | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [threshold, setThreshold] = useState<number>(90);
+  const [isConfigModalOpen, setIsConfigModalOpen] = React.useState(false);
+  const [isConfigDirty, setIsConfigDirty] = React.useState(false);
+  const [threshold, setThreshold] = React.useState<number>(90);
   const { stompClient, connected } = useWebSocket();
   const [discounts, setDiscounts] = useState<{ [key: string]: number }>({ '1': 0, '3': 5, '6': 10, '12': 15 });
 
@@ -79,6 +80,7 @@ export const MonthlyPassScreen = () => {
       });
       notification.success({ message: 'Configuration saved successfully!' });
       setIsConfigModalOpen(false);
+      setIsConfigDirty(false);
     } catch (e) {
       notification.error({ message: 'Error saving configuration' });
     }
@@ -302,7 +304,11 @@ export const MonthlyPassScreen = () => {
         title="Monthly Pass Configuration"
         open={isConfigModalOpen}
         onOk={handleSaveConfig}
-        onCancel={() => setIsConfigModalOpen(false)}
+        okButtonProps={{ disabled: !isConfigDirty }}
+        onCancel={() => {
+          setIsConfigModalOpen(false);
+          setIsConfigDirty(false);
+        }}
       >
         <div className="flex flex-col gap-4 mt-4">
           <div>
@@ -312,12 +318,15 @@ export const MonthlyPassScreen = () => {
             </Text>
             <div className="flex items-center gap-2">
               <Text>Alert Threshold (%):</Text>
-              <InputNumber
-                min={1}
-                max={200}
-                value={threshold}
-                onChange={(val) => setThreshold(val || 90)}
-              />
+                <InputNumber
+                  min={1}
+                  max={200}
+                  value={threshold}
+                  onChange={(val) => {
+                    setThreshold(val || 90);
+                    setIsConfigDirty(true);
+                  }}
+                />
             </div>
           </div>
           <Divider className="my-2" />
@@ -336,7 +345,10 @@ export const MonthlyPassScreen = () => {
                       min={0}
                       max={100}
                       value={discounts[months]}
-                      onChange={(val) => setDiscounts({ ...discounts, [months]: val || 0 })}
+                      onChange={(val) => {
+                        setDiscounts({ ...discounts, [months]: val || 0 });
+                        setIsConfigDirty(true);
+                      }}
                     />
                   </div>
                 </Col>

@@ -9,6 +9,7 @@ import com.pbms.modules.operation.domain.ParkingSession;
 import com.pbms.modules.operation.repository.ParkingSessionRepository;
 import com.pbms.modules.incident.repository.IncidentTicketRepository;
 import com.pbms.modules.operation.repository.StaffWorkSessionRepository;
+import com.pbms.modules.finance.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ public class WorkSessionService {
     private final GateRepository gateRepository;
     private final ParkingSessionRepository parkingSessionRepository;
     private final IncidentTicketRepository incidentTicketRepository;
+    private final TransactionRepository transactionRepository;
 
     @Transactional
     public StaffWorkSession startSession(String email, Long gateId, String gateType) {
@@ -100,11 +102,22 @@ public class WorkSessionService {
         BigDecimal expectedRevenue = preview.get("totalRevenue") != null 
             ? new BigDecimal(preview.get("totalRevenue").toString()) 
             : BigDecimal.ZERO;
+            
+        BigDecimal expectedCashRevenue = preview.get("cashRevenue") != null 
+            ? new BigDecimal(preview.get("cashRevenue").toString()) 
+            : BigDecimal.ZERO;
+            
+        BigDecimal expectedOtherRevenue = preview.get("otherRevenue") != null 
+            ? new BigDecimal(preview.get("otherRevenue").toString()) 
+            : BigDecimal.ZERO;
         
         session.setExpectedRevenue(expectedRevenue);
+        session.setExpectedCashRevenue(expectedCashRevenue);
+        session.setExpectedOtherRevenue(expectedOtherRevenue);
         session.setActualRevenue(declaredCash);
         
-        BigDecimal variance = declaredCash.subtract(expectedRevenue);
+        // Variance is compared against Expected Cash, NOT Expected Total!
+        BigDecimal variance = declaredCash.subtract(expectedCashRevenue);
         session.setRevenueVariance(variance);
         
         String status = "MATCH";
@@ -174,26 +187,46 @@ public class WorkSessionService {
                 );
 
         BigDecimal totalRevenue = BigDecimal.ZERO;
+        BigDecimal cashRevenue = BigDecimal.ZERO;
+        BigDecimal otherRevenue = BigDecimal.ZERO;
         long totalTransactions = 0;
 
         if ("IN".equals(session.getGate().getGateType()) || "ENTRY".equals(session.getGate().getGateType())) {
             totalTransactions = checkIns.size();
-            totalRevenue = BigDecimal.ZERO;
-        } else if ("OUT".equals(session.getGate().getGateType()) || "EXIT".equals(session.getGate().getGateType())) {
-            totalTransactions = checkOuts.size();
-            totalRevenue = checkOuts.stream()
-                    .map(ps -> ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
-        } else {
-            // IN_OUT or PATROL
-            totalTransactions = checkIns.size() + checkOuts.size();
-            totalRevenue = checkOuts.stream()
-                    .map(ps -> ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
-                    
-            // [CRITICAL FIX]: Account for Patrol penalty collections.
-            // Since PATROL gates don't have "check-outs", we query IncidentTickets directly 
-            // to count the cash they collected on the floor.
+        } else if ("OUT".equals(session.getGate().getGateType()) || "EXIT".equals(session.getGate().getGateType()) || "IN_OUT".equals(session.getGate().getGateType()) || "ENTRY_EXIT".equals(session.getGate().getGateType()) || "PATROL".equals(session.getGate().getGateType())) {
+            
+            if ("OUT".equals(session.getGate().getGateType()) || "EXIT".equals(session.getGate().getGateType())) {
+                totalTransactions = checkOuts.size();
+            } else {
+                totalTransactions = checkIns.size() + checkOuts.size();
+            }
+            
+            // Calculate revenue breakdown for checkouts
+            List<Long> checkoutIds = checkOuts.stream().map(ParkingSession::getId).toList();
+            List<com.pbms.modules.finance.domain.Transaction> transactions = checkoutIds.isEmpty() ? new java.util.ArrayList<>() : transactionRepository.findByParkingSessionIdInAndStatus(checkoutIds, "SUCCESS");
+            
+            Map<Long, BigDecimal> otherRevenueMap = new HashMap<>();
+            for (com.pbms.modules.finance.domain.Transaction t : transactions) {
+                if (!"CASH".equals(t.getPaymentMethod())) {
+                    otherRevenueMap.put(t.getParkingSession().getId(), t.getAmount());
+                }
+            }
+
+            for (ParkingSession ps : checkOuts) {
+                BigDecimal fee = ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO;
+                totalRevenue = totalRevenue.add(fee);
+                if (otherRevenueMap.containsKey(ps.getId())) {
+                    BigDecimal otherAmt = otherRevenueMap.get(ps.getId());
+                    otherRevenue = otherRevenue.add(otherAmt);
+                    if (fee.compareTo(otherAmt) > 0) {
+                        cashRevenue = cashRevenue.add(fee.subtract(otherAmt));
+                    }
+                } else {
+                    cashRevenue = cashRevenue.add(fee);
+                }
+            }
+            
+            // Account for Patrol penalty collections
             if ("PATROL".equals(session.getGate().getGateType())) {
                 List<com.pbms.modules.incident.domain.IncidentTicket> resolvedTickets = incidentTicketRepository
                         .findByUserIdAndResolvedAtBetweenAndStatus(
@@ -205,9 +238,10 @@ public class WorkSessionService {
                 
                 BigDecimal patrolRevenue = resolvedTickets.stream()
                         .map(t -> t.getFineAmount() != null ? t.getFineAmount() : BigDecimal.ZERO)
-                        .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
                         
                 totalRevenue = totalRevenue.add(patrolRevenue);
+                cashRevenue = cashRevenue.add(patrolRevenue); // Assume patrol fines are collected in cash on floor
                 totalTransactions += resolvedTickets.size();
             }
         }
@@ -222,6 +256,8 @@ public class WorkSessionService {
         preview.put("loginTime", session.getLoginTime());
         preview.put("totalTransactions", totalTransactions);
         preview.put("totalRevenue", totalRevenue);
+        preview.put("cashRevenue", cashRevenue);
+        preview.put("otherRevenue", otherRevenue);
         return preview;
     }
 
@@ -251,6 +287,8 @@ public class WorkSessionService {
             map.put("loginTime", session.getLoginTime());
             map.put("logoutTime", session.getLogoutTime());
             map.put("expectedRevenue", session.getExpectedRevenue());
+            map.put("expectedCashRevenue", session.getExpectedCashRevenue());
+            map.put("expectedOtherRevenue", session.getExpectedOtherRevenue());
             map.put("actualRevenue", session.getActualRevenue());
             map.put("revenueVariance", session.getRevenueVariance());
             map.put("discrepancyStatus", session.getDiscrepancyStatus());

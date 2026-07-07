@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Layout, Typography, Avatar, Dropdown, Button, Modal, Badge } from 'antd';
-import { 
+import {
   LogoutOutlined,
   UserOutlined,
   AlertOutlined,
@@ -32,9 +32,9 @@ export const StaffLayout = () => {
   const email = useAuthStore((state) => state.email);
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
   const name = useAuthStore((state) => state.name);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const systemTime = useSystemTime();
-  
+
   // Conflict state
   const [pendingConflicts, setPendingConflicts] = useState<any[]>([]);
 
@@ -74,48 +74,50 @@ export const StaffLayout = () => {
     client.onConnect = function () {
       client.subscribe('/topic/staff/notifications', (message) => {
         try {
-            const data = JSON.parse(message.body);
-            if (data.type === 'ZONE_CONFLICT') {
-                setPendingConflicts((prev) => {
-                  if (prev.find(p => p.reservationId === data.reservationId)) return prev;
-                  return [...prev, data];
-                });
-                notification.error({
-                    message: '🚨 Zone Capacity Conflict!',
-                    description: data.message + ' (Check the queue to retry)',
-                    placement: 'topRight',
-                    duration: 0
-                });
-            } else if (data.type === 'ZONE_RESERVED') {
-                setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
-                notification.success({
-                    message: '✅ Virtual Slot Reserved!',
-                    description: `Reservation for ${data.plate} in ${data.zoneName} has been successfully assigned.`,
-                    placement: 'topRight',
-                    duration: 5
-                });
-                window.dispatchEvent(new CustomEvent('add-notification', { detail: { 
-                  message: `[Assigned] ${data.plate} in ${data.zoneName} has been assigned a slot successfully.`,
-                  type: 'success'
-                }}));
-            } else if (data.type === 'RESERVATION_ARRIVED') {
-                setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
-            }
-        } catch(e) {}
+          const data = JSON.parse(message.body);
+          if (data.type === 'ZONE_CONFLICT') {
+            setPendingConflicts((prev) => {
+              if (prev.find(p => p.reservationId === data.reservationId)) return prev;
+              return [...prev, data];
+            });
+            notification.error({
+              message: '🚨 Zone Capacity Conflict!',
+              description: data.message + ' (Check the queue to retry)',
+              placement: 'topRight',
+              duration: 0
+            });
+          } else if (data.type === 'ZONE_RESERVED') {
+            setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
+            notification.success({
+              message: '✅ Virtual Slot Reserved!',
+              description: `Reservation for ${data.plate} in ${data.zoneName} has been successfully assigned.`,
+              placement: 'topRight',
+              duration: 5
+            });
+            window.dispatchEvent(new CustomEvent('add-notification', {
+              detail: {
+                message: `[Assigned] ${data.plate} in ${data.zoneName} has been assigned a slot successfully.`,
+                type: 'success'
+              }
+            }));
+          } else if (data.type === 'RESERVATION_ARRIVED') {
+            setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
+          }
+        } catch (e) { }
       });
 
       client.subscribe('/topic/alerts', (message) => {
         try {
-            const data = JSON.parse(message.body);
-            if (data.type === 'MONTHLY_ZONE_VIOLATION') {
-                notification.warning({
-                  message: '🚨 Monthly Zone Violation',
-                  description: data.message,
-                  placement: 'topRight',
-                  duration: 5
-                });
-            }
-        } catch(e) {}
+          const data = JSON.parse(message.body);
+          if (data.type === 'MONTHLY_ZONE_VIOLATION') {
+            notification.warning({
+              message: '🚨 Monthly Zone Violation',
+              description: data.message,
+              placement: 'topRight',
+              duration: 5
+            });
+          }
+        } catch (e) { }
       });
     };
 
@@ -166,7 +168,7 @@ export const StaffLayout = () => {
         <div className="flex flex-col gap-1 w-64 py-1 rounded transition-colors border-b border-gray-100 last:border-0">
           <span className="font-bold text-red-600 flex items-center gap-1"><AlertOutlined /> {c.zoneName} is FULL</span>
           <span className="text-xs text-gray-600">Plate: <b className="font-mono uppercase">{c.plate}</b> - {c.customer}</span>
-          <Button size="small" type="primary" className="mt-1 bg-blue-500 text-xs w-full" onClick={() => handleResolveConflict(c.reservationId)}>Thử gán lại (Retry)</Button>
+          <Button size="small" type="primary" className="mt-1 bg-blue-500 text-xs w-full" onClick={() => handleResolveConflict(c.reservationId)}>Retry assignment</Button>
         </div>
       )
     }))
@@ -182,28 +184,28 @@ export const StaffLayout = () => {
             PBMS <span className="text-blue-600">STAFF</span>
           </Text>
         </div>
-        
+
         <div className="flex flex-1 justify-center gap-2 sm:gap-4">
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             className="bg-blue-600 hover:bg-blue-500 font-bold shadow-lg flex items-center justify-center"
-            icon={<DesktopOutlined />} 
+            icon={<DesktopOutlined />}
             onClick={() => navigate('/staff/gate-console')}
             disabled={shiftStatus !== 'OPEN' || activeGateType === 'PATROL'}
             title={
-              shiftStatus !== 'OPEN' 
-                ? "Please start a shift to perform this action" 
-                : activeGateType === 'PATROL' 
-                  ? "Patrol staff do not have access to gate booths" 
+              shiftStatus !== 'OPEN'
+                ? "Please start a shift to perform this action"
+                : activeGateType === 'PATROL'
+                  ? "Patrol staff do not have access to gate booths"
                   : "Gate Console"
             }
           >
             <span className="hidden lg:inline">Gate Console</span>
           </Button>
-          <Button 
-            type="primary" 
-            danger 
-            icon={<AlertOutlined />} 
+          <Button
+            type="primary"
+            danger
+            icon={<AlertOutlined />}
             onClick={() => navigate('/staff/exception-desk')}
             className="font-bold shadow-lg flex items-center justify-center"
             disabled={shiftStatus !== 'OPEN'}
@@ -211,10 +213,10 @@ export const StaffLayout = () => {
           >
             <span className="hidden lg:inline">Resolve Incident</span>
           </Button>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             className="bg-green-600 hover:bg-green-500 font-bold shadow-lg flex items-center justify-center"
-            icon={<DollarOutlined />} 
+            icon={<DollarOutlined />}
             onClick={() => navigate('/staff/shift-management')}
             disabled={shiftStatus !== 'OPEN'}
             title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "End Shift"}
@@ -297,15 +299,15 @@ export const StaffLayout = () => {
           </Dropdown>
         </div>
       </Header>
-      
+
       <Content className="bg-gray-100 m-0 w-full flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </Content>
 
 
-      <UserProfileSettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
+      <UserProfileSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
 
 

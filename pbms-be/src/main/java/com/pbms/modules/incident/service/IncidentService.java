@@ -37,6 +37,14 @@ public class IncidentService {
     private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
     private final com.pbms.common.service.FileStorageService fileStorageService;
 
+    private com.pbms.modules.identity.domain.User getCurrentUser() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
+            return userRepository.findByEmail(auth.getName()).orElse(null);
+        }
+        return null;
+    }
+
     @Transactional
     public IncidentTicket createIncident(IncidentTicketRequest request, String email) {
         ParkingSession session = null;
@@ -248,7 +256,8 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         ticket.setResolutionNotes("Xác nhận đã xem bởi nhân viên");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
-        
+        ticket.setStatus("WAITING_CHECKOUT");
+        ticket.setStaff(getCurrentUser());
         return mapToDTO(incidentTicketRepository.save(ticket));
     }
 
@@ -264,6 +273,7 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         ticket.setResolutionNotes("[OVERSTAY] Vehicle moved to overstay zone");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+        ticket.setStaff(getCurrentUser());
         if (uploadedDocUrl != null && !uploadedDocUrl.isBlank()) {
             ticket.setUploadedDocUrl(fileStorageService.storeBase64File(uploadedDocUrl));
         }
@@ -283,6 +293,7 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         ticket.setResolutionNotes(resolutionNotes != null ? resolutionNotes : "[RESOLVED] Fee collected and barrier opened.");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+        ticket.setStaff(getCurrentUser());
         if (uploadedDocUrl != null && !uploadedDocUrl.isBlank()) {
             ticket.setUploadedDocUrl(fileStorageService.storeBase64File(uploadedDocUrl));
         }
@@ -335,6 +346,7 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         ticket.setResolutionNotes("[CANCELLED] " + (reason != null ? reason : "Customer found the card, incident cancelled"));
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+        ticket.setStaff(getCurrentUser());
         ticket.setFineAmount(java.math.BigDecimal.ZERO); // Há»§y sá»± cá»‘ thÃ¬ khÃ´ng thu pháº¡t
 
         // Restore the session to ACTIVE so the vehicle can exit normally
@@ -399,6 +411,7 @@ public class IncidentService {
         }
 
         ticket.setStatus("WAITING_CHECKOUT");
+        ticket.setStaff(getCurrentUser());
 
         boolean isCardIncident = "LOST_CARD".equals(ticket.getIssueType()) || "DAMAGED_CARD".equals(ticket.getIssueType());
 
@@ -424,7 +437,7 @@ public class IncidentService {
     }
 
     @Transactional
-    public IncidentTicketDTO resolveNonCardIncident(Long id, String resolutionNotes) {
+    public IncidentTicketDTO resolveNonCardIncident(Long id, String resolutionNotes, String docUrl) {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket #" + id + " does not exist"));
 
@@ -434,6 +447,8 @@ public class IncidentService {
 
         ticket.setStatus("RESOLVED");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+        ticket.setStaff(getCurrentUser());
+        if (docUrl != null) ticket.setUploadedDocUrl(fileStorageService.storeBase64File(docUrl));
         ticket.setResolutionNotes(resolutionNotes != null ? resolutionNotes : "Incident resolved successfully.");
 
         log.info("Incident #{} RESOLVED (Non-card flow)", id);
@@ -456,7 +471,8 @@ public class IncidentService {
         }
 
         ticket.setStatus("REJECTED");
-        ticket.setResolutionNotes("[TU CHOI] " + reason);
+        ticket.setResolutionNotes("Từ chối xử lý: " + reason);
+        ticket.setStaff(getCurrentUser());
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
 
         log.info("Incident #{} REJECTED. Reason: {}", id, reason);
@@ -601,6 +617,7 @@ public class IncidentService {
                 .uploadedDocUrl(ticket.getUploadedDocUrl())
                 .expectedZoneName(ticket.getExpectedZone() != null ? ticket.getExpectedZone().getZoneName() : null)
                 .actualZoneName(ticket.getActualZone() != null ? ticket.getActualZone().getZoneName() : null)
+                .staffEmail(ticket.getStaff() != null ? ticket.getStaff().getEmail() : null)
                 .type(ticket.getIssueType())
                 .phase(phase)
                 .plate(session != null ? session.getPlate() : ticket.getReportedPlate())

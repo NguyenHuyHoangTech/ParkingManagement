@@ -39,6 +39,12 @@ public class StaffWorkSession {
     @Column(name = "expected_revenue")
     private java.math.BigDecimal expectedRevenue;
 
+    @Column(name = "expected_cash_revenue")
+    private java.math.BigDecimal expectedCashRevenue;
+
+    @Column(name = "expected_other_revenue")
+    private java.math.BigDecimal expectedOtherRevenue;
+
     @Column(name = "actual_revenue")
     private java.math.BigDecimal actualRevenue;
 

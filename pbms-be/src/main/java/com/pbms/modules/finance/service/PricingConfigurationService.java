@@ -21,6 +21,8 @@ public class PricingConfigurationService {
 
     private final PricingPolicyRepository policyRepository;
     private final VehicleTypeRepository vehicleTypeRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     public PricingConfigurationService(PricingPolicyRepository policyRepository, VehicleTypeRepository vehicleTypeRepository) {
         this.policyRepository = policyRepository;
@@ -39,10 +41,12 @@ public class PricingConfigurationService {
         PricingPolicy policy;
         if (dto.getId() != null) {
             policy = policyRepository.findById(dto.getId()).orElseThrow(() -> new RuntimeException("Policy not found"));
+            captureOldValue(policy);
             policy.getShifts().clear(); // Orphan removal will delete old shifts and blocks
         } else {
             policy = policyRepository.findByVehicleTypeIdAndStatus(dto.getVehicleTypeId(), "ACTIVE").orElse(new PricingPolicy());
             if (policy.getId() != null) {
+                captureOldValue(policy);
                 policy.getShifts().clear();
             }
         }
@@ -118,6 +122,17 @@ public class PricingConfigurationService {
             dto.getShifts().add(sDTO);
         }
         return dto;
+    }
+
+    private void captureOldValue(PricingPolicy policy) {
+        try {
+            com.pbms.common.context.AuditContext context = com.pbms.common.context.AuditContextHolder.getContext();
+            if (context != null && policy.getId() != null) {
+                context.setOldValue(objectMapper.writeValueAsString(mapToDTO(policy)));
+            }
+        } catch (Exception e) {
+            // ignore
+        }
     }
 }
 

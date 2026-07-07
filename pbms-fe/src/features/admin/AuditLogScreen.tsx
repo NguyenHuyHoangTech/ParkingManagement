@@ -19,10 +19,11 @@ interface AuditLog {
 }
 
 import axiosClient from '../../core/api/axiosClient';
+import { simulatedDayjs } from '../../core/utils/timeProvider';
 
 export const AuditLogScreen = () => {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([simulatedDayjs().startOf('day'), simulatedDayjs().endOf('day')]);
 
   const formatJsonSafely = (val: string | null) => {
     if (!val) return 'NULL';
@@ -44,7 +45,7 @@ export const AuditLogScreen = () => {
   const filteredAndSortedLogs = React.useMemo(() => {
     let result = [...(logs as AuditLog[])];
     
-    // 1. Lọc theo thời gian
+    // 1. Filter by time
     if (dateRange && dateRange[0] && dateRange[1]) {
       const start = dateRange[0].startOf('day').valueOf();
       const end = dateRange[1].endOf('day').valueOf();
@@ -54,7 +55,7 @@ export const AuditLogScreen = () => {
       });
     }
 
-    // 2. Sắp xếp mới nhất lên trước
+    // 2. Sort newest first
     result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     return result;
@@ -107,6 +108,8 @@ export const AuditLogScreen = () => {
           <div className="flex justify-between items-center mb-4">
             <Text strong>Filter by Date:</Text>
             <RangePicker 
+              value={dateRange as any}
+              defaultPickerValue={[simulatedDayjs(), simulatedDayjs()]}
               onChange={(dates) => setDateRange(dates as [Dayjs, Dayjs] | null)} 
               format="YYYY-MM-DD"
             />

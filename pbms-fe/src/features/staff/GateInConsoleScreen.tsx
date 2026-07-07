@@ -493,7 +493,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                     setScanData({...scanData, routing: 'Free', suggestedZoneId: undefined});
                 }}
               >
-                Đổi sang Free
+                Switch to Free
               </Button>
             </div>
           )}

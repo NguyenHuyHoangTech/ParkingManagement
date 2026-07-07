@@ -41,9 +41,7 @@ export const CardManagementScreen = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cards'] });
     },
-    onError: (err: any) => {
-      message.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái thẻ');
-    }
+      message.error(err.response?.data?.message || 'Error updating card status');
   });
 
   const [selectedRecord, setSelectedRecord] = useState<RfidCard | null>(null);
@@ -89,7 +87,7 @@ export const CardManagementScreen = () => {
       } catch (err) {
         setIsUploading(false);
         onError?.(err as any);
-        message.error('Import batch of Failed cards, please check the file format again!');
+        message.error('Failed to import cards batch, please check the file format!');
       }
     },
   };
@@ -103,9 +101,9 @@ export const CardManagementScreen = () => {
       key: 'status',
       render: (status: string) => {
         if (status === 'AVAILABLE') return <Tag color="success" icon={<CheckCircleOutlined />}>Ready (Empty)</Tag>;
-        if (status === 'IN_USE') return <Tag color="processing" icon={<SyncOutlined spin />}>Saving Actions</Tag>;
-        if (status === 'LOST') return <Tag color="error" icon={<StopOutlined />}>Report Lost</Tag>;
-        if (status === 'DAMAGED') return <Tag color="warning" icon={<WarningOutlined />}>Report Broken</Tag>;
+        if (status === 'IN_USE') return <Tag color="processing" icon={<SyncOutlined spin />}>In Use</Tag>;
+        if (status === 'LOST') return <Tag color="error" icon={<StopOutlined />}>Lost</Tag>;
+        if (status === 'DAMAGED') return <Tag color="warning" icon={<WarningOutlined />}>Damaged</Tag>;
         return <Tag>{status}</Tag>;
       }
     },
@@ -134,7 +132,7 @@ export const CardManagementScreen = () => {
         <Title level={2} className="m-0 text-gray-800 flex items-center">
           <CreditCardOutlined className="mr-3 text-indigo-600" /> Card Inventory Management (RFID)
         </Title>
-        <Text type="secondary">The center controls the lifecycle of thousands of electronic cards in Systeme</Text>
+        <Text type="secondary">Central control for the lifecycle of electronic cards in the system</Text>
       </div>
 
       {/* Zone 1: KPI CARDS */}
@@ -147,7 +145,7 @@ export const CardManagementScreen = () => {
         <Col span={6}>
           <Card className={`shadow-sm border-l-4 ${availableCount < 50 ? 'border-l-red-500 bg-red-50/50' : 'border-l-green-500'}`}>
             <Statistic 
-              title={<span className={availableCount < 50 ? 'text-red-600 font-bold animate-pulse' : ''}>Card Is Empty (aVaILaBLE)</span>} 
+              title={<span className={availableCount < 50 ? 'text-red-600 font-bold animate-pulse' : ''}>Available Cards</span>} 
               value={availableCount} 
               valueStyle={{ color: availableCount < 50 ? '#cf1322' : '#3f8600', fontWeight: 'bold' }} 
             />
@@ -158,7 +156,7 @@ export const CardManagementScreen = () => {
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-orange-500">
-            <Statistic title="Saving Actions (IN_USE)" value={inUseCount} valueStyle={{ color: '#d97706', fontWeight: 'bold' }} />
+            <Statistic title="In Use" value={inUseCount} valueStyle={{ color: '#d97706', fontWeight: 'bold' }} />
           </Card>
         </Col>
         <Col span={6}>
@@ -174,10 +172,10 @@ export const CardManagementScreen = () => {
           <div className="flex gap-4">
             <Select defaultValue="ALL" className="w-48" options={[
               {label: 'All Status', value: 'ALL'},
-              {label: 'Ready (Empty)', value: 'AVAILABLE'},
-              {label: 'Current', value: 'IN_USE'},
-              {label: 'Report lost', value: 'LOST'},
-              {label: 'Report broken', value: 'DAMAGED'}
+              {label: 'Available', value: 'AVAILABLE'},
+              {label: 'In Use', value: 'IN_USE'},
+              {label: 'Lost', value: 'LOST'},
+              {label: 'Damaged', value: 'DAMAGED'}
             ]} />
             <Button type="primary" icon={<FilterOutlined />} ghost>Filter</Button>
             <Input 
@@ -234,10 +232,10 @@ export const CardManagementScreen = () => {
               <div className="flex flex-col gap-2 p-3 bg-white border rounded-md">
                 <div className="flex justify-between">
                   <Text type="secondary">Status:</Text>
-                  {selectedRecord.status === 'AVAILABLE' && <Tag color="success">Drum</Tag>}
-                  {selectedRecord.status === 'IN_USE' && <Tag color="processing">Using</Tag>}
-                  {selectedRecord.status === 'LOST' && <Tag color="error">Report Lost</Tag>}
-                  {selectedRecord.status === 'DAMAGED' && <Tag color="warning">Report Broken</Tag>}
+                  {selectedRecord.status === 'AVAILABLE' && <Tag color="success">Available</Tag>}
+                  {selectedRecord.status === 'IN_USE' && <Tag color="processing">In Use</Tag>}
+                  {selectedRecord.status === 'LOST' && <Tag color="error">Lost</Tag>}
+                  {selectedRecord.status === 'DAMAGED' && <Tag color="warning">Damaged</Tag>}
                 </div>
                 <div className="flex justify-between">
                   <Text type="secondary">Location:</Text>
@@ -251,20 +249,20 @@ export const CardManagementScreen = () => {
               <Title level={5} className="text-gray-800 mb-4">Therapy Tools</Title>
               <div className="flex flex-col gap-3">
                 {selectedRecord.status === 'IN_USE' && (
-                  <Alert type="info" showIcon message="Thẻ đang được sử dụng. Không thể thực hiện thao tác." />
+                  <Alert type="info" showIcon message="Card is in use. Cannot perform operations." />
                 )}
 
                 {selectedRecord.status === 'AVAILABLE' && (
                   <>
-                    <Tooltip title="Thẻ sẽ bị khóa hoàn toàn và Barrier sẽ không mở nếu có người dùng thẻ này" placement="left">
+                    <Tooltip title="Card will be completely locked. Barrier will not open if this card is used." placement="left">
                       <Button 
                         danger 
                         type="primary" 
                         icon={<StopOutlined />} 
                         className="w-full text-left flex justify-start items-center h-10"
-                        onClick={() => handleAction(selectedRecord.uid, 'LOST', 'Không xác định', 'Thẻ đã được báo mất và đưa vào Blacklist!')}
+                        onClick={() => handleAction(selectedRecord.uid, 'LOST', 'Unknown', 'Card has been reported lost and blacklisted!')}
                       >
-                        [Báo Mất Thẻ / Đưa vào Blacklist]
+                        [Report Lost / Add to Blacklist]
                       </Button>
                     </Tooltip>
 
@@ -272,9 +270,9 @@ export const CardManagementScreen = () => {
                       danger 
                       icon={<WarningOutlined />} 
                       className="w-full text-left flex justify-start items-center h-10 border-orange-400 text-orange-500 hover:text-orange-600 hover:border-orange-500"
-                      onClick={() => handleAction(selectedRecord.uid, 'DAMAGED', 'Kho phế liệu', 'Thẻ đã bị đánh dấu hỏng vật lý')}
+                      onClick={() => handleAction(selectedRecord.uid, 'DAMAGED', 'Scrap', 'Card has been marked as physically damaged')}
                     >
-                      [Đánh dấu Thẻ Hỏng]
+                      [Mark as Damaged]
                     </Button>
                   </>
                 )}
@@ -284,22 +282,22 @@ export const CardManagementScreen = () => {
                     type="primary" 
                     className="w-full bg-green-600 hover:bg-green-500 text-left flex justify-start items-center h-10 mt-2"
                     icon={<UnlockOutlined />}
-                    onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Nằm trống', 'Thẻ đã được tìm thấy và khôi phục thành công!')}
+                    onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Available', 'Card has been found and successfully restored!')}
                   >
-                    [Khôi Phục Thẻ Mất] (Đã tìm thấy)
+                    [Restore Lost Card] (Found)
                   </Button>
                 )}
 
                 {selectedRecord.status === 'DAMAGED' && (
-                  <Tooltip title="Thẻ đã được sửa chữa hoặc cấp lại trắng, sẵn sàng tái sử dụng" placement="left">
+                  <Tooltip title="Card has been repaired or reissued blank, ready for reuse" placement="left">
                     <Button 
                       type="primary" 
                       ghost 
                       icon={<RetweetOutlined />} 
                       className="w-full text-left flex justify-start items-center h-10 mt-2"
-                      onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Nằm trống', 'Thẻ hỏng đã được phục hồi thành công!')}
+                      onClick={() => handleAction(selectedRecord.uid, 'AVAILABLE', 'Available', 'Damaged card has been successfully restored!')}
                     >
-                      [Phục Hồi Thẻ Hỏng] (Sửa chữa xong)
+                      [Restore Damaged Card] (Repaired)
                     </Button>
                   </Tooltip>
                 )}

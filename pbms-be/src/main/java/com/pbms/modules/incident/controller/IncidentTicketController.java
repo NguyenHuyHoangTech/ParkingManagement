@@ -136,7 +136,8 @@ public class IncidentTicketController {
             @RequestBody java.util.Map<String, String> body) {
         try {
             String resolutionNotes = body.get("resolutionNotes");
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveNonCardIncident(id, resolutionNotes);
+            String docUrl = body.get("uploadedDocUrl");
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveNonCardIncident(id, resolutionNotes, docUrl);
             return ResponseEntity.ok(ApiResponse.success(dto, "The price of the fish is too low."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

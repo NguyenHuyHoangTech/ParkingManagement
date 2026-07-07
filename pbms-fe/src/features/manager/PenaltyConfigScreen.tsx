@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Typography, Button, InputNumber, Form, message, Alert } from 'antd';
 import { SaveOutlined, WarningOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ const { Title, Text } = Typography;
 export const PenaltyConfigScreen = () => {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
+  const [isDirty, setIsDirty] = useState(false);
 
   // QUERY: GET /api/v1/system/configs
   const { data: configsData = [], isLoading } = useQuery({
@@ -64,6 +65,7 @@ export const PenaltyConfigScreen = () => {
     onSuccess: () => {
       message.success('Penalty configurations updated successfully!');
       queryClient.invalidateQueries({ queryKey: ['system_configs'] });
+      setIsDirty(false);
     },
     onError: () => {
       message.error('Failed to update penalty configurations.');
@@ -87,7 +89,7 @@ export const PenaltyConfigScreen = () => {
 
       <div className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto">
-          <Card className="shadow-sm border-slate-200">
+          <Card className="rounded-xl shadow-sm border border-gray-100" bodyStyle={{ padding: '24px 32px' }}>
             <Alert 
               type="warning" 
               showIcon 
@@ -101,6 +103,7 @@ export const PenaltyConfigScreen = () => {
               form={form}
               layout="vertical"
               onFinish={onFinish}
+              onValuesChange={() => setIsDirty(true)}
               size="large"
               initialValues={{
                 PENALTY_LOST_CARD: getInitialValue('PENALTY_LOST_CARD', 200000),
@@ -213,6 +216,7 @@ export const PenaltyConfigScreen = () => {
                   htmlType="submit" 
                   icon={<SaveOutlined />} 
                   loading={updateConfigMutation.isPending}
+                  disabled={!isDirty}
                   className="bg-blue-600 w-32"
                 >
                   Save Changes

@@ -899,7 +899,7 @@ export const ExceptionDeskScreen = () => {
                           onClick={() => acknowledgeOverstayMutation.mutate(selectedTicket.id)}
                           loading={acknowledgeOverstayMutation.isPending}
                         >
-                          Xác nhận đã xem (Acknowledge)
+                          Acknowledge
                         </Button>
                       ) : !(selectedTicket.type === 'FEE_DISPUTE' && !isManager) && (
                         <Button type="primary" size="large" className="w-full font-bold bg-blue-600 h-12 mb-2" icon={<LockOutlined />} onClick={handleLockSessionPhase1}>
@@ -1301,8 +1301,12 @@ export const ExceptionDeskScreen = () => {
                       </div>
                       <div>
                         <Text type="secondary" className="block text-xs mb-1">Amount collected (if any):</Text>
-                        <Text strong className="text-xl text-green-700">
+                        <Text strong className="text-xl text-green-700 block mb-3">
                           {Number(selectedTicket.fineAmount || 0).toLocaleString()} ₫
+                        </Text>
+                        <Text type="secondary" className="block text-xs mb-1">Processed By:</Text>
+                        <Text strong className="text-sm text-blue-700">
+                          {selectedTicket.staffEmail || 'System / Unassigned'}
                         </Text>
                       </div>
                     </div>

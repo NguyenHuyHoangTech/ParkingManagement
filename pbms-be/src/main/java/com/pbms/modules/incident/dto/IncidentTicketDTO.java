@@ -99,4 +99,7 @@ public class IncidentTicketDTO {
 
     /** Tên khu vực được gợi ý đỗ ban đầu */
     private String sessionSuggestedZone;
+
+    /** Tên đăng nhập / Email của nhân viên đã xử lý sự cố này */
+    private String staffEmail;
 }

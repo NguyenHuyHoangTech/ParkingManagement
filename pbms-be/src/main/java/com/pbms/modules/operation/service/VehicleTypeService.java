@@ -7,6 +7,8 @@ import com.pbms.modules.finance.service.PricingConfigurationService;
 import com.pbms.modules.finance.dto.PricingPolicyDTO;
 import com.pbms.modules.finance.dto.PricingShiftDTO;
 import com.pbms.modules.finance.dto.PricingBlockDTO;
+import com.pbms.modules.operation.repository.ParkingSessionRepository;
+import com.pbms.modules.infrastructure.repository.SlotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +21,14 @@ public class VehicleTypeService {
 
     private final VehicleTypeRepository repository;
     private final PricingConfigurationService pricingService;
+    private final ParkingSessionRepository sessionRepository;
+    private final SlotRepository slotRepository;
 
-    public VehicleTypeService(VehicleTypeRepository repository, PricingConfigurationService pricingService) {
+    public VehicleTypeService(VehicleTypeRepository repository, PricingConfigurationService pricingService, ParkingSessionRepository sessionRepository, SlotRepository slotRepository) {
         this.repository = repository;
         this.pricingService = pricingService;
+        this.sessionRepository = sessionRepository;
+        this.slotRepository = slotRepository;
     }
 
     public List<VehicleTypeDTO> getAllVehicleTypes(boolean activeOnly) {
@@ -36,6 +42,7 @@ public class VehicleTypeService {
                         .matrixHeight(vt.getMatrixHeight())
                         .status(vt.getStatus() != null ? vt.getStatus() : "ACTIVE")
                         .iconUrl(vt.getIconUrl())
+                        .hasMapSlots(slotRepository.countByVehicleTypeId(vt.getId()) > 0)
                         .build())
                 .collect(Collectors.toList());
     }
@@ -86,6 +93,27 @@ public class VehicleTypeService {
     @Transactional
     public VehicleTypeDTO updateVehicleType(Long id, VehicleTypeDTO dto) {
         VehicleType vt = repository.findById(id).orElseThrow(() -> new RuntimeException("VehicleType not found"));
+        
+        boolean categoryChanged = vt.getCategory() != null && !vt.getCategory().equals(dto.getCategory());
+        boolean statusChangedToInactive = dto.getStatus() != null && "INACTIVE".equals(dto.getStatus()) && !"INACTIVE".equals(vt.getStatus());
+        
+        if (categoryChanged || statusChangedToInactive) {
+            long activeSessions = sessionRepository.countByVehicleTypeIdAndStatus(id, "ACTIVE");
+            if (activeSessions > 0) {
+                throw new RuntimeException("Cannot lock or change category of this vehicle type while there are vehicles of this type currently parking.");
+            }
+        }
+        
+        boolean matrixChanged = (dto.getMatrixWidth() != null && !dto.getMatrixWidth().equals(vt.getMatrixWidth())) 
+                             || (dto.getMatrixHeight() != null && !dto.getMatrixHeight().equals(vt.getMatrixHeight()));
+                             
+        if (matrixChanged) {
+            long slotsOnMap = slotRepository.countByVehicleTypeId(id);
+            if (slotsOnMap > 0) {
+                throw new RuntimeException("Cannot change grid dimensions for this vehicle type because there are currently slots on the map belonging to this type. Please delete them from the map first.");
+            }
+        }
+
         vt.setTypeName(dto.getTypeName());
         vt.setCategory(dto.getCategory());
         vt.setMatrixWidth(dto.getMatrixWidth());
@@ -123,6 +151,7 @@ public class VehicleTypeService {
                 .matrixHeight(vt.getMatrixHeight())
                 .status(vt.getStatus())
                 .iconUrl(vt.getIconUrl())
+                .hasMapSlots(slotRepository.countByVehicleTypeId(vt.getId()) > 0)
                 .build();
     }
 }

@@ -26,6 +26,8 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
     
     long countBySuggestedZoneIdAndStatusAndSlotIsNull(Long suggestedZoneId, String status);
     
+    long countByVehicleTypeIdAndStatus(Long vehicleTypeId, String status);
+    
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ParkingSession> findByRfidCard_CardCodeAndStatus(String cardCode, String status);
     

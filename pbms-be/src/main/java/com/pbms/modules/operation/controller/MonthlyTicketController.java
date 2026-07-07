@@ -33,6 +33,7 @@ public class MonthlyTicketController {
         ));
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "CREATE", resource = "MonthlyTicket", description = "Create new monthly ticket")
     @PostMapping
     public ResponseEntity<ApiResponse<MonthlyTicketDTO>> createTicket(@RequestBody java.util.Map<String, Object> payload) {
         try {
@@ -43,6 +44,7 @@ public class MonthlyTicketController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "MonthlyTicket", description = "Renew monthly ticket")
     @PutMapping("/{id}/renew")
     public ResponseEntity<ApiResponse<MonthlyTicketDTO>> renewTicket(
             @org.springframework.web.bind.annotation.PathVariable Long id,
@@ -56,6 +58,7 @@ public class MonthlyTicketController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "MonthlyTicket", description = "Assign RFID card to monthly ticket")
     @PostMapping("/{id}/assign-rfid")
     public ResponseEntity<ApiResponse<MonthlyTicketDTO>> assignRfidCard(
             @org.springframework.web.bind.annotation.PathVariable Long id,
@@ -72,6 +75,7 @@ public class MonthlyTicketController {
         }
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "MonthlyTicket", description = "Update plate number for monthly ticket")
     @PutMapping("/{id}/plate")
     public ResponseEntity<ApiResponse<MonthlyTicketDTO>> updatePlate(
             @org.springframework.web.bind.annotation.PathVariable Long id,
@@ -100,9 +104,9 @@ public class MonthlyTicketController {
         return ResponseEntity.ok(ApiResponse.success(threshold, "Success"));
     }
 
-    @PostMapping("/config-threshold")
-    public ResponseEntity<ApiResponse<Integer>> setThreshold(
-            @RequestBody java.util.Map<String, Integer> payload) {
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "SystemConfig", description = "Set monthly ticket alert threshold")
+    @PutMapping("/config-threshold")
+    public ResponseEntity<ApiResponse<Integer>> updateThreshold(@RequestBody java.util.Map<String, Integer> payload) {
         Integer threshold = payload.get("threshold");
         if (threshold == null) return ResponseEntity.badRequest().body(ApiResponse.error(400, "Threshold required"));
         

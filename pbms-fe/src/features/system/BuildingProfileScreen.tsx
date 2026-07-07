@@ -23,6 +23,15 @@ export const BuildingProfileScreen = () => {
   const [formData, setFormData] = useState<BuildingProfile>({
     name: '', address: '', hotline: '', operatingHours: '', rules: ''
   });
+  const [initialData, setInitialData] = useState<BuildingProfile | null>(null);
+
+  const isDirty = initialData ? (
+    formData.name !== initialData.name ||
+    formData.address !== initialData.address ||
+    formData.hotline !== initialData.hotline ||
+    formData.operatingHours !== initialData.operatingHours ||
+    formData.rules !== initialData.rules
+  ) : false;
 
 
 
@@ -35,7 +44,10 @@ export const BuildingProfileScreen = () => {
   });
 
   useEffect(() => {
-    if (data) setFormData(data);
+    if (data) {
+      setFormData(data);
+      setInitialData(data);
+    }
   }, [data]);
 
   const updateMutation = useMutation({
@@ -45,6 +57,7 @@ export const BuildingProfileScreen = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['building-profile'] });
+      setInitialData(formData);
       alert('Profile updated successfully!');
     },
     onError: () => {
@@ -153,8 +166,12 @@ export const BuildingProfileScreen = () => {
           <div className="pt-4 flex justify-end">
             <button
               type="submit"
-              disabled={updateMutation.isPending}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-70"
+              disabled={updateMutation.isPending || !isDirty}
+              className={`px-6 py-2 font-medium rounded-lg shadow-sm transition-colors ${
+                !isDirty || updateMutation.isPending 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
             </button>
