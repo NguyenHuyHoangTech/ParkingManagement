@@ -1099,8 +1099,8 @@ export const MyParkingScreen = () => {
             {selectedIncident.urls && selectedIncident.urls.length > 0 && (
               <div>
                 <Text strong className="block mb-2">Evidence Images:</Text>
-                <div className="flex gap-2 overflow-x-auto">
-                  {selectedIncident.urls.map((url: string, uidx: number) => (
+                <div className="flex gap-4 overflow-x-auto p-2">
+                  {(selectedIncident.urls || []).map((url: string, uidx: number) => (
                     <img key={uidx} src={getImageUrl(url)} alt="Incident Evidence" className="h-32 object-cover rounded-md border border-slate-200 shadow-sm" />
                   ))}
                 </div>
@@ -1175,7 +1175,7 @@ export const MyParkingScreen = () => {
                           <div key={idx} className="mb-3">
                             <Tag color="red" className="mb-2">⚠️ Violation Warning ({inc.type})</Tag>
                             <div className="flex gap-2 overflow-x-auto">
-                              {inc.urls.map((url: string, uidx: number) => (
+                              {(inc.urls || []).map((url: string, uidx: number) => (
                                 <img key={uidx} src={getImageUrl(url)} alt="Violation" className="h-20 rounded-md border border-red-200" />
                               ))}
                             </div>

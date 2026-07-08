@@ -198,7 +198,7 @@ export const RefundManagementScreen = () => {
         if (status === 'REJECTED') {
           return <Tag color="error" icon={<CloseCircleOutlined />}>Reject</Tag>;
         }
-        return <Tag color="warning" icon={<SyncOutlined spin />}>Waiting for processing</Tag>;
+        return <Tag color="warning" icon={<SyncOutlined spin />}>Waiting</Tag>;
       }
     },
     {
@@ -214,11 +214,14 @@ export const RefundManagementScreen = () => {
     }
   ];
 
-  const [filterStatus, setFilterStatus] = useState<string>('PENDING');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchText, setSearchText] = useState<string>('');
   
   // Date states
-  const [dateRange, setDateRange] = useState<any>([simulatedDayjs().startOf('day'), simulatedDayjs().endOf('day')]);
+  const [dateRange, setDateRange] = useState<any>([
+    simulatedDayjs().subtract(7, 'day').startOf('day'), 
+    simulatedDayjs().endOf('day')
+  ]);
 
   const filteredData = refundsData.filter((record: RefundRecord) => {
     // 1. Filter by status
@@ -301,7 +304,7 @@ export const RefundManagementScreen = () => {
             onChange={setFilterStatus}
             className="w-40" 
             options={[
-              {label: 'Waiting for processing', value: 'PENDING'},
+              {label: 'Waiting', value: 'PENDING'},
               {label: 'Completed', value: 'REFUNDED'},
               {label: 'Reject', value: 'REJECTED'},
               {label: 'All', value: 'ALL'}
@@ -310,7 +313,7 @@ export const RefundManagementScreen = () => {
           <RangePicker 
             format="DD/MM/YYYY" 
             placeholder={['From date', 'To date']} 
-            className="w-64" 
+            className="w-96" 
             value={dateRange}
             onChange={setDateRange}
           />

@@ -150,7 +150,7 @@ export const CustomerLayout = () => {
           <div>
             <Text strong className="block mb-2 text-gray-700">Contact</Text>
             <Text className="text-gray-500 text-sm block">Hotline: {buildingProfile?.hotline || '1900 1234'}</Text>
-            <Text className="text-gray-500 text-sm block">Active time: {buildingProfile?.operatingHours || '24/7'}</Text>
+            <Text className="text-gray-500 text-sm block">Active time: {buildingProfile ? (buildingProfile.is247 ? '24/7' : `${buildingProfile.operatingStart} - ${buildingProfile.operatingEnd}`) : '24/7'}</Text>
           </div>
           <div>
             <Text strong className="block mb-2 text-gray-700">Address</Text>

@@ -25,7 +25,7 @@ export const AuditLogScreen = () => {
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   
   // Filters & Pagination State
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([simulatedDayjs().startOf('day'), simulatedDayjs().endOf('day')]);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([simulatedDayjs().subtract(7, 'days').startOf('day'), simulatedDayjs().endOf('day')]);
   const [searchEmail, setSearchEmail] = useState<string>('');
   const [filterAction, setFilterAction] = useState<string | null>(null);
   const [filterResource, setFilterResource] = useState<string | null>(null);

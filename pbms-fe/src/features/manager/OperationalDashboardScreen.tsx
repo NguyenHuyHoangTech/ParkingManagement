@@ -17,7 +17,7 @@ const { RangePicker } = DatePicker;
 export const OperationalDashboardScreen = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const [historySize, setHistorySize] = useState(10);
-  const [historyDateRange, setHistoryDateRange] = useState<any>([simulatedDayjs(), simulatedDayjs()]);
+  const [historyDateRange, setHistoryDateRange] = useState<any>([simulatedDayjs().subtract(6, 'day'), simulatedDayjs()]);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTrafficDate, setSelectedTrafficDate] = useState<any>(simulatedDayjs());
   const [hourlyTrafficCategory, setHourlyTrafficCategory] = useState<string>('ALL');
@@ -94,6 +94,15 @@ export const OperationalDashboardScreen = () => {
       return res.data.data;
     },
     staleTime: 60000
+  });
+
+  const { data: activePatrolsData = [] } = useQuery({
+    queryKey: ['active-patrols'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/identity/work-sessions/active/patrol');
+      return res.data.data;
+    },
+    refetchInterval: 5000
   });
 
   // === Zone 4: HOURLY TRAFFIC FLOW ===
@@ -226,49 +235,8 @@ export const OperationalDashboardScreen = () => {
           <Title level={3} className="m-0 flex items-center">
             <NodeIndexOutlined className="mr-3 text-blue-600" />  Operation Report
           </Title>
-          <div className="flex items-center gap-3">
-            <DatePicker
-              value={selectedTrafficDate}
-              onChange={setSelectedTrafficDate}
-              format="DD/MM/YYYY"
-              allowClear={false}
-              size="middle"
-              showToday={false}
-              renderExtraFooter={() => (
-                <div style={{ textAlign: 'center', padding: '4px 0' }}>
-                  <Button type="link" size="small" onClick={() => setSelectedTrafficDate(simulatedDayjs())}>
-                    Today (Simulated)
-                  </Button>
-                </div>
-              )}
-            />
-          </div>
         </div>
       </Card>
-
-        {/* Live KPI */}
-      <Row gutter={16} className="mb-6">
-        <Col span={8}>
-          <Card className="shadow-sm h-full flex flex-col justify-center">
-            <Statistic title="Total Check-ins (Today)" value={liveData.checkIns} valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card className="shadow-sm h-full flex flex-col justify-center">
-            <Statistic title="Total Check-outs (Today)" value={liveData.checkOuts} valueStyle={{ color: '#fa8c16', fontWeight: 'bold' }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card className="shadow-sm h-full bg-blue-50 border-blue-200 flex flex-col justify-center">
-            <Statistic 
-              title="Peak Hour" 
-              value={trafficPeakStats.peakHour} 
-              suffix={`(${trafficPeakStats.maxVolume} veh)`}
-              valueStyle={{ color: '#eb2f96', fontWeight: 'bold' }} 
-            />
-          </Card>
-        </Col>
-      </Row>
 
       {/* Live Capacity */}
       <Card className="shadow-sm mb-6"
@@ -320,6 +288,52 @@ export const OperationalDashboardScreen = () => {
           )}
         </div>
       </Card>
+
+      {/* Traffic KPI & Date Picker */}
+      <div className="flex justify-between items-end mb-4">
+        <Title level={4} className="m-0 text-slate-700">Daily Traffic KPIs</Title>
+        <div className="flex items-center gap-3">
+          <DatePicker
+            value={selectedTrafficDate}
+            onChange={setSelectedTrafficDate}
+            format="DD/MM/YYYY"
+            allowClear={false}
+            size="middle"
+            showToday={false}
+            renderExtraFooter={() => (
+              <div style={{ textAlign: 'center', padding: '4px 0' }}>
+                <Button type="link" size="small" onClick={() => setSelectedTrafficDate(simulatedDayjs())}>
+                  Today (Simulated)
+                </Button>
+              </div>
+            )}
+          />
+        </div>
+      </div>
+
+      {/* Live KPI */}
+      <Row gutter={16} className="mb-6">
+        <Col span={8}>
+          <Card className="shadow-sm h-full flex flex-col justify-center">
+            <Statistic title="Total Check-ins (Today)" value={liveData.checkIns} valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card className="shadow-sm h-full flex flex-col justify-center">
+            <Statistic title="Total Check-outs (Today)" value={liveData.checkOuts} valueStyle={{ color: '#fa8c16', fontWeight: 'bold' }} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card className="shadow-sm h-full bg-blue-50 border-blue-200 flex flex-col justify-center">
+            <Statistic 
+              title="Peak Hour" 
+              value={trafficPeakStats.peakHour} 
+              suffix={`(${trafficPeakStats.maxVolume} veh)`}
+              valueStyle={{ color: '#eb2f96', fontWeight: 'bold' }} 
+            />
+          </Card>
+        </Col>
+      </Row>
 
       {/* === HOURLY TRAFFIC FLOW === */}
       <Card
@@ -400,12 +414,15 @@ export const OperationalDashboardScreen = () => {
         title={
           <div className="flex items-center text-slate-800">
             <span className="mr-2 text-xl">🚪</span> 
-            <span className="font-bold tracking-wide">GATE STATUS MANAGEMENT</span>
+            <span className="font-bold tracking-wide">GATE & SHIFT STATUS REPORT</span>
           </div>
         }
       >
         <Table 
-          dataSource={gatesData || []} 
+          dataSource={gatesData ? gatesData.filter((g: any) => {
+            const isPatrol = g.type === 'PATROL' || g.name?.toLowerCase().includes('patrol') || g.name?.toLowerCase().includes('tuần tra');
+            return !isPatrol;
+          }) : []} 
           rowKey="id"
           pagination={false}
           bordered
@@ -413,17 +430,68 @@ export const OperationalDashboardScreen = () => {
         >
           <Table.Column title="ID" dataIndex="id" width={60} />
           <Table.Column title="Gate name" dataIndex="name" render={(val) => <strong>{val}</strong>} />
-          <Table.Column title="Vehicle Type" dataIndex="vehicleTypeId" render={(val) => val === 1 ? 'Car' : val === 2 ? 'Motorbike' : val === 3 ? 'Bicycle' : 'All'} />
-          <Table.Column title="Current function" dataIndex="type" render={(val, r: any) => {
-            if (r.status !== 'OCCUPIED') return <span className="text-gray-400 italic">Not selected yet</span>;
-            return val === 'ENTRY' || val === 'IN' ? <Tag color="blue">GATEWAY</Tag> : <Tag color="green">GATE Out</Tag>;
+          <Table.Column title="Vehicle Type" render={(val, record: any) => {
+            if (record.floorId && zonesData) {
+              const zone = zonesData.find((z: any) => z.floorId === record.floorId);
+              if (zone && zone.vehicleType) {
+                const typeLower = zone.vehicleType.toLowerCase();
+                const isFourWheel = typeLower.includes('car') || typeLower.includes('van') || typeLower.includes('four');
+                return isFourWheel ? 'Car (4-wheel)' : 'Motorbike (2-wheel)';
+              }
+            }
+            return 'All';
           }} />
-          <Table.Column title="Status" dataIndex="status" render={(val) => {
-            if (val === 'OCCUPIED') return <Tag color="green">OPEN</Tag>;
-            if (val === 'IDLE') return <Tag color="default">CLOSE</Tag>;
+          <Table.Column title="Current function" dataIndex="type" render={(val, r: any) => {
+            const isPatrol = val === 'PATROL' || r.name?.toLowerCase().includes('patrol') || r.name?.toLowerCase().includes('tuần tra');
+            if (isPatrol) return <Tag color="purple">PATROL</Tag>;
+            if (r.status !== 'OCCUPIED') return <span className="text-gray-400 italic">Not selected yet</span>;
+            if (val === 'IN' || val === 'ENTRY') return <Tag color="blue">GATE IN</Tag>;
+            if (val === 'OUT' || val === 'EXIT') return <Tag color="green">GATE OUT</Tag>;
+            if (val === 'IN_OUT' || val === 'ENTRY_EXIT') return <Tag color="orange">GATE IN/OUT</Tag>;
+            return <Tag>{val}</Tag>;
+          }} />
+          <Table.Column title="Status" dataIndex="status" render={(val, r: any) => {
+            const isPatrol = r.type === 'PATROL' || r.name?.toLowerCase().includes('patrol') || r.name?.toLowerCase().includes('tuần tra');
+            if (val === 'OCCUPIED') return isPatrol ? <Tag color="green">ACTIVE</Tag> : <Tag color="green">OPEN</Tag>;
+            if (val === 'IDLE') return isPatrol ? <Tag color="default">INACTIVE</Tag> : <Tag color="default">CLOSE</Tag>;
             return <Tag color="red">Maintenance</Tag>;
           }} />
-          <Table.Column title="Staff on duty" dataIndex="staffName" render={(val) => val ? <span className="font-medium text-blue-700">{val}</span> : <span className="text-gray-400 italic">Do not have</span>} />
+          <Table.Column title="Staff on duty" dataIndex="staffName" render={(val, record: any) => val ? (
+            <div className="flex flex-col">
+              <span className="font-medium text-blue-700">{val}</span>
+              {record.staffEmail && <span className="text-xs text-gray-500">{record.staffEmail}</span>}
+            </div>
+          ) : <span className="text-gray-400 italic">No staff</span>} />
+        </Table>
+      </Card>
+
+      {/* ACTIVE PATROL STAFF REPORT */}
+      <Card 
+        className="mt-6 shadow-sm border-slate-200 rounded-xl"
+        title={
+          <div className="flex items-center text-slate-800">
+            <span className="mr-2 text-xl">👮‍♂️</span> 
+            <span className="font-bold tracking-wide">ACTIVE PATROL STAFF</span>
+          </div>
+        }
+      >
+        <Table 
+          dataSource={activePatrolsData} 
+          rowKey="sessionId"
+          pagination={false}
+          bordered
+          size="middle"
+        >
+          <Table.Column title="Session ID" dataIndex="sessionId" width={100} />
+          <Table.Column title="Staff on duty" dataIndex="staffName" render={(val, record: any) => val ? (
+            <div className="flex flex-col">
+              <span className="font-medium text-blue-700">{val}</span>
+              {record.staffEmail && <span className="text-xs text-gray-500">{record.staffEmail}</span>}
+            </div>
+          ) : <span className="text-gray-400 italic">No staff</span>} />
+          <Table.Column title="Role" dataIndex="role" render={() => <Tag color="purple">PATROL</Tag>} />
+          <Table.Column title="Status" dataIndex="status" render={() => <Tag color="green">ACTIVE</Tag>} />
+          <Table.Column title="Login time" dataIndex="loginTime" render={(val) => val ? simulatedDayjs(val).format('HH:mm - DD/MM/YYYY') : '-'} />
         </Table>
       </Card>
 

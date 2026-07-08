@@ -258,7 +258,7 @@ export const HomeScreen = () => {
             <div className="flex flex-wrap items-center text-gray-300 mt-4 gap-4">
               <div className="flex items-center">
                 <ClockCircleOutlined className="mr-2 text-blue-400" />
-                <span className="font-medium text-lg">Active time: <span className="text-white font-bold">{buildingProfile?.operatingHours || "24/7"}</span></span>
+                <span className="font-medium text-lg">Active time: <span className="text-white font-bold">{buildingProfile ? (buildingProfile.is247 ? "24/7" : `${buildingProfile.operatingStart} - ${buildingProfile.operatingEnd}`) : "24/7"}</span></span>
               </div>
               <div className="flex items-center">
                 <InfoCircleOutlined className="mr-2 text-indigo-400" />

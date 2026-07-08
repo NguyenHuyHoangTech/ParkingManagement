@@ -5,7 +5,17 @@
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
-    "test:flow": "playwright test tests/multi-role-flow.spec.ts --headed --project=chromium"
+    "test:auth": "playwright test tests/1-core-and-auth",
+    "test:spatial": "playwright test tests/2-spatial-and-routing",
+    "test:finance": "playwright test tests/3-finance-and-analytics",
+    "test:staff": "playwright test tests/4-gate-operations",
+    "test:staff-flow": "playwright test tests/4-gate-operations/staff-flows.spec.ts --project=chromium",
+    "test:customer": "playwright test tests/5-customer-and-iot",
+    "test:simulation": "playwright test tests/system-simulation.spec.ts --project=chromium",
+    "test:admin-auth-flow": "playwright test tests/1-core-and-auth/admin-and-auth-flows.spec.ts --project=chromium",
+    "test:admin-phase2": "playwright test tests/1-core-and-auth/phase2-admin-flows.spec.ts --project=chromium",
+    "test:auth-phase1": "playwright test tests/1-core-and-auth/phase1-auth-flows.spec.ts --project=chromium",
+    "test:ui": "playwright test --ui"
   },
   "keywords": [],
   "author": "",
@@ -13,7 +23,15 @@
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.0",
     "typescript": "^6.0.3"
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "dependencies": {
+    "playwright": "^1.61.1",
+    "playwright-core": "^1.61.1",
+    "undici-types": "^8.3.0"
   }
 }

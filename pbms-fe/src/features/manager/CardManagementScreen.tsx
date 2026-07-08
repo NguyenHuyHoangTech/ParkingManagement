@@ -128,6 +128,18 @@ export const CardManagementScreen = () => {
     }
   ];
 
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [searchText, setSearchText] = useState<string>('');
+
+  const filteredCards = cardsData.filter((card: RfidCard) => {
+    const matchStatus = statusFilter === 'ALL' || card.status === statusFilter;
+    const searchLower = searchText.toLowerCase();
+    const matchSearch = !searchText || 
+      card.uid.toLowerCase().includes(searchLower) || 
+      card.visualId.toLowerCase().includes(searchLower);
+    return matchStatus && matchSearch;
+  });
+
   return (
     <div className="h-full overflow-y-auto bg-gray-50 p-6 pb-24">
       <div className="mb-6">
@@ -172,19 +184,26 @@ export const CardManagementScreen = () => {
       <Card className="shadow-sm mb-6">
         <div className="flex justify-between">
           <div className="flex gap-4">
-            <Select defaultValue="ALL" className="w-48" options={[
-              {label: 'All Status', value: 'ALL'},
-              {label: 'Available', value: 'AVAILABLE'},
-              {label: 'In Use', value: 'IN_USE'},
-              {label: 'Lost', value: 'LOST'},
-              {label: 'Damaged', value: 'DAMAGED'}
-            ]} />
+            <Select 
+              value={statusFilter} 
+              onChange={v => setStatusFilter(v)} 
+              className="w-48" 
+              options={[
+                {label: 'All Status', value: 'ALL'},
+                {label: 'Available', value: 'AVAILABLE'},
+                {label: 'In Use', value: 'IN_USE'},
+                {label: 'Lost', value: 'LOST'},
+                {label: 'Damaged', value: 'DAMAGED'}
+              ]} 
+            />
             <Button type="primary" icon={<FilterOutlined />} ghost>Filter</Button>
             <Input 
               placeholder="Type UID or Print Code on the cardeee" 
               prefix={<SearchOutlined />} 
               className="w-80" 
               allowClear
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
             />
           </div>
           <Button 
@@ -194,16 +213,15 @@ export const CardManagementScreen = () => {
             className="bg-indigo-600 hover:bg-indigo-500 font-bold shadow-md"
             onClick={() => setIsModalVisible(true)}
           >
-            
-                                  Enter New Card Batch
-                                </Button>
+            Enter New Card Batch
+          </Button>
         </div>
       </Card>
 
       {/* Zone 3: DATA TABLE */}
       <Card className="shadow-sm rounded-xl border-gray-200" bodyStyle={{ padding: 0 }}>
         <Table 
-          dataSource={cardsData} 
+          dataSource={filteredCards} 
           columns={columns} 
           rowKey="uid" 
           pagination={{ pageSize: 10 }}

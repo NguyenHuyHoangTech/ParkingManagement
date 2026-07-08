@@ -93,6 +93,16 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     },
     enabled: !!scanData && !!vehicleTypes && !!activeGate?.floorId
   });
+
+  const { data: overstayCount = 0 } = useQuery({
+    queryKey: ['overstay-count'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/incident/incidents');
+      const incidents = res.data?.data || [];
+      return incidents.filter((t: any) => t.type === 'OVERSTAY').length;
+    },
+    refetchInterval: 10000
+  });
   // WebSocket for real-time map IoT updates
   useEffect(() => {
     if (stompClient && connected) {
@@ -379,9 +389,9 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   };
 
   const renderInGatePanel = () => (
-    <div className="flex flex-col h-full overflow-hidden w-full bg-slate-100">
-      {/* TASK 1 & 2: Top Zone (Cameras) - STRICT h-[35%] */}
-      <div className="h-[35%] flex-none p-2 relative flex bg-slate-900 border-b-4 border-slate-800">
+    <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden w-full bg-slate-100">
+      {/* TASK 1 & 2: Top Zone (Cameras) - STRICT h-[38%] */}
+      <div className="h-[38%] flex-none p-2 relative flex bg-slate-900 border-b-4 border-slate-800">
         <div className="absolute top-0 left-0 bg-black/70 text-white px-2 py-1 text-[10px] z-10 font-bold uppercase tracking-widest">
           Camera Feeds
         </div>
@@ -414,26 +424,24 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           </div>
         )}
 
-        {scanData && (
-          <div className={`p-2 rounded-lg shadow-sm flex-none text-xs flex flex-col gap-1 overflow-hidden border ${scanData.warnings?.length > 0 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
+          <div className={`p-2 rounded-lg shadow-sm flex-none text-xs flex flex-col gap-1 overflow-hidden border ${(scanData?.warnings?.length || 0) > 0 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
             <div className="font-bold flex items-center justify-between">
               <div className="flex items-center">
-                {scanData.warnings?.length > 0 ? <WarningOutlined className="mr-1" /> : <CheckCircleOutlined className="mr-1" />}
+                {(scanData?.warnings?.length || 0) > 0 ? <WarningOutlined className="mr-1" /> : <CheckCircleOutlined className="mr-1" />}
 
                 WARNING / NOTE:
               </div>
             </div>
-            <div className="flex-1 overflow-hidden min-h-[30px]">
-              {scanData.warnings?.length > 0 ? (
+            <div className="flex-1 overflow-y-auto max-h-[100px] min-h-[30px]">
+              {(scanData?.warnings?.length || 0) > 0 ? (
                 <ul className="list-disc pl-4 m-0">
-                  {scanData.warnings.map((w: string, idx: number) => <li key={idx} className="truncate" title={w}>{w}</li>)}
+                  {scanData!.warnings.map((w: string, idx: number) => <li key={idx} className="whitespace-normal break-words" title={w}>{w}</li>)}
                 </ul>
               ) : (
                 <span className="text-green-600">The system does not record any warnings for this vehicle</span>
               )}
             </div>
           </div>
-        )}
 
         <div className="bg-white border border-slate-200 rounded-xl p-2 shadow-sm flex-none flex flex-col gap-2">
           <div className="flex justify-between items-center bg-slate-100 p-2 rounded-lg border border-slate-200 shadow-sm">
@@ -480,7 +488,6 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
         {/* REAL-TIME ZONE STATUS */}
         <div className="bg-white border border-slate-300 shadow-sm rounded-xl p-2 flex-1 overflow-y-auto custom-scrollbar flex flex-col min-h-0 relative">
-          <Text className="text-blue-600 text-[10px] font-bold tracking-widest block uppercase mb-1 sticky top-0 bg-white z-10">Real-time Zone Coordination</Text>
           {scanData && (
             <div className="bg-green-50 border-2 border-green-400 rounded-lg p-3 mb-2 flex flex-col items-center justify-center shadow-sm min-h-[80px] shrink-0 relative">
               <Text className="text-green-600 text-[12px] uppercase font-bold tracking-widest mb-1">Suggested Route:</Text>
@@ -499,8 +506,8 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           )}
 
           {scanData && routingStatusList && Array.isArray(routingStatusList) ? (
-            <div className="flex flex-col gap-1.5 shrink-0">
-              <Text className="text-slate-500 text-[9px] font-bold tracking-widest uppercase">Coordination Order:</Text>
+            <div className="grid grid-cols-2 gap-1.5 shrink-0">
+              <Text className="text-slate-500 text-[9px] font-bold tracking-widest uppercase col-span-2">Coordination Order:</Text>
               {routingStatusList.map((zoneStatus: any, idx: number) => {
                 const isSuggested = scanData?.suggestedZoneId === zoneStatus.zoneId;
                 const isFull = zoneStatus.available <= 0;
@@ -519,7 +526,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
               })}
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5 shrink-0">
+            <div className="grid grid-cols-2 gap-1.5 shrink-0">
               {Array.isArray(mapData) && mapData.filter((z: any) => z.floorId === activeGate?.floorId).map((zone: any) => {
                 const total = zone.capacity || 0;
                 const disabledCount = (zone.slots || []).filter((s: any) => s.status === 'DISABLED').length;
@@ -550,7 +557,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 );
               })}
               {(!Array.isArray(mapData) || mapData.filter((z: any) => z.floorId === activeGate?.floorId).length === 0) && (
-                <div className="text-center text-slate-500 text-xs py-2 italic">No zones on this floor</div>
+                <div className="text-center text-slate-500 text-xs py-2 italic col-span-2">No zones on this floor</div>
               )}
             </div>
           )}
@@ -591,7 +598,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       <Row className="h-full w-full m-0">
         <>
           {/* LEFT PANEL: Action Console (IN) */}
-          <Col span={9} className="h-full overflow-y-auto overflow-x-hidden p-4 flex flex-col border-r border-slate-300 bg-slate-50">
+          <Col span={9} className="h-full overflow-hidden p-4 flex flex-col border-r border-slate-300 bg-slate-50">
 
             <div className="flex justify-between items-center mb-2 shrink-0 gap-2">
               <Title level={4} className="m-0 text-slate-800 whitespace-nowrap flex items-center">
@@ -633,6 +640,12 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                     label: zone.name || zone.zoneName
                   })) : []}
                 />
+                
+                {scanData?.warnings?.some((w: string) => w.startsWith('Notice: This vehicle has a booking at')) && (
+                  <div className="bg-red-500 text-white text-xs px-2 py-1 rounded shadow flex items-center gap-1 font-bold animate-pulse">
+                    <WarningOutlined /> Early Arrival
+                  </div>
+                )}
               </div>
             </div>
             {renderInGatePanel()}

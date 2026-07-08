@@ -450,9 +450,8 @@ export const PricingConfigScreen = () => {
       newStartTime = `${startH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
       newEndTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
     } else {
-      // 24H full, insert a small 5min shift to adjust later
-      newStartTime = '12:00';
-      newEndTime = '12:05';
+      message.error('Các ca đã kín 24h, không thể thêm ca mới!');
+      return;
     }
 
     setConfig(prev => {
@@ -979,7 +978,11 @@ export const PricingConfigScreen = () => {
 
         {/* BOTTOM ACTION - FIXED */}
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-30 flex gap-3">
-          <Button size="large" icon={<CloseOutlined />} className="flex-1 bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100">
+          <Button size="large" icon={<CloseOutlined />} className="flex-1 bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100" onClick={() => {
+            if (initialConfig) {
+              setConfig(JSON.parse(JSON.stringify(initialConfig)));
+            }
+          }}>
             Cancel
           </Button>
           <Button

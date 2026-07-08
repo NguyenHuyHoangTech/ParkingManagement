@@ -1,11 +1,12 @@
 import { simulatedDayjs } from '../../core/utils/timeProvider';
+import dayjs from 'dayjs';
 import React, { useState } from 'react';
-import { 
-  Card, Typography, Table, Tag, Button, Input, DatePicker, Select, 
-  Row, Col, Statistic, Drawer, Timeline, Divider, InputNumber, message, Space, Modal, Form
+import {
+  Card, Typography, Table, Tag, Button, Input, DatePicker, Select,
+  Row, Col, Statistic, Drawer, Timeline, Divider, InputNumber, message, Space, Modal, Form, Switch, TimePicker
 } from 'antd';
-import { 
-  ScheduleOutlined, SearchOutlined, CheckCircleOutlined, 
+import {
+  ScheduleOutlined, SearchOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ClockCircleOutlined, SettingOutlined,
   RightCircleOutlined, FilterOutlined
 } from '@ant-design/icons';
@@ -36,7 +37,14 @@ export const PreBookingManagementScreen = () => {
   const [selectedRecord, setSelectedRecord] = useState<PreBooking | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  
+
+  const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([
+    simulatedDayjs().subtract(7, 'day'),
+    simulatedDayjs()
+  ]);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [searchKeyword, setSearchKeyword] = useState('');
+
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
@@ -96,10 +104,45 @@ export const PreBookingManagementScreen = () => {
 
   const allBookings = bookingsData || [];
 
-  const upcomingCount = allBookings.filter((b: any) => b.status === 'PENDING' || b.status === 'ACTIVE').length;
-  const ongoingCount = allBookings.filter((b: any) => b.status === 'ONGOING').length;
-  const completedCount = allBookings.filter((b: any) => b.status === 'COMPLETED').length;
-  const cancelledCount = allBookings.filter((b: any) => b.status === 'CANCELLED').length;
+  const baseFilteredBookings = React.useMemo(() => {
+    return allBookings.filter((b: any) => {
+      // Date matching
+      let matchDate = true;
+      if (filterDateRange && filterDateRange[0] && filterDateRange[1] && b.expectedEntryTime) {
+        const bDate = dayjs(b.expectedEntryTime);
+        const start = filterDateRange[0].startOf('day');
+        const end = filterDateRange[1].endOf('day');
+        matchDate = (bDate.isAfter(start) || bDate.isSame(start)) &&
+          (bDate.isBefore(end) || bDate.isSame(end));
+      }
+
+      // Search matching
+      let matchSearch = true;
+      if (searchKeyword) {
+        const kw = searchKeyword.toLowerCase();
+        matchSearch =
+          (b.id && String(b.id).toLowerCase().includes(kw)) ||
+          (b.plateNumber && b.plateNumber.toLowerCase().includes(kw)) ||
+          (b.userEmail && b.userEmail.toLowerCase().includes(kw));
+      }
+
+      return matchDate && matchSearch;
+    });
+  }, [allBookings, filterDateRange, searchKeyword]);
+
+  const filteredBookings = React.useMemo(() => {
+    return baseFilteredBookings.filter((b: any) => {
+      if (filterStatus !== 'ALL') {
+        return b.status === filterStatus;
+      }
+      return true;
+    });
+  }, [baseFilteredBookings, filterStatus]);
+
+  const upcomingCount = baseFilteredBookings.filter((b: any) => b.status === 'PENDING').length;
+  const ongoingCount = baseFilteredBookings.filter((b: any) => b.status === 'ACTIVE').length;
+  const completedCount = baseFilteredBookings.filter((b: any) => b.status === 'COMPLETED').length;
+  const cancelledCount = baseFilteredBookings.filter((b: any) => b.status === 'CANCELLED').length;
 
   const handleOpenDrawer = (record: PreBooking) => {
     setSelectedRecord(record);
@@ -110,56 +153,56 @@ export const PreBookingManagementScreen = () => {
     { title: 'Booking Code', dataIndex: 'id', key: 'id', render: (text: string) => <Text strong>{text}</Text> },
     { title: 'User Email', dataIndex: 'userEmail', key: 'userEmail', render: (text: string) => <Text>{text}</Text> },
     { title: 'License Plate', dataIndex: 'plateNumber', key: 'plateNumber', render: (text: string) => <Tag color="blue" className="font-bold text-base">{text}</Tag> },
-    { 
-      title: 'Expected (In - Duration)', 
-      key: 'expected', 
+    {
+      title: 'Expected (In - Duration)',
+      key: 'expected',
       render: (_: any, record: PreBooking) => {
         const inTime = record.expectedEntryTime ? simulatedDayjs(record.expectedEntryTime).format('HH:mm DD/MM') : 'N/A';
-        return <Text><ClockCircleOutlined className="mr-1 text-gray-400"/>{inTime} ({record.expectedDurationMinutes} mins)</Text>;
-      } 
+        return <Text><ClockCircleOutlined className="mr-1 text-gray-400" />{inTime} ({record.expectedDurationMinutes} mins)</Text>;
+      }
     },
-    { 
-      title: 'Actual In', 
-      dataIndex: 'actualIn', 
+    {
+      title: 'Actual In',
+      dataIndex: 'actualIn',
       key: 'actualIn',
-      render: (text: string) => text ? <Text strong className="text-green-600">{text}</Text> : <Text type="secondary">-</Text> 
+      render: (text: string) => text ? <Text strong className="text-green-600">{text}</Text> : <Text type="secondary">-</Text>
     },
-    { 
-      title: 'Actual Out', 
-      dataIndex: 'actualOut', 
+    {
+      title: 'Actual Out',
+      dataIndex: 'actualOut',
       key: 'actualOut',
       render: (text: string) => text ? <Text strong className="text-green-600">{text}</Text> : <Text type="secondary">-</Text>
     },
-    { 
-      title: 'Status', 
-      dataIndex: 'status', 
+    {
+      title: 'Status',
+      dataIndex: 'status',
       key: 'status',
       render: (status: string, record: PreBooking) => {
-        if (status === 'PENDING') return <Tag color="gold" className="font-bold">PENDING</Tag>;
-        if (status === 'ACTIVE') return <Tag color="blue" className="font-bold">ACTIVE (PAID)</Tag>;
+        if (status === 'PENDING') return <Tag color="gold" className="font-bold">ĐÃ ĐẶT CHỖ</Tag>;
+        if (status === 'ACTIVE') return <Tag color="blue" className="font-bold animate-pulse">ĐANG TRONG BÃI</Tag>;
         if (status === 'ONGOING') return <Tag color="orange" className="font-bold animate-pulse">ONGOING</Tag>;
-        if (status === 'COMPLETED') return <Tag color="green" className="font-bold"><CheckCircleOutlined className="mr-1"/>COMPLETED</Tag>;
+        if (status === 'COMPLETED') return <Tag color="green" className="font-bold"><CheckCircleOutlined className="mr-1" />ĐÃ HOÀN THÀNH</Tag>;
         if (status === 'COMPLETED_UNUSED') return <Tag color="default" className="font-bold">NO SHOW</Tag>;
-        
+
         if (status === 'CANCELLED') {
-           if (record.refundStatus === 'PENDING') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1"/>CANCELLED (REFUNDING)</Tag>;
-           if (record.refundStatus === 'REFUNDED' || record.refundStatus === 'SUCCESS') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1"/>CANCELLED (REFUNDED)</Tag>;
-           return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1"/>CANCELLED</Tag>;
+          if (record.refundStatus === 'PENDING') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY (ĐANG HOÀN TIỀN)</Tag>;
+          if (record.refundStatus === 'REFUNDED' || record.refundStatus === 'SUCCESS') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY (ĐÃ HOÀN TIỀN)</Tag>;
+          return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY</Tag>;
         }
         return <Tag color="default" className="font-bold">{status}</Tag>;
       }
     },
-    { 
-      title: 'Booking Fee', 
-      dataIndex: 'reservationFee', 
+    {
+      title: 'Booking Fee',
+      dataIndex: 'reservationFee',
       key: 'reservationFee',
-      render: (fee: number) => <Text strong className="text-blue-600">{(fee || 0).toLocaleString()} ₫</Text> 
+      render: (fee: number) => <Text strong className="text-blue-600">{(fee || 0).toLocaleString()} ₫</Text>
     },
-    { 
-      title: 'Penalty Fee', 
-      dataIndex: 'penaltyFee', 
+    {
+      title: 'Penalty Fee',
+      dataIndex: 'penaltyFee',
       key: 'penaltyFee',
-      render: (fee: number) => <Text strong className="text-red-600">{(fee || 0).toLocaleString()} ₫</Text> 
+      render: (fee: number) => <Text strong className="text-red-600">{(fee || 0).toLocaleString()} ₫</Text>
     },
     {
       title: 'Action',
@@ -179,9 +222,9 @@ export const PreBookingManagementScreen = () => {
           </Title>
           <Text type="secondary">Monitor the expected traffic flow to the parking lot in Real-time</Text>
         </div>
-        <Button 
-          type="primary" 
-          icon={<SettingOutlined />} 
+        <Button
+          type="primary"
+          icon={<SettingOutlined />}
           onClick={openSettings}
           size="large"
           className="shadow-sm"
@@ -193,14 +236,14 @@ export const PreBookingManagementScreen = () => {
       <Row gutter={16} className="mb-6">
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-blue-500 bg-blue-50/30">
-            <Statistic title="UPCOMING" value={upcomingCount} suffix="Vehicles" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
+            <Statistic title="ĐÃ ĐẶT CHỖ" value={upcomingCount} suffix="Vehicles" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
-            <Statistic 
-              title={<span className="text-orange-600 animate-pulse font-semibold">ONGOING</span>} 
-              value={ongoingCount} suffix="Vehicles" valueStyle={{ color: '#d97706', fontWeight: 'bold' }} 
+            <Statistic
+              title={<span className="text-orange-600 animate-pulse font-semibold">ĐANG TRONG BÃI</span>}
+              value={ongoingCount} suffix="Vehicles" valueStyle={{ color: '#d97706', fontWeight: 'bold' }}
             />
           </Card>
         </Col>
@@ -218,29 +261,42 @@ export const PreBookingManagementScreen = () => {
 
       <Card className="shadow-sm mb-6">
         <div className="flex gap-4">
-          <DatePicker defaultValue={simulatedDayjs()} format="DD/MM/YYYY" className="w-48" allowClear={false} />
-          <Select defaultValue="ALL" className="w-48" options={[
-            {label: 'All Status', value: 'ALL'},
-            {label: 'Upcoming', value: 'UPCOMING'},
-            {label: 'In Parking Lot', value: 'ONGOING'},
-            {label: 'Completed', value: 'COMPLETED'},
-            {label: 'Cancelled', value: 'CANCELLED'}
+          <DatePicker.RangePicker
+            value={[filterDateRange[0], filterDateRange[1]]}
+            onChange={(dates) => {
+              if (dates) {
+                setFilterDateRange(dates as [dayjs.Dayjs | null, dayjs.Dayjs | null]);
+              } else {
+                setFilterDateRange([null, null]);
+              }
+            }}
+            format="DD/MM/YYYY"
+            className="w-75"
+            allowClear={true}
+          />
+          <Select value={filterStatus} onChange={setFilterStatus} className="w-48" options={[
+            { label: 'All Status', value: 'ALL' },
+            { label: 'Đã đặt chỗ', value: 'PENDING' },
+            { label: 'Đang trong bãi', value: 'ACTIVE' },
+            { label: 'Đã hoàn thành', value: 'COMPLETED' },
+            { label: 'Đã hủy', value: 'CANCELLED' }
           ]} />
-          <Button type="primary" icon={<FilterOutlined />}>Filter</Button>
-          <Input 
-            placeholder="Type in Booking Code or License Plate" 
-            prefix={<SearchOutlined />} 
-            className="w-80" 
+          <Input
+            placeholder="Type in Booking Code or License Plate"
+            prefix={<SearchOutlined />}
+            className="w-80"
             allowClear
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
           />
         </div>
       </Card>
 
       <Card className="shadow-sm rounded-xl border-gray-200" bodyStyle={{ padding: 0 }}>
-        <Table 
-          dataSource={allBookings} 
-          columns={columns} 
-          rowKey="id" 
+        <Table
+          dataSource={filteredBookings}
+          columns={columns}
+          rowKey="id"
           pagination={{ pageSize: 10 }}
         />
       </Card>
@@ -277,40 +333,40 @@ export const PreBookingManagementScreen = () => {
       >
         {selectedRecord && (
           <div className="flex flex-col gap-6">
-            
+
             <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-               <div>
-                 <Text type="secondary" className="block text-xs uppercase mb-1">License Plate</Text>
-                 <Tag color="blue" className="m-0 font-bold text-lg">{selectedRecord.plateNumber}</Tag>
-               </div>
-               <div className="text-right">
-                 <Text type="secondary" className="block text-xs uppercase mb-1">Parking Location</Text>
-                 {selectedRecord.slotName ? (
-                   <Text strong className="text-xl text-indigo-700">{selectedRecord.slotName}</Text>
-                 ) : (
-                   <Text type="secondary" className="italic">Not assigned yet</Text>
-                 )}
-               </div>
+              <div>
+                <Text type="secondary" className="block text-xs uppercase mb-1">License Plate</Text>
+                <Tag color="blue" className="m-0 font-bold text-lg">{selectedRecord.plateNumber}</Tag>
+              </div>
+              <div className="text-right">
+                <Text type="secondary" className="block text-xs uppercase mb-1">Parking Location</Text>
+                {selectedRecord.slotName ? (
+                  <Text strong className="text-xl text-indigo-700">{selectedRecord.slotName}</Text>
+                ) : (
+                  <Text type="secondary" className="italic">Not assigned yet</Text>
+                )}
+              </div>
             </div>
 
             <div>
               <Title level={5} className="text-gray-800 border-b pb-2">1. Order Lifecycle</Title>
               <Timeline className="mt-4"
                 items={[
-                  { 
-                    color: 'blue', 
+                  {
+                    color: 'blue',
                     children: (
                       <div>
-                        <Text strong>Customer created Reservation</Text><br/>
+                        <Text strong>Customer created Reservation</Text><br />
                         <Text type="secondary" className="text-xs">At {selectedRecord.createdAt ? simulatedDayjs(selectedRecord.createdAt).format('HH:mm DD/MM') : 'N/A'}</Text>
                       </div>
                     )
                   },
-                  { 
-                    color: selectedRecord.status === 'PENDING' ? 'gray' : 'green', 
+                  {
+                    color: selectedRecord.status === 'PENDING' ? 'gray' : 'green',
                     children: (
                       <div>
-                        <Text strong>{selectedRecord.status === 'PENDING' ? 'Not yet paid' : 'Reservation fee paid'}</Text><br/>
+                        <Text strong>{selectedRecord.status === 'PENDING' ? 'Not yet paid' : 'Reservation fee paid'}</Text><br />
                       </div>
                     )
                   },
@@ -335,21 +391,21 @@ export const PreBookingManagementScreen = () => {
                         )}
                       </div>
                     )
-                  } : selectedRecord.actualIn ? { 
-                    color: 'orange', 
+                  } : selectedRecord.actualIn ? {
+                    color: 'orange',
                     children: (
                       <div>
-                        <Text strong>Vehicle checked-in</Text><br/>
+                        <Text strong>Vehicle checked-in</Text><br />
                         <Text type="secondary" className="text-xs">At {selectedRecord.actualIn}</Text>
                       </div>
                     )
                   } : { color: 'gray', children: <Text type="secondary">Waiting for vehicle check-in</Text> },
 
-                  (selectedRecord.status !== 'CANCELLED' && selectedRecord.actualOut) ? { 
-                    color: 'green', 
+                  (selectedRecord.status !== 'CANCELLED' && selectedRecord.actualOut) ? {
+                    color: 'green',
                     children: (
                       <div>
-                        <Text strong>Checked-out</Text><br/>
+                        <Text strong>Checked-out</Text><br />
                         <Text type="secondary" className="text-xs">At {selectedRecord.actualOut}</Text>
                       </div>
                     )
@@ -365,7 +421,7 @@ export const PreBookingManagementScreen = () => {
                   <Text>Base Fee:</Text>
                   <Text strong>{(selectedRecord.reservationFee || 0).toLocaleString()} ₫</Text>
                 </div>
-                
+
                 <div className="flex justify-between text-red-600">
                   <Text type="danger">Penalty Fee:</Text>
                   <Text strong>+ {(selectedRecord.penaltyFee || 0).toLocaleString()} ₫</Text>

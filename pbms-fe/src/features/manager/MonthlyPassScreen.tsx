@@ -36,6 +36,10 @@ export const MonthlyPassScreen = () => {
   const { stompClient, connected } = useWebSocket();
   const [discounts, setDiscounts] = useState<{ [key: string]: number }>({ '1': 0, '3': 5, '6': 10, '12': 15 });
 
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [searchKeyword, setSearchKeyword] = useState('');
+
   React.useEffect(() => {
     fetchThreshold();
     fetchDiscounts();
@@ -122,11 +126,33 @@ export const MonthlyPassScreen = () => {
 
   const passes: MonthlyPass[] = monthlyPassesData || [];
 
+  const filteredPasses = React.useMemo(() => {
+    return passes.filter(p => {
+      let matchType = true;
+      if (filterType !== 'ALL') {
+        const t = p.type?.toLowerCase() || '';
+        if (filterType === 'CAR') matchType = t.includes('car') || t.includes('van') || t.includes('four');
+        if (filterType === 'MOTO') matchType = t.includes('moto') || t.includes('bike');
+      }
+      let matchStatus = true;
+      if (filterStatus !== 'ALL') {
+        matchStatus = p.status === filterStatus;
+      }
+      let matchSearch = true;
+      if (searchKeyword) {
+        const kw = searchKeyword.toLowerCase();
+        matchSearch = 
+          (p.plate && p.plate.toLowerCase().includes(kw)) ||
+          (p.user && p.user.toLowerCase().includes(kw)) ||
+          (p.email && p.email.toLowerCase().includes(kw)) ||
+          (p.phone && p.phone.toLowerCase().includes(kw));
+      }
+      return matchType && matchStatus && matchSearch;
+    });
+  }, [passes, filterType, filterStatus, searchKeyword]);
+
   const activeCount = passes.filter(p => p.status === 'ACTIVE').length;
-  const expiringCount = passes.filter(p => p.status === 'EXPIRING_SOON').length;
-  const inactiveCount = passes.filter(p => p.status === 'EXPIRED' || p.status === 'CANCELED').length;
-
-
+  const inactiveCount = passes.filter(p => p.status === 'EXPIRED').length;
   const handleOpenDrawer = (record: MonthlyPass) => {
     setSelectedRecord(record);
     setIsDrawerOpen(true);
@@ -158,10 +184,7 @@ export const MonthlyPassScreen = () => {
       key: 'status',
       render: (status: string) => {
         if (status === 'ACTIVE') return <Tag color="success" icon={<CheckCircleOutlined />}>Active</Tag>;
-        if (status === 'EXPIRING_SOON') return <Tag color="warning" icon={<ExclamationCircleOutlined />}>Expiring Soon</Tag>;
         if (status === 'EXPIRED') return <Tag color="error">Expired</Tag>;
-        if (status === 'CANCELED') return <Tag color="default">Cancel</Tag>;
-        if (status === 'PENDING') return <Tag color="processing">Waiting for Approval</Tag>;
         return <Tag>{status}</Tag>;
       }
     },
@@ -191,24 +214,14 @@ export const MonthlyPassScreen = () => {
 
       {/* KPI CARDS */}
       <Row gutter={16} className="mb-6">
-        <Col span={8}>
+        <Col span={12}>
           <Card className="shadow-sm border-l-4 border-l-green-500">
-            <Statistic title="Active (aCTIVE)" value={activeCount} suffix="Subscribe" valueStyle={{ color: '#3f8600', fontWeight: 'bold' }} />
+            <Statistic title="Active" value={activeCount} suffix="Subscribe" valueStyle={{ color: '#3f8600', fontWeight: 'bold' }} />
           </Card>
         </Col>
-        <Col span={8}>
-          <Card className="shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
-            <Statistic
-              title={<span className="text-orange-600 animate-pulse font-semibold">Expiring Soon (&lt; 7 Days)</span>}
-              value={expiringCount}
-              suffix="Subscribe"
-              valueStyle={{ color: '#d97706', fontWeight: 'bold' }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
+        <Col span={12}>
           <Card className="shadow-sm border-l-4 border-l-gray-400">
-            <Statistic title="Expired / Cancel" value={inactiveCount} suffix="Subscribe" valueStyle={{ color: '#6b7280', fontWeight: 'bold' }} />
+            <Statistic title="Expired" value={inactiveCount} suffix="Subscribe" valueStyle={{ color: '#6b7280', fontWeight: 'bold' }} />
           </Card>
         </Col>
       </Row>
@@ -216,24 +229,23 @@ export const MonthlyPassScreen = () => {
       {/* FILTER BAR */}
       <Card className="shadow-sm mb-6">
         <div className="flex gap-4">
-          <Select defaultValue="ALL" className="w-40" options={[
+          <Select value={filterType} onChange={setFilterType} className="w-40" options={[
             { label: 'all Vehicle Types', value: 'ALL' },
             { label: 'Car', value: 'CAR' },
             { label: 'Motorbike', value: 'MOTO' }
           ]} />
-          <Select defaultValue="ALL" className="w-48" options={[
+          <Select value={filterStatus} onChange={setFilterStatus} className="w-48" options={[
             { label: 'All Status', value: 'ALL' },
             { label: 'Active', value: 'ACTIVE' },
-            { label: 'About to expire', value: 'EXPIRING_SOON' },
-            { label: 'Expired/Lock', value: 'EXPIRED' },
-            { label: 'Waiting for approval', value: 'PENDING' }
+            { label: 'Expired', value: 'EXPIRED' }
           ]} />
-          <Button type="primary" icon={<FilterOutlined />}>Filter</Button>
           <Input
             placeholder="Type in Vehicle License Plate, Email, Phone Number"
             prefix={<SearchOutlined />}
             className="w-80"
             allowClear
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
           />
         </div>
       </Card>
@@ -241,12 +253,11 @@ export const MonthlyPassScreen = () => {
       {/* DATA TABLE */}
       <Card className="shadow-sm rounded-xl border-gray-200" bodyStyle={{ padding: 0 }}>
         <Table
-          dataSource={passes}
+          dataSource={filteredPasses}
           columns={columns}
           rowKey="id"
           pagination={{ pageSize: 10 }}
           loading={isLoading}
-          rowClassName={(record) => record.status === 'EXPIRING_SOON' ? 'bg-yellow-50' : ''}
         />
       </Card>
 
@@ -265,9 +276,6 @@ export const MonthlyPassScreen = () => {
               label: <span><UserOutlined />  Customer profile</span>,
               children: (
                 <div className="flex flex-col gap-4 mt-2">
-                  {selectedRecord.status === 'EXPIRING_SOON' && (
-                    <Alert message="Tickets are about to expire! Please call to remind the Customer to renew to avoid service interruption" type="warning" showIcon />
-                  )}
                   <Card size="small" title="Personal Information" className="bg-slate-50">
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between"><Text type="secondary">Full name:</Text> <Text strong>{selectedRecord.user}</Text></div>

@@ -4,13 +4,18 @@ import axiosClient from '../../core/api/axiosClient';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../../core/websocket/useWebSocket';
+import { Switch, TimePicker, message } from 'antd';
+import dayjs from 'dayjs';
+
 
 interface BuildingProfile {
   id?: number;
   name: string;
   address: string;
   hotline: string;
-  operatingHours: string;
+  is247: boolean;
+  operatingStart: string;
+  operatingEnd: string;
   rules: string;
 }
 
@@ -21,7 +26,7 @@ export const BuildingProfileScreen = () => {
   const { connected } = useWebSocket();
   
   const [formData, setFormData] = useState<BuildingProfile>({
-    name: '', address: '', hotline: '', operatingHours: '', rules: ''
+    name: '', address: '', hotline: '', is247: false, operatingStart: '06:00', operatingEnd: '22:30', rules: ''
   });
   const [initialData, setInitialData] = useState<BuildingProfile | null>(null);
 
@@ -29,7 +34,9 @@ export const BuildingProfileScreen = () => {
     formData.name !== initialData.name ||
     formData.address !== initialData.address ||
     formData.hotline !== initialData.hotline ||
-    formData.operatingHours !== initialData.operatingHours ||
+    formData.is247 !== initialData.is247 ||
+    formData.operatingStart !== initialData.operatingStart ||
+    formData.operatingEnd !== initialData.operatingEnd ||
     formData.rules !== initialData.rules
   ) : false;
 
@@ -58,10 +65,10 @@ export const BuildingProfileScreen = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['building-profile'] });
       setInitialData(formData);
-      alert('Profile updated successfully!');
+      message.success('Profile updated successfully!');
     },
     onError: () => {
-      alert('Failed to update profile.');
+      message.error('Failed to update profile.');
     }
   });
 
@@ -72,7 +79,7 @@ export const BuildingProfileScreen = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{10}$/.test(formData.hotline)) {
-      alert('Hotline must be exactly 10 numeric digits.');
+      message.error('Hotline must be exactly 10 numeric digits.');
       return;
     }
     updateMutation.mutate(formData);
@@ -139,16 +146,39 @@ export const BuildingProfileScreen = () => {
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Operating Hours</label>
-              <input
-                type="text"
-                name="operatingHours"
-                value={formData.operatingHours}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                required
-              />
+            <div className="col-span-2 p-4 border rounded-lg bg-gray-50/30">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">24/7 Operation</label>
+                <Switch 
+                  checked={formData.is247} 
+                  onChange={(checked) => setFormData({ ...formData, is247: checked })} 
+                />
+              </div>
+              
+              {!formData.is247 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Operating Start Time</label>
+                    <TimePicker 
+                      format="HH:mm" 
+                      className="w-full h-[42px] rounded-lg"
+                      value={formData.operatingStart ? dayjs(formData.operatingStart, 'HH:mm') : null}
+                      onChange={(time, timeString) => setFormData({ ...formData, operatingStart: timeString as string })}
+                      allowClear={false}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Operating End Time</label>
+                    <TimePicker 
+                      format="HH:mm" 
+                      className="w-full h-[42px] rounded-lg"
+                      value={formData.operatingEnd ? dayjs(formData.operatingEnd, 'HH:mm') : null}
+                      onChange={(time, timeString) => setFormData({ ...formData, operatingEnd: timeString as string })}
+                      allowClear={false}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="col-span-2">

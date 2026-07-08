@@ -80,11 +80,20 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
 
   const changePasswordMutation = useMutation({
     mutationFn: async (values: any) => {
-      const response = await axiosClient.post('/identity/auth/reset-password', {
-        newPassword: values.newPassword,
-        confirmPassword: values.confirmPassword
-      });
-      return response.data;
+      if (hasPassword) {
+        const response = await axiosClient.post('/identity/auth/change-password', {
+          oldPassword: values.oldPassword,
+          newPassword: values.newPassword,
+          confirmPassword: values.confirmPassword
+        });
+        return response.data;
+      } else {
+        const response = await axiosClient.post('/identity/auth/set-password', {
+          newPassword: values.newPassword,
+          confirmPassword: values.confirmPassword
+        });
+        return response.data;
+      }
     },
     onSuccess: () => {
       if (!hasPassword) {

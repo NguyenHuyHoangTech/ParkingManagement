@@ -59,7 +59,7 @@ interface Zone {
   layoutY: number;
   rotation: number;
   slots: Slot[];
-  overflowThreshold: number;
+
   activeReservationsCount?: number;
 }
 
@@ -572,7 +572,6 @@ export const SpaceMapScreen = () => {
       layoutX: pos.x,
       layoutY: pos.y,
       rotation: 0,
-      overflowThreshold: 80,
       slots: Array.from({ length: capacity }).map((_, i) => ({ id: `${Date.now()}${i}`, name: `N${i + 1}`, status: 'EMPTY' }))
     };
 
@@ -657,6 +656,47 @@ export const SpaceMapScreen = () => {
   };
 
   const handleSave = () => {
+    // Validate bounds and overlaps
+    for (const zone of zones) {
+      const activeFloor = floors.find(f => f.id === zone.floorId);
+      if (!activeFloor) continue;
+      const floorW = (activeFloor.mapCols || 60) * GRID_SIZE;
+      const floorH = (activeFloor.mapRows || 40) * GRID_SIZE;
+      
+      const { width: slotW, height: slotH } = getVehicleDimensions(zone.vehicleTypeId, vehicleTypes);
+      let zw = zone.capacity * slotW;
+      let zh = slotH;
+      if (zone.rotation === 90 || zone.rotation === 270) { zw = slotH; zh = zone.capacity * slotW; }
+
+      let zx = zone.layoutX; let zy = zone.layoutY;
+      if (zone.rotation === 90) zx -= zw;
+      else if (zone.rotation === 180) { zx -= zw; zy -= zh; }
+      else if (zone.rotation === 270) zy -= zh;
+
+      if (zx < 0 || zy < 0 || zx + zw > floorW || zy + zh > floorH) {
+        message.error(`Zone ${zone.name} is placed outside the map boundaries!`);
+        return;
+      }
+
+      for (const other of zones) {
+        if (zone.id === other.id || zone.floorId !== other.floorId) continue;
+        const { width: oSlotW, height: oSlotH } = getVehicleDimensions(other.vehicleTypeId, vehicleTypes);
+        let ow = other.capacity * oSlotW;
+        let oh = oSlotH;
+        if (other.rotation === 90 || other.rotation === 270) { ow = oSlotH; oh = other.capacity * oSlotW; }
+        
+        let ox = other.layoutX; let oy = other.layoutY;
+        if (other.rotation === 90) ox -= ow;
+        else if (other.rotation === 180) { ox -= ow; oy -= oh; }
+        else if (other.rotation === 270) oy -= oh;
+        
+        if (!(zx >= ox + ow || zx + zw <= ox || zy >= oy + oh || zy + zh <= oy)) {
+          message.error(`Zone ${zone.name} overlaps with Zone ${other.name}!`);
+          return;
+        }
+      }
+    }
+
     const payload = { floors, zones, gates, vehicleTypes: undefined }; // don't send vehicleTypes back
 
     axiosClient.post('/infrastructure/map/save', payload)
@@ -1065,7 +1105,14 @@ export const SpaceMapScreen = () => {
                     <Text className="text-xs text-gray-500 block mb-1">Zone function:</Text>
                     <Select
                       size="small" className="w-full" value={activeZone.functionType}
-                      onChange={v => setZones(prev => prev.map(z => z.id === activeZone.id ? { ...z, functionType: v } : z))}
+                      onChange={v => {
+                        const hasOccupied = activeZone.slots.some(s => s.status === 'OCCUPIED');
+                        if (hasOccupied) {
+                          message.error("Cannot change Zone function because there are vehicles parked in this Zone!");
+                          return;
+                        }
+                        setZones(prev => prev.map(z => z.id === activeZone.id ? { ...z, functionType: v } : z));
+                      }}
                     >
                       <Select.Option value="WALK_IN">Walk-in</Select.Option>
                       <Select.Option value="MONTHLY">Monthly Pass (Monthly)</Select.Option>
@@ -1077,7 +1124,14 @@ export const SpaceMapScreen = () => {
                     <Text className="text-xs text-gray-500 block mb-1">Vehicle Type:</Text>
                     <Select
                       size="small" className="w-full" value={activeZone.vehicleTypeId}
-                      onChange={v => setZones(prev => prev.map(z => z.id === activeZone.id ? { ...z, vehicleTypeId: v } : z))}
+                      onChange={v => {
+                        const hasOccupied = activeZone.slots.some(s => s.status === 'OCCUPIED');
+                        if (hasOccupied) {
+                          message.error("Cannot change Vehicle Type because there are vehicles parked in this Zone!");
+                          return;
+                        }
+                        setZones(prev => prev.map(z => z.id === activeZone.id ? { ...z, vehicleTypeId: v } : z));
+                      }}
                     >
                       {validVehicleTypes.map(vt => (
                         <Select.Option key={vt.id} value={vt.id}>
@@ -1108,14 +1162,6 @@ export const SpaceMapScreen = () => {
                           handleUpdateZoneCapacity(activeZone.id, v);
                         }
                       }}
-                    />
-                  </div>
-
-                  <div>
-                    <Text className="text-xs text-gray-500 block mb-1">Navigation fill threshold (%):</Text>
-                    <Slider
-                      min={0} max={100} value={activeZone.overflowThreshold}
-                      onChange={v => setZones(prev => prev.map(z => z.id === activeZone.id ? { ...z, overflowThreshold: v } : z))}
                     />
                   </div>
 

@@ -214,6 +214,7 @@ const RevenueDashboardScreen: React.FC = () => {
             onClick={() => {
                setAppliedDateRange([dateRange[0].format('YYYY-MM-DD'), dateRange[1].format('YYYY-MM-DD')]);
                setCurrentPage(1);
+               setShiftPage(1);
             }}
             loading={isChartsLoading || isTableLoading}
             className="bg-blue-600"
@@ -390,35 +391,36 @@ const RevenueDashboardScreen: React.FC = () => {
               dataIndex="expectedRevenue" 
               width={130}
               align="right"
-              render={(val) => val != null ? val.toLocaleString() : '-'} 
+              render={(val, record: any) => record.gateType === 'PATROL' ? '-' : val != null ? val.toLocaleString() : '-'} 
             />
             <Table.Column 
               title="System Cash" 
               dataIndex="expectedCashRevenue" 
               width={130}
               align="right"
-              render={(val) => val != null ? <span className="text-orange-600">{val.toLocaleString()}</span> : '-'} 
+              render={(val, record: any) => record.gateType === 'PATROL' ? '-' : val != null ? <span className="text-orange-600">{val.toLocaleString()}</span> : '-'} 
             />
             <Table.Column 
               title="System Other" 
               dataIndex="expectedOtherRevenue" 
               width={130}
               align="right"
-              render={(val) => val != null ? <span className="text-purple-600">{val.toLocaleString()}</span> : '-'} 
+              render={(val, record: any) => record.gateType === 'PATROL' ? '-' : val != null ? <span className="text-purple-600">{val.toLocaleString()}</span> : '-'} 
             />
             <Table.Column 
               title="Net revenue (VND)" 
               dataIndex="actualRevenue" 
               width={150}
               align="right"
-              render={(val) => val != null ? <strong className="text-gray-800">{val.toLocaleString()}</strong> : '-'} 
+              render={(val, record: any) => record.gateType === 'PATROL' ? '-' : val != null ? <strong className="text-gray-800">{val.toLocaleString()}</strong> : '-'} 
             />
             <Table.Column 
               title="Difference" 
               dataIndex="revenueVariance" 
               width={150}
               align="right"
-              render={(val) => {
+              render={(val, record: any) => {
+                if (record.gateType === 'PATROL') return '-';
                 if (val == null) return '-';
                 if (val === 0) return <span className="text-gray-400">0</span>;
                 return <strong className={val > 0 ? 'text-blue-600' : 'text-red-600'}>{val > 0 ? '+' : ''}{val.toLocaleString()}</strong>;
@@ -429,7 +431,8 @@ const RevenueDashboardScreen: React.FC = () => {
               dataIndex="discrepancyStatus" 
               width={120}
               align="center"
-              render={(val) => {
+              render={(val, record: any) => {
+                if (record.gateType === 'PATROL') return <span className="text-gray-400 italic">Not Applicable</span>;
                 if (val === 'MATCH') return <span className="text-green-600 border border-green-600 px-2 py-1 rounded text-xs">Match</span>;
                 if (val === 'SHORT') return <span className="text-red-600 border border-red-600 px-2 py-1 rounded text-xs">Short</span>;
                 if (val === 'OVER') return <span className="text-blue-600 border border-blue-600 px-2 py-1 rounded text-xs">Over</span>;
