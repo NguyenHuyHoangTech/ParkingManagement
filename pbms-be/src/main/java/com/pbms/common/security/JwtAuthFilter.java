@@ -41,7 +41,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // Verify user still exists and is ACTIVE
                 Optional<User> userOpt = userRepository.findByEmail(email);
                 if (userOpt.isPresent() && "ACTIVE".equals(userOpt.get().getStatus())) {
-                    String role = jwtProvider.getRoleFromToken(jwt);
+                    String role = userOpt.get().getRole();
                     String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
 
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

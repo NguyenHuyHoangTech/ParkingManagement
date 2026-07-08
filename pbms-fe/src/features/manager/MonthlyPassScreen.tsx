@@ -141,11 +141,12 @@ export const MonthlyPassScreen = () => {
       let matchSearch = true;
       if (searchKeyword) {
         const kw = searchKeyword.toLowerCase();
-        matchSearch = 
+        matchSearch = !!(
           (p.plate && p.plate.toLowerCase().includes(kw)) ||
           (p.user && p.user.toLowerCase().includes(kw)) ||
           (p.email && p.email.toLowerCase().includes(kw)) ||
-          (p.phone && p.phone.toLowerCase().includes(kw));
+          (p.phone && p.phone.toLowerCase().includes(kw))
+        );
       }
       return matchType && matchStatus && matchSearch;
     });

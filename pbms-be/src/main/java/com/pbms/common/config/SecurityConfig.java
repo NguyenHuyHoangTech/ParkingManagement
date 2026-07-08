@@ -39,26 +39,26 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**", "/ws-pbms/**", "/uploads/**", "/error").permitAll()
 
                         // 2. SYSTEM ADMIN
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
 
                         // 3. MANAGER DASHBOARD
-                        .requestMatchers("/api/v1/manager/**", "/api/v1/reports/**").hasAnyRole("MANAGER", "ADMIN")
-                        .requestMatchers("/api/v1/dashboard/**").hasAnyRole("STAFF", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/v1/manager/**", "/api/v1/reports/**").hasAnyRole("MANAGER", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/dashboard/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN")
 
                         // 4. STAFF POS & OPERATIONS
                         .requestMatchers("/api/v1/gates/**", "/api/v1/work-sessions/**")
-                        .hasAnyRole("STAFF", "MANAGER", "ADMIN")
-                        .requestMatchers("/api/v1/payments/**").hasAnyRole("STAFF", "MANAGER", "ADMIN", "CUSTOMER")
+                        .hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/payments/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")
                         .requestMatchers("/api/v1/operation/monthly-tickets", "/api/v1/operation/monthly-tickets/**", "/api/v1/operation/parking-sessions/**")
-                        .hasAnyRole("STAFF", "MANAGER", "ADMIN", "CUSTOMER")
-                        .requestMatchers("/api/v1/incident/incidents/**").hasAnyRole("STAFF", "MANAGER", "ADMIN", "CUSTOMER")
-                        .requestMatchers("/api/v1/operation/**").hasAnyRole("STAFF", "MANAGER", "ADMIN")
-                        .requestMatchers("/api/v1/infrastructure/**").hasAnyRole("STAFF", "MANAGER", "ADMIN", "CUSTOMER")
+                        .hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")
+                        .requestMatchers("/api/v1/incident/incidents/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")
+                        .requestMatchers("/api/v1/operation/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/infrastructure/**").permitAll()
 
                         // 5. CUSTOMER PORTAL
                         .requestMatchers("/api/v1/customer/reservations/*/resolve-conflict")
-                        .hasAnyRole("STAFF", "CUSTOMER", "MANAGER", "ADMIN")
-                        .requestMatchers("/api/v1/customer/**").hasAnyRole("CUSTOMER", "MANAGER", "ADMIN")
+                        .hasAnyRole("STAFF", "CUSTOMER", "MANAGER", "SUPER_ADMIN")
+                        .requestMatchers("/api/v1/customer/**").hasAnyRole("CUSTOMER", "MANAGER", "SUPER_ADMIN")
                         .requestMatchers("/api/v1/user/**").hasRole("CUSTOMER")
 
                         // FALLBACK

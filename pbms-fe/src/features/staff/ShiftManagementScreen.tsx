@@ -371,7 +371,7 @@ export const ShiftManagementScreen = () => {
                     setSelectedGateId(patrolGate.id);
                     setSelectedGateFunction('PATROL');
                   } else {
-                    setSelectedGateId(null);
+                    setSelectedGateId(0);
                     setSelectedGateFunction('PATROL');
                   }
                 }}

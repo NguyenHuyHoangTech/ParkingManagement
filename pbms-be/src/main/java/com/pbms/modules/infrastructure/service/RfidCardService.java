@@ -38,6 +38,7 @@ public class RfidCardService {
         rfidCardRepository.save(card);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public int importCardsFromCsv(MultipartFile file) {
         int count = 0;
         try (BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {

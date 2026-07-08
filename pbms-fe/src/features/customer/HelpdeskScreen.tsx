@@ -187,9 +187,9 @@ export const HelpdeskScreen = () => {
 
       await createIncidentMutation.mutateAsync({
         issueType: values.category,
-        plate: values.plate,
+        plate: values.plate || '',
         vehicleTypeId: values.vehicleTypeId,
-        description: `BKS: ${values.plate} - ${values.description || ''}`,
+        description: `BKS: ${values.plate || 'N/A'} - ${values.description || ''}`,
         priority: values.category === 'LOST_CARD' ? 'HIGH' : 'MEDIUM',
         uploadedDocUrl: mockUrl
       });
@@ -339,14 +339,14 @@ export const HelpdeskScreen = () => {
                       />
                     </Form.Item>
 
-                    {/* License Plate XE - Always required */}
+                    {/* License Plate XE */}
                     <Form.Item 
                       label="Actual vehicle License Plate"
-                      required
-                      className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' ? 'md:col-span-2' : ''}`}
+                      required={selectedCategory !== 'OTHER_FEEDBACK'}
+                      className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'OTHER_FEEDBACK' ? 'md:col-span-2' : ''}`}
                     >
                       <div className="flex gap-2">
-                        <Form.Item name="plate" rules={[{ required: true, message: 'Please enter vehicle License Plate' }]} noStyle>
+                        <Form.Item name="plate" rules={[{ required: selectedCategory !== 'OTHER_FEEDBACK', message: 'Please enter vehicle License Plate' }]} noStyle>
                           <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="VD: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={() => setIsPlateVerified(false)} />
                         </Form.Item>
                         {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD') && (
@@ -359,7 +359,7 @@ export const HelpdeskScreen = () => {
                     </Form.Item>
 
                     {/* CARD ID / BOOKING ID - Required */}
-                    {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD') && (
+                    {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK') && (
                       <Form.Item 
                         label="Card code / Booking code"
                         required
@@ -377,7 +377,8 @@ export const HelpdeskScreen = () => {
                       </Form.Item>
                     )}
 
-                    {isPlateVerified && (
+                    {/* ALWAYS SHOW FOR OTHER_FEEDBACK OR IF VERIFIED */}
+                    {(isPlateVerified || selectedCategory === 'OTHER_FEEDBACK') && (
                       <>
 
                     {/* PROOF IMAGE */}
@@ -446,7 +447,7 @@ export const HelpdeskScreen = () => {
                 type="primary" 
                 htmlType="submit" 
                 loading={createIncidentMutation.isPending}
-                disabled={!selectedCategory || !isPlateVerified}
+                disabled={!selectedCategory || (!isPlateVerified && selectedCategory !== 'OTHER_FEEDBACK')}
                 className={`w-full h-14 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 flex items-center justify-center ${
                   selectedCategory === 'LOST_CARD' ? 'bg-red-600 hover:bg-red-700' :
                   selectedCategory === 'SLOT_OCCUPIED' ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 border-0' :

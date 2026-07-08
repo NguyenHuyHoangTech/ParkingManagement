@@ -14,8 +14,11 @@ import java.util.stream.Collectors;
 import com.pbms.modules.operation.repository.ReservationRepository;
 import com.pbms.modules.system.service.SystemConfigService;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ZoneService {
 
     private final ZoneRepository zoneRepository;
