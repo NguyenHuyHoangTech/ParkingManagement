@@ -323,40 +323,43 @@ export const HelpdeskScreen = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-slate-50 p-4 md:p-6 rounded-xl border border-slate-200 mb-6 animate-fade-in-up">
                     
                     {/* Vehicle Type - Required */}
-                    <Form.Item 
-                      name="vehicleTypeId" 
-                      label="Vehicle Type" 
-                      rules={[{ required: true, message: 'Please select vehicle type' }]}
-                      className="mb-0 col-span-1 md:col-span-2"
-                    >
-                      <Select 
-                        size="large" 
-                        placeholder="Select vehicle type" 
-                        className="h-12"
-                        options={vehicleTypes.map((vt: any) => ({ value: vt.id, label: vt.typeName }))}
-                        disabled={isCheckingPlate} 
-                        onChange={() => setIsPlateVerified(false)}
-                      />
-                    </Form.Item>
+                    {selectedCategory !== 'OTHER_FEEDBACK' && (
+                      <Form.Item 
+                        name="vehicleTypeId" 
+                        label="Vehicle Type" 
+                        rules={[{ required: true, message: 'Please select vehicle type' }]}
+                        className="mb-0 col-span-1 md:col-span-2"
+                      >
+                        <Select 
+                          size="large" 
+                          placeholder="Select vehicle type" 
+                          className="h-12"
+                          options={vehicleTypes.map((vt: any) => ({ value: vt.id, label: vt.typeName }))}
+                          disabled={isCheckingPlate} 
+                          onChange={() => setIsPlateVerified(false)}
+                        />
+                      </Form.Item>
+                    )}
 
                     {/* License Plate XE */}
-                    <Form.Item 
-                      label="Actual vehicle License Plate"
-                      required={selectedCategory !== 'OTHER_FEEDBACK'}
-                      className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'OTHER_FEEDBACK' ? 'md:col-span-2' : ''}`}
-                    >
-                      <div className="flex gap-2">
-                        <Form.Item name="plate" rules={[{ required: selectedCategory !== 'OTHER_FEEDBACK', message: 'Please enter vehicle License Plate' }]} noStyle>
-                          <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="VD: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={() => setIsPlateVerified(false)} />
-                        </Form.Item>
-                        {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD') && (
-                          <Button type="primary" size="large" className="h-12" loading={isCheckingPlate} onClick={handleCheckPlate}>
-                            
-                                                                                      Check
-                                                                                    </Button>
-                        )}
-                      </div>
-                    </Form.Item>
+                    {selectedCategory !== 'OTHER_FEEDBACK' && (
+                      <Form.Item 
+                        label="Actual vehicle License Plate"
+                        required
+                        className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' ? 'md:col-span-2' : ''}`}
+                      >
+                        <div className="flex gap-2">
+                          <Form.Item name="plate" rules={[{ required: true, message: 'Please enter vehicle License Plate' }]} noStyle>
+                            <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="VD: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={() => setIsPlateVerified(false)} />
+                          </Form.Item>
+                          {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD') && (
+                            <Button type="primary" size="large" className="h-12" loading={isCheckingPlate} onClick={handleCheckPlate}>
+                              Check
+                            </Button>
+                          )}
+                        </div>
+                      </Form.Item>
+                    )}
 
                     {/* CARD ID / BOOKING ID - Required */}
                     {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK') && (
@@ -475,18 +478,39 @@ export const HelpdeskScreen = () => {
               size="small" 
               className="min-w-[600px]"
               expandable={{
-                expandedRowRender: (record: any) => (
-                  record.status === 'REJECTED' && record.reason ? (
-                    <div className="bg-red-50 p-3 rounded border border-red-100 flex items-start space-x-2">
-                      <WarningOutlined className="text-red-500 mt-1" />
-                      <div>
-                        <Text strong className="text-red-700 block">Reason Reject from Management:</Text>
-                        <Text className="text-red-600">{record.reason}</Text>
+                expandedRowRender: (record: any) => {
+                  if (record.status === 'REJECTED' && record.reason) {
+                    return (
+                      <div className="bg-red-50 p-3 rounded border border-red-100 flex items-start space-x-2">
+                        <WarningOutlined className="text-red-500 mt-1" />
+                        <div>
+                          <Text strong className="text-red-700 block">Reason Reject from Management:</Text>
+                          <Text className="text-red-600">{record.reason}</Text>
+                        </div>
                       </div>
-                    </div>
-                  ) : null
-                ),
-                rowExpandable: (record: any) => record.status === 'REJECTED' && !!record.reason,
+                    );
+                  }
+                  if (record.status === 'RESOLVED' && (record.resolutionNotes || record.resolutionImageUrl)) {
+                    return (
+                      <div className="bg-blue-50 p-3 rounded border border-blue-100 flex items-start space-x-2">
+                        <MessageOutlined className="text-blue-500 mt-1" />
+                        <div>
+                          <Text strong className="text-blue-700 block">Manager / Staff Reply:</Text>
+                          {record.resolutionNotes && <Text className="text-blue-600 block mb-2">{record.resolutionNotes}</Text>}
+                          {record.resolutionImageUrl && (
+                            <img 
+                              src={record.resolutionImageUrl.startsWith('http') ? record.resolutionImageUrl : `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/public/files/${record.resolutionImageUrl}`} 
+                              alt="Reply Image" 
+                              className="max-h-32 rounded border border-blue-200 mt-2" 
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                },
+                rowExpandable: (record: any) => (record.status === 'REJECTED' && !!record.reason) || (record.status === 'RESOLVED' && (record.resolutionNotes || record.resolutionImageUrl)),
                 defaultExpandAllRows: true
               }}
             />

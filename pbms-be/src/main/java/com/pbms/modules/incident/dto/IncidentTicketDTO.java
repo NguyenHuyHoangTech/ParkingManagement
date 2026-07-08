@@ -40,6 +40,9 @@ public class IncidentTicketDTO {
     /** Ghi chú của quản lý/nhân viên sau khi xử lý xong sự cố */
     private String resolutionNotes;
 
+    /** Đường dẫn ảnh do quản lý tải lên khi phản hồi/giải quyết */
+    private String resolutionImageUrl;
+
     /** Thời điểm sự cố được xử lý/giải quyết hoàn tất */
     private LocalDateTime resolvedAt;
 

@@ -384,6 +384,16 @@ export const PreBookingScreen = () => {
                 />
               </div>
             </div>
+            {isOutOfOperatingHours && !operatingHours.is247 && (
+              <div className="mt-4">
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Lưu ý ngoài giờ hoạt động"
+                  description={`Bãi đỗ xe hiện đang hoạt động từ ${operatingHours.start} đến ${operatingHours.end}. Thời gian bạn chọn nằm ngoài khung giờ này, vui lòng lưu ý có thể sẽ không có nhân viên trực hỗ trợ trực tiếp.`}
+                />
+              </div>
+            )}
           </Card>
 
           <Card title={<span className="font-black text-xl"><EnvironmentOutlined className="mr-2 text-orange-600"/>3. Select Zone</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">

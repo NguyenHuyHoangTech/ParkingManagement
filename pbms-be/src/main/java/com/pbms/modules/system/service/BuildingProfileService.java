@@ -27,7 +27,9 @@ public class BuildingProfileService {
         existingProfile.setName(updateData.getName());
         existingProfile.setAddress(updateData.getAddress());
         existingProfile.setHotline(updateData.getHotline());
-        existingProfile.setOperatingHours(updateData.getOperatingHours());
+        existingProfile.setIs247(updateData.getIs247());
+        existingProfile.setOperatingStart(updateData.getOperatingStart());
+        existingProfile.setOperatingEnd(updateData.getOperatingEnd());
         existingProfile.setRules(updateData.getRules());
         
         return repository.save(existingProfile);

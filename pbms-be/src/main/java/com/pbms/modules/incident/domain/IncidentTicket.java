@@ -58,6 +58,9 @@ public class IncidentTicket extends BaseEntity {
     @Column(name = "resolution_notes", columnDefinition = "VARCHAR(MAX)")
     private String resolutionNotes;
 
+    @Column(name = "resolution_image_url", columnDefinition = "VARCHAR(MAX)")
+    private String resolutionImageUrl;
+
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 

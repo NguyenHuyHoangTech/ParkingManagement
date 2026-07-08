@@ -478,18 +478,19 @@ export const ExceptionDeskScreen = () => {
 
   const resolveMutation = useMutation({
     mutationFn: async (id: number) => {
-      let uploadedDocUrl: string | undefined;
+      let resolutionImageUrl: string | undefined;
       let uploadedPicOutUrl: string | undefined;
       if (docFile) {
         const newDocUrl = await getBase64Phase2(docFile);
-        uploadedDocUrl = selectedTicket?.uploadedDocUrl ? `${selectedTicket.uploadedDocUrl}|${newDocUrl}` : newDocUrl;
+        resolutionImageUrl = newDocUrl;
       }
       if (cardFile) {
         const newCardUrl = await getBase64Phase2(cardFile);
-        uploadedDocUrl = uploadedDocUrl ? `${uploadedDocUrl}|${newCardUrl}` : (selectedTicket?.uploadedDocUrl ? `${selectedTicket.uploadedDocUrl}|${newCardUrl}` : newCardUrl);
+        resolutionImageUrl = resolutionImageUrl ? `${resolutionImageUrl}|${newCardUrl}` : newCardUrl;
       }
       if (picOutFile) {
         uploadedPicOutUrl = await getBase64Phase2(picOutFile);
+        resolutionImageUrl = resolutionImageUrl ? `${resolutionImageUrl}|${uploadedPicOutUrl}` : uploadedPicOutUrl;
       }
       
       const parkingFee = selectedTicket?.feePausedAt 
@@ -500,8 +501,7 @@ export const ExceptionDeskScreen = () => {
       
       await axiosClient.put(`/incident/incidents/${id}/resolve`, {
         resolutionNotes: `[Phase 2] Fee collected: ${totalFee.toLocaleString()} VND (Parking fee: ${Number(parkingFee).toLocaleString()} + Penalty: ${Number(penaltyFee).toLocaleString()})${selectedTicket?.type === 'DAMAGED_CARD' ? (damagedCardFault === 'CUSTOMER_FAULT' ? ' - Damaged card due to customer' : ' - Card damage due to wear and tear') : ''}`,
-        uploadedDocUrl,
-        uploadedPicOutUrl,
+        resolutionImageUrl,
         parkingFee: Number(parkingFee),
         penaltyFee: Number(penaltyFee)
       });
@@ -566,8 +566,10 @@ export const ExceptionDeskScreen = () => {
 
   const resolveNonCardMutation = useMutation({
     mutationFn: async (id: number) => {
+      const docUrl = docFile ? await getBase64(docFile) : '';
       await axiosClient.put(`/incident/incidents/${id}/resolve-non-card`, {
-        resolutionNotes: nonCardResolutionNotes
+        resolutionNotes: nonCardResolutionNotes,
+        resolutionImageUrl: docUrl
       });
     },
     onSuccess: () => {
@@ -575,6 +577,7 @@ export const ExceptionDeskScreen = () => {
       setSelectedTicket(null);
       setPhase2SessionInfo(null);
       setNonCardResolutionNotes('');
+      setDocFile(null);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
     },
     onError: (err: any) => {
@@ -587,17 +590,20 @@ export const ExceptionDeskScreen = () => {
 
   const adjustFeeMutation = useMutation({
     mutationFn: async (id: number) => {
+      const docUrl = docFile ? await getBase64(docFile) : '';
       await axiosClient.put(`/incident/incidents/${id}/adjust-fee-dispute`, {
         discountAmount: feeDisputeAmount,
-        resolutionNotes: feeDisputeNotes
+        resolutionNotes: feeDisputeNotes,
+        resolutionImageUrl: docUrl
       });
     },
     onSuccess: () => {
-      message.success('✅ Fee adjusted successfully!');
+      message.success('🚗 Fee adjusted successfully!');
       setSelectedTicket(null);
       setPhase2SessionInfo(null);
       setFeeDisputeAmount(0);
       setFeeDisputeNotes('');
+      setDocFile(null);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
     },
     onError: (err: any) => {
@@ -696,7 +702,7 @@ export const ExceptionDeskScreen = () => {
             { id: 'FEE_DISPUTE', label: 'Fee Dispute', icon: '💰', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
             { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length },
             { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫', count: blacklistedVehicles.length }
-          ].map(cat => (
+          ].filter(cat => cat.id !== 'OTHER_FEEDBACK' || isManager).map(cat => (
              <div 
                key={cat.id} 
                className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex justify-between items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`} 
@@ -1030,6 +1036,16 @@ export const ExceptionDeskScreen = () => {
                           </div>
                         ) : (
                           <div className="flex flex-col h-full gap-2">
+                            {['OTHER_FEEDBACK', 'SLOT_OCCUPIED', 'FIND_CAR'].includes(selectedTicket.type) && (
+                              <Upload
+                                beforeUpload={(file) => { setDocFile(file); return false; }}
+                                onRemove={() => setDocFile(null)}
+                                maxCount={1}
+                                listType="picture"
+                              >
+                                <Button icon={<UploadOutlined />} className="w-full">Upload reply photo (optional)</Button>
+                              </Upload>
+                            )}
                             <Text type="secondary" className="text-sm">Please enter a processing notification message (will be sent back to the customer):</Text>
                             <Input.TextArea 
                               rows={4} 
@@ -1123,7 +1139,15 @@ export const ExceptionDeskScreen = () => {
                                     addonAfter="VND"
                                   />
                                 </div>
-                                <div className="mb-2">
+                                <div className="mt-4">
+                                  <Upload
+                                    beforeUpload={(file) => { setDocFile(file); return false; }}
+                                    onRemove={() => setDocFile(null)}
+                                    maxCount={1}
+                                    listType="picture"
+                                  >
+                                    <Button icon={<UploadOutlined />} className="w-full mb-2">Upload reply photo (optional)</Button>
+                                  </Upload>
                                   <Text type="secondary" className="block text-xs mb-1">Message (sent to guests):</Text>
                                   <Input.TextArea
                                     rows={2}

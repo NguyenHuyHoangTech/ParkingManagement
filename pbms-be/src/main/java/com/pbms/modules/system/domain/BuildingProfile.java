@@ -24,8 +24,14 @@ public class BuildingProfile extends BaseEntity {
     @Column(length = 50)
     private String hotline;
 
-    @Column(name = "operating_hours")
-    private String operatingHours;
+    @Column(name = "is_247", columnDefinition = "BIT DEFAULT 0")
+    private Boolean is247;
+
+    @Column(name = "operating_start", length = 5)
+    private String operatingStart;
+
+    @Column(name = "operating_end", length = 5)
+    private String operatingEnd;
 
     @Column(columnDefinition = "VARCHAR(MAX)")
     private String rules;

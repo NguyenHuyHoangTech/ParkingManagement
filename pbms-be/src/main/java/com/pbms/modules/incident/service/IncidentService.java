@@ -282,7 +282,7 @@ public class IncidentService {
     }
 
     @Transactional
-    public IncidentTicketDTO resolveIncident(Long id, String resolutionNotes, String uploadedDocUrl, String uploadedPicOutUrl, java.math.BigDecimal parkingFee, java.math.BigDecimal penaltyFee) {
+    public IncidentTicketDTO resolveIncident(Long id, String resolutionNotes, String resolutionImageUrl, String uploadedPicOutUrl, java.math.BigDecimal parkingFee, java.math.BigDecimal penaltyFee) {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
 
@@ -294,8 +294,8 @@ public class IncidentService {
         ticket.setResolutionNotes(resolutionNotes != null ? resolutionNotes : "[RESOLVED] Fee collected and barrier opened.");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
         ticket.setStaff(getCurrentUser());
-        if (uploadedDocUrl != null && !uploadedDocUrl.isBlank()) {
-            ticket.setUploadedDocUrl(fileStorageService.storeBase64File(uploadedDocUrl));
+        if (resolutionImageUrl != null && !resolutionImageUrl.isBlank()) {
+            ticket.setResolutionImageUrl(fileStorageService.storeBase64File(resolutionImageUrl));
         }
         if (penaltyFee != null) {
             ticket.setFineAmount(penaltyFee);
@@ -448,7 +448,7 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
         ticket.setStaff(getCurrentUser());
-        if (docUrl != null) ticket.setUploadedDocUrl(fileStorageService.storeBase64File(docUrl));
+        if (docUrl != null) ticket.setResolutionImageUrl(fileStorageService.storeBase64File(docUrl));
         ticket.setResolutionNotes(resolutionNotes != null ? resolutionNotes : "Incident resolved successfully.");
 
         log.info("Incident #{} RESOLVED (Non-card flow)", id);
@@ -612,6 +612,7 @@ public class IncidentService {
                 .status(ticket.getStatus())
                 .fineAmount(ticket.getFineAmount())
                 .resolutionNotes(ticket.getResolutionNotes())
+                .resolutionImageUrl(ticket.getResolutionImageUrl())
                 .resolvedAt(ticket.getResolvedAt())
                 .createdAt(ticket.getCreatedAt())
                 .uploadedDocUrl(ticket.getUploadedDocUrl())
@@ -675,7 +676,7 @@ public class IncidentService {
     }
 
     @Transactional
-    public void resolveFeeDispute(Long id, java.math.BigDecimal discountAmount, String resolutionNotes) {
+    public void resolveFeeDispute(Long id, java.math.BigDecimal discountAmount, String resolutionNotes, String resolutionImageUrl) {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
         
@@ -696,6 +697,9 @@ public class IncidentService {
 
         ticket.setStatus("RESOLVED");
         ticket.setResolutionNotes(resolutionNotes);
+        if (resolutionImageUrl != null && !resolutionImageUrl.isBlank()) {
+            ticket.setResolutionImageUrl(fileStorageService.storeBase64File(resolutionImageUrl));
+        }
         incidentTicketRepository.save(ticket);
     }
 }

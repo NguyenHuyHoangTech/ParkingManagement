@@ -70,7 +70,7 @@ public class IncidentTicketController {
             @RequestBody java.util.Map<String, Object> requestBody) {
         try {
             String resolutionNotes = (String) requestBody.get("resolutionNotes");
-            String uploadedDocUrl = (String) requestBody.get("uploadedDocUrl");
+            String resolutionImageUrl = (String) requestBody.get("resolutionImageUrl");
             String uploadedPicOutUrl = (String) requestBody.get("uploadedPicOutUrl");
             java.math.BigDecimal parkingFee = requestBody.get("parkingFee") != null
                     ? new java.math.BigDecimal(requestBody.get("parkingFee").toString())
@@ -78,7 +78,7 @@ public class IncidentTicketController {
             java.math.BigDecimal penaltyFee = requestBody.get("penaltyFee") != null
                     ? new java.math.BigDecimal(requestBody.get("penaltyFee").toString())
                     : null;
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, resolutionNotes, uploadedDocUrl, uploadedPicOutUrl, parkingFee, penaltyFee);
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee);
             return ResponseEntity.ok(ApiResponse.success(dto, "Incident resolved successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
@@ -136,7 +136,7 @@ public class IncidentTicketController {
             @RequestBody java.util.Map<String, String> body) {
         try {
             String resolutionNotes = body.get("resolutionNotes");
-            String docUrl = body.get("uploadedDocUrl");
+            String docUrl = body.get("resolutionImageUrl");
             com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveNonCardIncident(id, resolutionNotes, docUrl);
             return ResponseEntity.ok(ApiResponse.success(dto, "The price of the fish is too low."));
         } catch (Exception e) {
@@ -189,8 +189,9 @@ public class IncidentTicketController {
         try {
             java.math.BigDecimal discountAmount = new java.math.BigDecimal(requestBody.get("discountAmount").toString());
             String resolutionNotes = (String) requestBody.get("resolutionNotes");
+            String resolutionImageUrl = (String) requestBody.get("resolutionImageUrl");
             
-            incidentService.resolveFeeDispute(id, discountAmount, resolutionNotes);
+            incidentService.resolveFeeDispute(id, discountAmount, resolutionNotes, resolutionImageUrl);
             return ResponseEntity.ok(ApiResponse.success(true, "15 minutes"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Leave a comment:" + e.getMessage()));
