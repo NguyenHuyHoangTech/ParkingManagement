@@ -30,6 +30,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(org.springframework.security.config.Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.sendError(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED, authException.getMessage());
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
                         // 1. PUBLIC & AUTHENTICATION
                         .requestMatchers("/api/v1/public/**", "/api/v1/identity/auth/**", "/api/v1/webhooks/**",
@@ -48,7 +53,7 @@ public class SecurityConfig {
                         // 4. STAFF POS & OPERATIONS
                         .requestMatchers("/api/v1/gates/**", "/api/v1/work-sessions/**")
                         .hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN")
-                        .requestMatchers("/api/v1/payments/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")
+                        .requestMatchers("/api/v1/finance/**").permitAll()
                         .requestMatchers("/api/v1/operation/monthly-tickets", "/api/v1/operation/monthly-tickets/**", "/api/v1/operation/parking-sessions/**")
                         .hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")
                         .requestMatchers("/api/v1/incident/incidents/**").hasAnyRole("STAFF", "MANAGER", "SUPER_ADMIN", "CUSTOMER")

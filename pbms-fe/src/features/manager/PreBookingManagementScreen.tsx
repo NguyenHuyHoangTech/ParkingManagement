@@ -139,10 +139,10 @@ export const PreBookingManagementScreen = () => {
     });
   }, [baseFilteredBookings, filterStatus]);
 
-  const upcomingCount = baseFilteredBookings.filter((b: any) => b.status === 'PENDING').length;
-  const ongoingCount = baseFilteredBookings.filter((b: any) => b.status === 'ACTIVE').length;
-  const completedCount = baseFilteredBookings.filter((b: any) => b.status === 'COMPLETED').length;
-  const cancelledCount = baseFilteredBookings.filter((b: any) => b.status === 'CANCELLED').length;
+  const upcomingCount = allBookings.filter((b: any) => b.status === 'PENDING').length;
+  const ongoingCount = allBookings.filter((b: any) => b.status === 'ACTIVE').length;
+  const completedCount = allBookings.filter((b: any) => b.status === 'COMPLETED').length;
+  const cancelledCount = allBookings.filter((b: any) => b.status === 'CANCELLED').length;
 
   const handleOpenDrawer = (record: PreBooking) => {
     setSelectedRecord(record);
