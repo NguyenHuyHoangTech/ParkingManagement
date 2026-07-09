@@ -266,7 +266,7 @@ export const CustomerMonthlyPassScreen = () => {
               {isPricingLoading ? (
                  <Spin />
               ) : (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {dynamicVehicles.map((v: any) => (
                     <div
                       key={v.id}
@@ -303,7 +303,7 @@ export const CustomerMonthlyPassScreen = () => {
           <Card title={<span className="font-black text-xl"><CalendarOutlined className="mr-2 text-orange-600"/>3. Package Monthly Passes & Validity</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
             <div className="mb-6">
               <Text className="block font-bold mb-3 text-slate-700">Choose Time package:</Text>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {PACKAGES.map(p => (
                   <div
                     key={p.id}

@@ -74,16 +74,15 @@ export const ExceptionDeskScreen = () => {
   });
 
   const violations = useMemo(() => {
-    if (!operationalData?.liveData?.vehicleStats) return [];
-    return operationalData.liveData.vehicleStats
+    if (!operationalData?.liveData?.floorViolations) return [];
+    return operationalData.liveData.floorViolations
       .map((stat: any) => {
-        const occSlots = stat.occupied_slots_monthly || 0;
-        const occSoft = stat.occupied_monthly || 0;
+        const occSlots = stat.occupied_slots || 0;
+        const assignedMonthly = stat.assigned_monthly || 0;
         const wrongZoneTickets = stat.wrong_zone_tickets_count || 0;
-        const diff = occSlots - wrongZoneTickets - occSoft;
-        return { name: stat.name, diff: diff > 0 ? diff : 0, occSlots, occSoft, wrongZoneTickets };
-      })
-      .filter((v: any) => v.diff > 0);
+        const diff = occSlots - wrongZoneTickets - assignedMonthly;
+        return { name: `${stat.floor_name} - ${stat.vehicle_type}`, diff: diff > 0 ? diff : 0, occSlots, assignedMonthly, wrongZoneTickets };
+      });
   }, [operationalData]);
 
   const getPenaltyConfig = (key: string, fallback: number) => {

@@ -558,11 +558,11 @@ export const MyParkingScreen = () => {
                   </div>
                   <div className="flex flex-col items-start sm:items-end mt-4 sm:mt-0 w-full sm:w-auto">
                     {displayStatus === 'PENDING' && (
-                      <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                      <div className="flex flex-col sm:flex-row gap-2 mb-2 w-full sm:w-auto">
                         {dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isAfter(simulatedDayjs()) && (
                           <Button 
                             type="primary"
-                            className="bg-blue-600"
+                            className="bg-blue-600 w-full sm:w-auto"
                             icon={<EditOutlined />}
                             onClick={() => {
                               setPlateToEdit({ type: 'reservation', id: item.id, currentPlate: item.plateNumber });
@@ -575,6 +575,7 @@ export const MyParkingScreen = () => {
                         )}
                         <Button 
                           danger 
+                          className="w-full sm:w-auto"
                           icon={<CloseCircleOutlined />}
                           onClick={() => {
                             setSelectedBookingToCancel(item);
@@ -645,6 +646,7 @@ export const MyParkingScreen = () => {
                     {!item.hasBeenUsed && (
                       <Button 
                         type="default"
+                        className="w-full sm:w-auto"
                         icon={<EditOutlined />}
                         onClick={() => {
                           setPlateToEdit({ type: 'monthly', id: item.id, currentPlate: item.plate });
@@ -657,7 +659,7 @@ export const MyParkingScreen = () => {
                     )}
                     <Button
                       type="default"
-                      className="border-blue-400 text-blue-600 hover:bg-blue-50"
+                      className="border-blue-400 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
                       icon={<SearchOutlined />}
                       onClick={() => handleViewParkingStatus(item.plate)}
                     >
@@ -665,6 +667,7 @@ export const MyParkingScreen = () => {
                     </Button>
                     <Button 
                       type="default" 
+                      className="w-full sm:w-auto"
                       icon={<HistoryOutlined />} 
                       onClick={() => {
                         setSelectedHistoryPlate(item.plate);
@@ -673,7 +676,7 @@ export const MyParkingScreen = () => {
                     >
                       History
                     </Button>
-                    <Button type="primary" className="bg-green-600" onClick={() => handleOpenRenew(item)}>Renew</Button>
+                    <Button type="primary" className="bg-green-600 w-full sm:w-auto" onClick={() => handleOpenRenew(item)}>Renew</Button>
                   </div>
                 </div>
               </Card>

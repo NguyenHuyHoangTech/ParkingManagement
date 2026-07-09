@@ -15,7 +15,8 @@ import {
   LockOutlined,
   ClockCircleOutlined,
   MessageOutlined,
-  PhoneOutlined
+  PhoneOutlined,
+  BookOutlined
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -59,6 +60,19 @@ export const HelpdeskScreen = () => {
   const [isPlateVerified, setIsPlateVerified] = useState<boolean>(false);
   const [isCheckingPlate, setIsCheckingPlate] = useState<boolean>(false);
   const [systemMessage, setSystemMessage] = useState<{ type: 'success' | 'warning' | 'info'; title: string; desc: string } | null>(null);
+  const [isRulesExpanded, setIsRulesExpanded] = useState<boolean>(false);
+
+  const { data: buildingProfile } = useQuery({
+    queryKey: ['public-building-profile'],
+    queryFn: async () => {
+      try {
+        const res = await axiosClient.get('/public/building-profile');
+        return res.data.data;
+      } catch (err) {
+        return null;
+      }
+    }
+  });
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['incidents'],
@@ -257,7 +271,7 @@ export const HelpdeskScreen = () => {
       <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
               <CustomerServiceOutlined className="text-2xl text-white" />
@@ -267,7 +281,24 @@ export const HelpdeskScreen = () => {
               <Text type="secondary" className="text-gray-500">Center for receiving and processing exceptions automatically</Text>
             </div>
           </div>
+          <Button 
+            type={isRulesExpanded ? "primary" : "default"} 
+            icon={<BookOutlined />} 
+            onClick={() => setIsRulesExpanded(!isRulesExpanded)}
+            className="rounded-full shadow-sm"
+          >
+            Xem quy định bãi xe {isRulesExpanded ? '(Thu gọn)' : ''}
+          </Button>
         </div>
+
+        {isRulesExpanded && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm animate-fade-in-up transition-all">
+            <Title level={4} className="text-slate-800 mb-4"><SafetyCertificateOutlined className="mr-2 text-blue-600" /> Quy định bãi đỗ xe</Title>
+            <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap bg-slate-50 p-4 rounded-xl border border-slate-100">
+              {buildingProfile?.rules || "Hiện tại chưa có quy định nào được thiết lập."}
+            </div>
+          </div>
+        )}
 
         {/* Request Form */}
         <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
@@ -386,7 +417,7 @@ export const HelpdeskScreen = () => {
 
                     {/* PROOF IMAGE */}
                     {selectedCategory === 'DAMAGED_CARD' ? (
-                      <div className="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Form.Item label="Upload photo Card is damaged" className="mb-0">
                             <Upload maxCount={1} beforeUpload={(file) => { setUploadedFile(file); return false; }} onRemove={() => setUploadedFile(null)} className="w-full block" listType="picture">
                               <div className="w-full h-32 border-2 border-dashed border-orange-300 rounded-lg flex flex-col items-center justify-center bg-white text-orange-500 hover:bg-orange-50 hover:border-orange-500 cursor-pointer transition-colors group">
@@ -411,7 +442,7 @@ export const HelpdeskScreen = () => {
                         selectedCategory === 'FIND_CAR' ? 'Photo of Zone standing' : 
                         selectedCategory === 'OTHER_FEEDBACK' ? 'Photo comments if available' : 
                         'Parrot / Picture card error'
-                      })`} className="mb-0 col-span-2">
+                      })`} className="mb-0 col-span-1 md:col-span-2">
                           <Upload 
                             maxCount={1} 
                             beforeUpload={(file) => {
@@ -435,7 +466,7 @@ export const HelpdeskScreen = () => {
                       name="description" 
                       label={selectedCategory === 'FIND_CAR' ? "Location clue (Floor, Near any columneee)" : "Description of Detail Incident"} 
                       rules={[{ required: true, message: 'Please enter a description' }]}
-                      className="mb-0 col-span-2 mt-2"
+                      className="mb-0 col-span-1 md:col-span-2 mt-2"
                     >
                       <TextArea rows={3} placeholder={selectedCategory === 'FIND_CAR' ? "Example: I'm standing near the Ceee area elevator" : "Explain clearly the reason so that Staff can support you as quickly as possible"} className="rounded-lg text-base p-3" />
                     </Form.Item>
@@ -465,7 +496,6 @@ export const HelpdeskScreen = () => {
             </Form>
           )}
         </Card>
-
         {/* Ticket History */}
         <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden mt-6 md:mt-8">
           <Title level={5} className="mb-4 text-gray-600 uppercase text-xs tracking-wider font-bold">Recent Request History</Title>

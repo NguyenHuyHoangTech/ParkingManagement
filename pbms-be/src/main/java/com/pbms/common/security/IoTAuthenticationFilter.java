@@ -19,18 +19,19 @@ public class IoTAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        
+
         String path = request.getServletPath();
         if (path.startsWith("/api/v1/operation/iot/") || path.startsWith("/api/v1/iot/")) {
             String apiKey = request.getHeader("X-API-KEY");
             if (apiKey == null || !apiKey.equals(expectedApiKey)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
-                response.getWriter().write("{\"status\": 401, \"message\": \"Unauthorized: Invalid or missing API Key\"}");
+                response.getWriter()
+                        .write("{\"status\": 401, \"message\": \"Unauthorized: Invalid or missing API Key\"}");
                 return;
             }
         }
-        
+
         filterChain.doFilter(request, response);
     }
 }

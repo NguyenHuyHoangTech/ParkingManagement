@@ -24,6 +24,9 @@ public class BuildingProfile extends BaseEntity {
     @Column(length = 50)
     private String hotline;
 
+    @Column(name = "contact_email", length = 100)
+    private String contactEmail;
+
     @Column(name = "is_247", columnDefinition = "BIT DEFAULT 0")
     private Boolean is247;
 

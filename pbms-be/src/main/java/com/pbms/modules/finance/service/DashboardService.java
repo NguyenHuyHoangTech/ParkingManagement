@@ -68,8 +68,22 @@ public class DashboardService {
                 """;
         Integer checkOuts = jdbcTemplate.queryForObject(checkOutQuery, Integer.class, targetDate);
 
+        String floorViolationsQuery = """
+                    SELECT
+                        f.floor_name as floor_name,
+                        v.type_name as vehicle_type,
+                        (SELECT COUNT(s.id) FROM slots s JOIN zones z ON s.zone_id = z.id WHERE z.floor_id = f.id AND z.vehicle_type_id = v.id AND z.status = 'ACTIVE' AND z.function_type = 'MONTHLY' AND s.status = 'OCCUPIED') as occupied_slots,
+                        (SELECT COUNT(ps.id) FROM parking_sessions ps JOIN zones z ON ps.suggested_zone_id = z.id WHERE z.floor_id = f.id AND z.vehicle_type_id = v.id AND z.function_type = 'MONTHLY' AND ps.status = 'ACTIVE' AND EXISTS (SELECT 1 FROM monthly_tickets mt WHERE mt.plate = ps.plate AND mt.status = 'ACTIVE' AND ps.time_in BETWEEN mt.valid_from AND mt.valid_until) AND NOT EXISTS (SELECT 1 FROM incident_tickets it WHERE it.session_id = ps.id AND it.issue_type = 'OVERSTAY' AND it.status = 'RESOLVED')) as assigned_monthly,
+                        (SELECT COUNT(it.id) FROM incident_tickets it JOIN parking_sessions ps ON it.session_id = ps.id WHERE ps.vehicle_type_id = v.id AND ps.status IN ('ACTIVE', 'LOCKED') AND it.issue_type = 'ZONE_VIOLATION') as wrong_zone_tickets_count
+                    FROM floors f
+                    CROSS JOIN vehicle_types v
+                    WHERE v.status = 'ACTIVE' AND EXISTS (SELECT 1 FROM zones z WHERE z.floor_id = f.id AND z.vehicle_type_id = v.id AND z.status = 'ACTIVE' AND z.function_type = 'MONTHLY')
+                """;
+        List<Map<String, Object>> floorViolations = jdbcTemplate.queryForList(floorViolationsQuery);
+
         Map<String, Object> liveData = new java.util.HashMap<>();
         liveData.put("vehicleStats", vehicleStats);
+        liveData.put("floorViolations", floorViolations);
         liveData.put("checkIns", checkIns != null ? checkIns : 0);
         liveData.put("checkOuts", checkOuts != null ? checkOuts : 0);
 

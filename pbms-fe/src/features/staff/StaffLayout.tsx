@@ -52,14 +52,14 @@ export const StaffLayout = () => {
   });
 
   const violations = useMemo(() => {
-    if (!operationalData?.liveData?.vehicleStats) return [];
-    return operationalData.liveData.vehicleStats
+    if (!operationalData?.liveData?.floorViolations) return [];
+    return operationalData.liveData.floorViolations
       .map((stat: any) => {
-        const occSlots = stat.occupied_slots_monthly || 0;
-        const occSoft = stat.occupied_monthly || 0;
+        const occSlots = stat.occupied_slots || 0;
+        const assignedMonthly = stat.assigned_monthly || 0;
         const wrongZoneTickets = stat.wrong_zone_tickets_count || 0;
-        const diff = occSlots - wrongZoneTickets - occSoft;
-        return { name: stat.name, diff: diff > 0 ? diff : 0, occSlots, occSoft, wrongZoneTickets };
+        const diff = occSlots - wrongZoneTickets - assignedMonthly;
+        return { name: `${stat.floor_name} - ${stat.vehicle_type}`, diff: diff > 0 ? diff : 0, occSlots, assignedMonthly, wrongZoneTickets };
       });
   }, [operationalData]);
 
@@ -155,6 +155,7 @@ export const StaffLayout = () => {
 
   const userMenu: any = {
     items: [
+      { key: 'shift', icon: <ClockCircleOutlined />, label: 'Shift Management', onClick: () => navigate('/staff/shift-management') },
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
@@ -183,62 +184,52 @@ export const StaffLayout = () => {
           <Text strong className="text-xl text-gray-800 tracking-widest cursor-pointer whitespace-nowrap" onClick={() => navigate('/staff/shift-management')}>
             PBMS <span className="text-blue-600">STAFF</span>
           </Text>
+          <div className="hidden sm:flex items-center gap-1 ml-4 border-l border-gray-200 pl-4">
+            <Button
+              type="text"
+              className="text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium px-3"
+              icon={<DesktopOutlined />}
+              onClick={() => navigate('/staff/gate-console')}
+              disabled={shiftStatus !== 'OPEN' || activeGateType === 'PATROL'}
+              title={
+                shiftStatus !== 'OPEN'
+                  ? "Please start a shift to perform this action"
+                  : activeGateType === 'PATROL'
+                    ? "Patrol staff do not have access to gate booths"
+                    : "Gate Console"
+              }
+            >
+              Gate Console
+            </Button>
+            <Button
+              type="text"
+              icon={<AlertOutlined />}
+              onClick={() => navigate('/staff/exception-desk')}
+              className="text-slate-600 hover:text-red-600 hover:bg-red-50 font-medium px-3"
+              disabled={shiftStatus !== 'OPEN'}
+              title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "Resolve Incident"}
+            >
+              Exception Desk
+            </Button>
+          </div>
         </div>
 
-        <div className="flex flex-1 justify-center gap-2 sm:gap-4">
-          <Button
-            type="primary"
-            className="bg-blue-600 hover:bg-blue-500 font-bold shadow-lg flex items-center justify-center"
-            icon={<DesktopOutlined />}
-            onClick={() => navigate('/staff/gate-console')}
-            disabled={shiftStatus !== 'OPEN' || activeGateType === 'PATROL'}
-            title={
-              shiftStatus !== 'OPEN'
-                ? "Please start a shift to perform this action"
-                : activeGateType === 'PATROL'
-                  ? "Patrol staff do not have access to gate booths"
-                  : "Gate Console"
-            }
-          >
-            <span className="hidden lg:inline">Gate Console</span>
-          </Button>
-          <Button
-            type="primary"
-            danger
-            icon={<AlertOutlined />}
-            onClick={() => navigate('/staff/exception-desk')}
-            className="font-bold shadow-lg flex items-center justify-center"
-            disabled={shiftStatus !== 'OPEN'}
-            title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "Resolve Incident"}
-          >
-            <span className="hidden lg:inline">Resolve Incident</span>
-          </Button>
-          <Button
-            type="primary"
-            className="bg-green-600 hover:bg-green-500 font-bold shadow-lg flex items-center justify-center"
-            icon={<DollarOutlined />}
-            onClick={() => navigate('/staff/shift-management')}
-            disabled={shiftStatus !== 'OPEN'}
-            title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "End Shift"}
-          >
-            <span className="hidden lg:inline">End Shift</span>
-          </Button>
-        </div>
+        <div className="flex flex-1"></div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           {/* System Clock */}
-          <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-1.5 rounded-lg shadow font-mono text-sm select-none">
-            <ClockCircleOutlined className="text-blue-400 animate-pulse" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-blue-300 font-bold text-base tracking-widest">
+          <div className="flex items-center gap-2 bg-slate-50 text-slate-700 px-3 py-1.5 rounded border border-slate-200 shadow-sm font-mono text-sm select-none">
+            <ClockCircleOutlined className="text-blue-500 animate-pulse text-lg" />
+            <div className="flex flex-col leading-none">
+              <span className="text-slate-800 font-bold text-sm tracking-widest">
                 {systemTime.format('HH:mm:ss')}
               </span>
-              <span className="text-slate-400 text-xs">{systemTime.format('DD/MM/YYYY')}</span>
+              <span className="text-slate-500 text-[10px]">{systemTime.format('DD/MM/YYYY')}</span>
             </div>
           </div>
 
           {/* Wrong Zone Alert Box */}
-          {violations.length > 0 && (
+          {(
             <Dropdown
               placement="bottomRight"
               arrow
@@ -249,12 +240,12 @@ export const StaffLayout = () => {
                     label: (
                       <div className="flex flex-col gap-2 p-2 w-64">
                         <span className="font-bold text-red-600 border-b border-red-100 pb-1">🚨 Monthly Zone Status</span>
+                        {violations.length === 0 && (
+                          <div className="text-sm text-center text-slate-500 py-2">0 xe đỗ sai zone</div>
+                        )}
                         {violations.map((v: any, idx: number) => (
                           <div key={idx} className={`p-2 rounded border ${v.diff > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="text-sm"><b>{v.name}</b>: <span className={v.diff > 0 ? 'text-red-600 font-bold' : 'text-slate-500'}>{v.diff} unauthorized car(s)</span></div>
-                            <div className="text-[10px] text-gray-500 mt-1">
-                              Sensors: {v.occSlots} | Software: {v.occSoft} | Penalized: {v.wrongZoneTickets}
-                            </div>
+                            <div className="text-sm text-center"><b>{v.name}</b>: <span className={v.diff > 0 ? 'text-red-600 font-bold' : 'text-slate-500'}>{v.diff} xe đỗ sai zone</span></div>
                           </div>
                         ))}
                       </div>

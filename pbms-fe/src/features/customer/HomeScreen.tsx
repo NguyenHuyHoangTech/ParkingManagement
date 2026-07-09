@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Collapse, List, Tag, Badge, Divider } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
+import { useNavigate } from 'react-router-dom';
+import { DatePicker } from 'antd';
+import { simulatedDayjs } from '../../core/utils/timeProvider';
+import dayjs from 'dayjs';
 import { 
   CarOutlined, 
-  SafetyCertificateOutlined,
   ClockCircleOutlined,
-  InfoCircleOutlined,
-  BookOutlined,
-  ThunderboltOutlined,
-  DollarOutlined,
-  AlertOutlined
+  BookOutlined
 } from '@ant-design/icons';
-
-const { Title, Text } = Typography;
 
 // Data structures
 type VehicleType = 'CAR' | 'MOTORBIKE' | 'EBIKE';
@@ -27,8 +23,14 @@ interface SlotData {
 }
 
 export const HomeScreen = () => {
+  const navigate = useNavigate();
   // 1. REAL-TIME STATE
   const [slots, setSlots] = useState<SlotData[]>([]);
+  const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<string | null>(null);
+  
+  // 2. HERO FORM STATE
+  const [formVehicle, setFormVehicle] = useState<string>('');
+  const [formArrivalTime, setFormArrivalTime] = useState<dayjs.Dayjs | null>(null);
 
   const { data: parkingStatusData } = useQuery({
     queryKey: ['public-parking-status'],
@@ -59,18 +61,28 @@ export const HomeScreen = () => {
     if (parkingStatusData && parkingStatusData.length > 0) {
       let filteredData = parkingStatusData;
       if (vehicleTypes) {
-        const nonBlockedLabels = vehicleTypes
-          .filter((vt: any) => vt.status === 'ACTIVE')
-          .map((vt: any) => vt.typeName);
+        const activeVTs = vehicleTypes.filter((vt: any) => vt.status === 'ACTIVE');
+        const nonBlockedLabels = activeVTs.map((vt: any) => vt.typeName);
         filteredData = parkingStatusData.filter((d: any) => nonBlockedLabels.includes(d.label));
+        
+        if (!selectedVehicleTypeId && activeVTs.length > 0) {
+          setSelectedVehicleTypeId(activeVTs[0].id);
+        }
+        if (!formVehicle && activeVTs.length > 0) {
+          setFormVehicle(activeVTs[0].id);
+        }
       }
 
       setSlots(filteredData.map((d: any) => ({
         type: d.type,
         label: d.label,
         available: d.available,
-        icon: d.type === 'FOUR_WHEEL' ? <CarOutlined /> : (d.type === 'TWO_WHEEL' ? <div className="text-xl leading-none">🏍️</div> : <ThunderboltOutlined />)
+        icon: d.type === 'FOUR_WHEEL' ? <CarOutlined /> : (d.type === 'TWO_WHEEL' ? <div className="text-xl leading-none">🏍️</div> : <div className="text-xl leading-none">⚡</div>)
       })));
+    }
+    
+    if (!formArrivalTime) {
+      setFormArrivalTime(simulatedDayjs().add(30, 'minute'));
     }
   }, [parkingStatusData, vehicleTypes]);
 
@@ -86,8 +98,6 @@ export const HomeScreen = () => {
     }
   });
 
-
-
   const { data: buildingProfile } = useQuery({
     queryKey: ['public-building-profile'],
     queryFn: async () => {
@@ -100,250 +110,294 @@ export const HomeScreen = () => {
     }
   });
 
-  // Helpers for Warning UI
+  // Helpers for Slot rendering (New UI)
   const renderSlotCard = (slot: SlotData) => {
     const isFull = slot.available === 0;
     const isWarning = slot.available > 0 && slot.available <= 5;
-    const isNormal = slot.available > 5;
 
-    let cardClasses = "rounded-3xl p-6 transition-all duration-500 relative overflow-hidden flex flex-col justify-between h-44 hover:-translate-y-2 hover:shadow-2xl hover:scale-[1.02] cursor-pointer group";
-    let statusBadge = null;
-
+    let borderClass = "border-gray-200 hover:border-cyan-400";
+    let iconBg = "bg-blue-50 text-blue-600";
+    let statusBg = "bg-green-100 text-green-700 border-green-200";
+    let statusText = "Available";
+    let numberColor = "text-green-600";
+    
     if (isFull) {
-      cardClasses += " bg-gradient-to-br from-red-600 to-red-800 text-white shadow-lg border-0 ring-4 ring-red-500/30";
-      statusBadge = (
-        <div className="absolute top-4 right-4 bg-white/20 px-3 py-1 rounded-full flex items-center animate-pulse">
-          <AlertOutlined className="mr-1" />
-          <span className="font-bold text-sm tracking-wide">FULL - SOLD OUT</span>
-        </div>
-      );
+      borderClass = "border-red-200 grayscale-[50%]";
+      iconBg = "bg-red-50 text-red-400";
+      statusBg = "bg-red-100 text-red-600 border-red-200 animate-pulse";
+      statusText = "SOLD OUT";
+      numberColor = "text-red-600";
     } else if (isWarning) {
-      cardClasses += " bg-white/80 backdrop-blur-md border border-orange-200 shadow-xl ring-4 ring-orange-500/20 animate-pulse";
-      statusBadge = (
-        <div className="absolute top-4 right-4 bg-orange-100 text-orange-700 px-3 py-1 rounded-full flex items-center border border-orange-200">
-          <AlertOutlined className="mr-1" />
-          <span className="font-bold text-sm tracking-wide">SOON</span>
-        </div>
-      );
-    } else {
-      cardClasses += " bg-white/80 backdrop-blur-md border border-green-100 shadow-lg";
+      borderClass = "border-orange-200 hover:border-orange-400";
+      iconBg = "bg-orange-50 text-orange-500";
+      statusBg = "bg-orange-100 text-orange-700 border-orange-200";
+      statusText = "Almost Full";
+      numberColor = "text-orange-600";
+    }
+
+    if (slot.type === 'TWO_WHEEL') {
+       iconBg = "bg-purple-50 text-purple-600";
+    } else if (slot.type === 'EBIKE' || slot.label.toLowerCase().includes('điện') || slot.label.toLowerCase().includes('electric')) {
+       iconBg = "bg-cyan-50 text-cyan-600";
     }
 
     return (
-      <div key={slot.type} className={cardClasses}>
-        {statusBadge}
-        <div className={`flex items-center space-x-3 transition-transform duration-300 group-hover:scale-105 ${isFull ? 'text-red-100' : 'text-gray-500'}`}>
-          <div className={`text-3xl p-3 rounded-2xl shadow-inner ${isFull ? 'bg-red-500/50' : 'bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200'}`}>
-            {slot.icon}
-          </div>
-          <span className="font-bold text-lg tracking-wider">[{slot.label}]</span>
+      <div key={slot.type} className={`bg-white/80 backdrop-blur-xl rounded-2xl p-6 relative border ${borderClass} shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
+        <div className={`w-14 h-14 rounded-full ${iconBg} flex items-center justify-center mb-6 text-3xl shadow-inner`}>
+          {slot.icon}
         </div>
-        
-        <div className="mt-4 flex items-baseline space-x-2">
-          {isFull ? (
-            <span className="text-4xl font-extrabold">0</span>
-          ) : (
-            <>
-              <span className="text-sm font-bold uppercase tracking-widest opacity-70">Available</span>
-              <span className={`text-6xl font-black tracking-tighter drop-shadow-md transition-colors duration-300 group-hover:text-blue-600 ${isWarning ? 'text-orange-600' : 'text-green-500'}`}>
-                {slot.available}
-              </span>
-              <span className="text-sm font-medium opacity-80">place</span>
-            </>
-          )}
+        <h3 className="text-lg font-bold text-slate-800">{slot.label}</h3>
+        <div className="mt-4 flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-3">
+            <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Chỗ trống</p>
+                <p className={`text-4xl font-black font-mono mt-1 ${numberColor}`}>{isFull ? '00' : slot.available}</p>
+            </div>
+            <span className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full border font-bold text-center ${statusBg}`}>{statusText}</span>
         </div>
       </div>
     );
   };
 
-  // 2. PRICING BLOCK (ACCORDION)
-  const pricingItems = (vehicleTypes || [])
-    .filter((vt: any) => vt.status === 'ACTIVE')
-    .map((vt: any, index: number) => {
-    const isCar = vt.category === 'FOUR_WHEEL';
-    const isEbike = vt.typeName.toLowerCase().includes('electricity');
-    const icon = vt.iconUrl ? <img src={getImageUrl(vt.iconUrl)} className="w-6 h-6 mr-2 object-contain inline-block" /> : (isCar ? <CarOutlined className="mr-2 text-blue-600"/> : (isEbike ? <ThunderboltOutlined className="mr-2 text-green-600"/> : <div className="text-xl leading-none mr-2">🏍️</div>));
-    const policy = (pricingPolicies || []).find((p: any) => p.vehicleTypeId === vt.id);
+  // Pricing rendering
+  const renderPricingCards = () => {
+    if (!pricingPolicies || pricingPolicies.length === 0) return <p className="text-slate-500 italic text-center">Hệ thống đang cập nhật bảng giá...</p>;
+    
+    const activeVTs = (vehicleTypes || []).filter((vt: any) => vt.status === 'ACTIVE');
+    if (activeVTs.length === 0) return null;
 
-    return {
-      key: index.toString(),
-      label: <div className="font-extrabold text-xl text-slate-800 flex items-center">{icon}  Fee schedule {vt.typeName}</div>,
-      children: policy ? (
-        <div className="space-y-4">
-          
-          {(policy.globalBaseFee > 0 || policy.globalBaseMins > 0) && (
-            <div>
-              <Text className="font-bold text-blue-800">1e Basic Fee (Not yet on shift)</Text>
-              <p className="pl-5 mt-1 text-gray-600">
-                <span className="font-bold text-gray-800">{policy.globalBaseFee?.toLocaleString()}  VND</span> cho <span className="font-bold text-gray-800">{policy.globalBaseMins}  minute</span>  firste
-                                        </p>
-            </div>
-          )}
+    const selectedVt = activeVTs.find((vt: any) => vt.id === selectedVehicleTypeId) || activeVTs[0];
+    const policy = pricingPolicies.find((p: any) => p.vehicleTypeId === selectedVt.id);
 
-          <div>
-            <Text className="font-bold text-indigo-800">{(policy.globalBaseFee > 0 || policy.globalBaseMins > 0) ? '2e Fee schedule by shift' : '1e Fee schedule by shift'}</Text>
-            {policy.shifts?.map((shift: any, idx: number) => (
-              <div key={idx} className="mt-3 ml-2 border-l-2 border-indigo-100 pl-3">
-                <Text className="font-bold text-indigo-600">
-                  <ClockCircleOutlined className="mr-1" /> Ca {shift.shiftName} ({shift.startTime} - {shift.endTime})
-                </Text>
-                <ul className="list-disc pl-5 mt-1 text-gray-600">
-                  {shift.blocks?.map((block: any, bIdx: number) => (
-                    <li key={bIdx}>
-                      Block {block.blockOrder} ({block.durationMins}  minute): <span className="font-bold text-gray-800">{block.fee?.toLocaleString()}  VND</span>
-                    </li>
-                  ))}
-                  {(!shift.blocks || shift.blocks.length === 0) && (
-                    <li className="italic text-gray-400">No blocks are defined</li>
-                  )}
-                </ul>
+    return (
+      <div className="w-full">
+        <div className="flex flex-wrap justify-center gap-4 mb-12">
+          {activeVTs.map((vt: any) => {
+            const isSelected = vt.id === selectedVehicleTypeId;
+            return (
+              <button
+                key={vt.id}
+                onClick={() => setSelectedVehicleTypeId(vt.id)}
+                className={`px-8 py-3 rounded-full font-bold transition-all duration-300 shadow-sm ${
+                  isSelected 
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_4px_14px_0_rgba(6,182,212,0.39)] transform -translate-y-1' 
+                    : 'bg-white text-slate-500 border border-slate-200 hover:border-cyan-300 hover:text-cyan-600'
+                }`}
+              >
+                {vt.typeName}
+              </button>
+            );
+          })}
+        </div>
+
+        {policy ? (
+          <div key={selectedVt.id} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto animate-fade-in">
+            {/* Khách vãng lai */}
+            <details className="group bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 shadow-lg hover:border-cyan-300 transition-all duration-300 [&_summary::-webkit-details-marker]:hidden">
+                <summary className="p-8 cursor-pointer list-none flex flex-col justify-between">
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-2xl font-bold text-slate-800">Khách Vãng Lai</h3>
+                            <span className="text-cyan-500 transform transition-transform duration-300 group-open:rotate-180 bg-cyan-50 p-2 rounded-full">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </span>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-6 font-medium">Phù hợp cho nhu cầu đỗ xe ngắn hạn. Bấm để xem chi tiết.</p>
+                        <div className="flex items-end gap-2">
+                            <span className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
+                              {policy.globalBaseFee?.toLocaleString() || '0'}
+                              <span className="text-2xl text-slate-400 font-sans ml-1">đ</span>
+                            </span>
+                            <span className="text-slate-500 font-medium mb-1">/ {policy.globalBaseMins} phút</span>
+                        </div>
+                    </div>
+                </summary>
+                
+                <div className="px-8 pb-8 pt-2 border-t border-slate-100">
+                    <ul className="space-y-4 text-sm text-slate-600 font-medium mt-4">
+                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Thanh toán linh hoạt tại cổng ra</li>
+                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Nhận diện biển số LPR chính xác 99%</li>
+                        {policy.maxParkingCap > 0 && (
+                          <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Giá trần tối đa: <strong className="text-slate-800">{policy.maxParkingCap.toLocaleString()}đ/lượt</strong></li>
+                        )}
+                        
+                        {/* Chi tiết ca đỗ */}
+                        {policy.shifts && policy.shifts.length > 0 && (
+                          <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
+                            <h4 className="font-bold text-slate-800 mb-3">Chi tiết giá theo ca:</h4>
+                            {policy.shifts.map((shift: any, idx: number) => (
+                              <div key={idx} className="mb-4 last:mb-0 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <div className="font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                  <ClockCircleOutlined className="text-cyan-600" /> 
+                                  Ca: {shift.shiftName} ({shift.startTime} - {shift.endTime})
+                                </div>
+                                <div className="space-y-1 mt-2">
+                                  {shift.blocks?.map((b: any, bIdx: number) => (
+                                    <div key={bIdx} className="flex justify-between text-sm text-slate-600 border-b border-slate-200 border-dashed last:border-0 py-1.5">
+                                      <span>Khung {b.blockOrder} ({b.durationMins} phút)</span>
+                                      <span className="font-bold text-slate-800">{b.fee?.toLocaleString()}đ</span>
+                                    </div>
+                                  ))}
+                                  {(!shift.blocks || shift.blocks.length === 0) && (
+                                    <div className="text-slate-400 italic text-sm">Chưa có khung giá cho ca này</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                    </ul>
+                </div>
+            </details>
+
+            {/* Vé tháng */}
+            {policy.monthlyRate > 0 && (
+              <div className="rounded-3xl p-1 bg-gradient-to-b from-cyan-400 to-blue-600 shadow-xl transform md:-translate-y-4 hover:shadow-2xl transition-all duration-300">
+                  <div className="bg-white h-full rounded-[23px] p-8 relative overflow-hidden flex flex-col justify-between">
+                      <div>
+                          <div className="absolute top-4 right-4 bg-cyan-100 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-cyan-200">Tiết kiệm nhất</div>
+                          
+                          <h3 className="text-2xl font-bold text-slate-800 mb-2">Vé Tháng</h3>
+                          <p className="text-sm text-slate-500 mb-6 font-medium">Giải pháp tối ưu cho cư dân và nhân viên văn phòng.</p>
+                          <div className="mb-6 pb-6 border-b border-slate-100 flex items-end gap-2">
+                              <span className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
+                                {policy.monthlyRate?.toLocaleString()}
+                                <span className="text-2xl text-slate-400 font-sans ml-1">đ</span>
+                              </span>
+                              <span className="text-slate-500 font-medium mb-1">/ tháng</span>
+                          </div>
+                          <ul className="space-y-4 text-sm text-slate-600 mb-8 relative z-10 font-medium">
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> <strong className="text-slate-800">Cố định chỗ đỗ tại ZONE VIP</strong></li>
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Ra vào không giới hạn số lần</li>
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Tích hợp thẻ vật lý RFID chống sao chép</li>
+                          </ul>
+                      </div>
+                      <button 
+                        onClick={() => navigate('/customer/monthly-pass')}
+                        className="w-full mt-4 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold transition shadow-lg relative z-10 hover:-translate-y-0.5 active:translate-y-0"
+                      >
+                        Đăng ký Vé Tháng ngay
+                      </button>
+                      
+                      <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-cyan-50 blur-3xl rounded-full"></div>
+                  </div>
               </div>
-            ))}
-            {(!policy.shifts || policy.shifts.length === 0) && (
-              <p className="pl-5 mt-1 text-gray-500 italic">There are no cases configured</p>
             )}
           </div>
-
-          {policy.maxParkingCap && policy.maxParkingCap > 0 && (
-            <div className="bg-red-50 p-3 rounded-lg border border-red-100 flex items-start mt-4">
-              <DollarOutlined className="text-red-500 text-lg mt-0.5 mr-2" />
-              <div>
-                <Text className="font-bold text-red-700">Price Ceiling (Max Cap)</Text>
-                <p className="text-red-600 text-sm m-0">Max <span className="font-extrabold">{policy.maxParkingCap?.toLocaleString()}  VND</span>  / number of submissions</p>
-              </div>
-            </div>
-          )}
-
-          {policy.monthlyRate && policy.monthlyRate > 0 && (
-            <div className="bg-green-50 p-3 rounded-lg border border-green-100 flex items-start mt-4">
-              <SafetyCertificateOutlined className="text-green-500 text-lg mt-0.5 mr-2" />
-              <div>
-                <Text className="font-bold text-green-700">Monthly Passes</Text>
-                <p className="text-green-600 text-sm m-0">Sign up for Monthly Pass only <span className="font-extrabold">{policy.monthlyRate?.toLocaleString()}  VND</span>  /monthe</p>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="py-6 text-center text-gray-500">
-          
-                            No fee schedule has been configured for this vehicle type
-                          </div>
-      )
-    };
-  });
+        ) : (
+          <p className="text-slate-500 italic text-center">Chưa có bảng giá cho loại hình phương tiện này.</p>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30 pb-12 font-sans selection:bg-blue-200">
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+    <div className="min-h-screen bg-[#F8FAFC] pb-12 font-sans selection:bg-cyan-200">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20">
         
-        {/* Zone 1: HERO SECTION */}
-        <section className="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 rounded-[2.5rem] p-10 shadow-2xl text-white relative overflow-hidden border border-white/10">
-          <div className="absolute inset-0 bg-[url('/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
-          <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-          <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-          <div className="relative z-10">
-            <div className="flex items-center space-x-3 mb-4">
-              <Badge status="processing" color="#10b981" />
-              <div className="border border-green-500/50 bg-green-500/10 px-3 py-1 rounded-full inline-flex items-center backdrop-blur-sm">
-                <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>
-                <span className="text-green-300 text-xs font-bold uppercase tracking-widest">Active</span>
-              </div>
-            </div>
+        {/* HERO SECTION */}
+        <section className="relative rounded-[2rem] md:rounded-[2.5rem] bg-white overflow-hidden shadow-sm border border-slate-100 min-h-[auto] md:min-h-[75vh] flex flex-col justify-center pt-8 pb-8 px-4 md:px-8 lg:px-12 mt-4 md:mt-8">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20"></div>
+            <div className="absolute top-0 right-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-cyan-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+            <div className="absolute bottom-0 left-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-blue-400/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3"></div>
             
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2 drop-shadow-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-200">
-              {buildingProfile?.name || "Smart Parking System"}
-            </h1>
-            
-            <div className="flex flex-wrap items-center text-gray-300 mt-4 gap-4">
-              <div className="flex items-center">
-                <ClockCircleOutlined className="mr-2 text-blue-400" />
-                <span className="font-medium text-lg">Active time: <span className="text-white font-bold">{buildingProfile ? (buildingProfile.is247 ? "24/7" : `${buildingProfile.operatingStart} - ${buildingProfile.operatingEnd}`) : "24/7"}</span></span>
-              </div>
-              <div className="flex items-center">
-                <InfoCircleOutlined className="mr-2 text-indigo-400" />
-                <span className="font-medium text-lg">Hotline: <span className="text-white font-bold">{buildingProfile?.hotline || "Updating"}</span></span>
-              </div>
-              <div className="flex items-center w-full mt-2">
-                <span className="font-medium text-sm">Address: {buildingProfile?.address || "Updating"}</span>
-              </div>
+            <div className="relative z-10 w-full flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
+                <div className="flex-1 w-full max-w-2xl text-center lg:text-left mt-8 lg:mt-0">
+                    <div className="inline-flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-700 mb-6 md:mb-8 backdrop-blur-sm shadow-sm">
+                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">Hệ thống Điều hướng AI Đã Kích Hoạt</span>
+                    </div>
+                    <h1 className="text-4xl md:text-5xl lg:text-7xl font-black leading-tight mb-4 md:mb-6 tracking-tight text-slate-800">
+                        Không gian thông minh.<br className="hidden md:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 block mt-2 md:mt-0">Trải nghiệm không chạm.</span>
+                    </h1>
+                    <p className="text-slate-500 text-base md:text-lg lg:text-xl mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                        {buildingProfile?.name || "Hệ thống bãi đỗ xe thông minh."} Đỗ xe dễ dàng hơn bao giờ hết. Cập nhật chỗ trống theo thời gian thực, điều hướng thông minh bằng AI và thanh toán tự động qua nhận diện biển số (LPR).
+                    </p>
+                </div>
+
+                {/* Booking Card */}
+                <div className="w-full lg:max-w-md">
+                    <div className="bg-white/80 backdrop-blur-2xl rounded-3xl p-6 md:p-8 border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative">
+                        <div className="absolute -inset-0.5 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-[1.6rem] blur opacity-20"></div>
+                        <div className="relative">
+                            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                <CarOutlined className="text-cyan-500" />
+                                Đặt chỗ trước
+                            </h3>
+                            
+                            <div className="space-y-5">
+                                <div>
+                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Loại phương tiện</label>
+                                    <select 
+                                      value={formVehicle}
+                                      onChange={(e) => setFormVehicle(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all appearance-none font-medium"
+                                    >
+                                        {(vehicleTypes || []).filter((vt:any) => vt.status === 'ACTIVE').map((vt:any) => (
+                                          <option key={vt.id} value={vt.id}>{vt.typeName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Thời gian đến dự kiến</label>
+                                    <DatePicker 
+                                      showTime 
+                                      format="HH:mm DD/MM/YYYY" 
+                                      value={formArrivalTime}
+                                      onChange={(val) => val && setFormArrivalTime(val)} 
+                                      className="w-full h-[52px] rounded-xl bg-slate-50 border-slate-200 hover:border-cyan-400 focus:border-cyan-400 font-medium" 
+                                      minDate={simulatedDayjs()}
+                                    />
+                                </div>
+
+                                <div className="pt-2">
+                                    <button 
+                                      onClick={() => navigate('/customer/pre-booking', { state: { vehicleTypeId: parseInt(formVehicle), arrivalTime: formArrivalTime?.toISOString() }})}
+                                      className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 px-8 rounded-xl shadow-[0_4px_14px_0_rgba(6,182,212,0.39)] hover:shadow-[0_6px_20px_rgba(6,182,212,0.23)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                    >
+                                        TIẾP TỤC ĐẶT CHỖ
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
         </section>
 
-        {/* BLOCK 1: PARKING STATS (KPI CARDS) */}
-        <section>
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center"><CarOutlined className="mr-3 text-blue-600"/> Parking condition</h2>
-            <div className="flex items-center text-xs font-medium text-gray-500 bg-gray-200 px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping mr-2"></span>
-              
-                                        Update directly
-                                      </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {slots.map(renderSlotCard)}
-          </div>
-        </section>
+        {/* STATUS SECTION */}
+        <section className="relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 pb-6 border-b border-slate-200 gap-4">
+                <div>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
+                        Tình trạng lưu bãi
+                    </h2>
+                    <p className="text-slate-500 mt-2 font-medium">Dữ liệu được cập nhật trực tiếp theo thời gian thực từ hệ thống cảm biến AI/IoT</p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-cyan-600 font-mono bg-cyan-50 px-3 py-1.5 rounded-full border border-cyan-100">
+                   <ClockCircleOutlined /> Lần cập nhật cuối: Vừa xong
+                </div>
+            </div>
 
-        {/* BLOCK 2: PRICING TRANSPARENCY */}
-        <section>
-          <div className="flex items-center mb-8">
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center"><DollarOutlined className="mr-3 text-green-600"/> Parking fee schedule</h2>
-          </div>
-          
-          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden">
-            <Collapse 
-              items={pricingItems} 
-              defaultActiveKey={['1']} 
-              ghost 
-              expandIconPosition="end"
-              className="text-lg"
-            />
-          </div>
-        </section>
-
-        {/* BLOCK 3: ADMIN & RULES INFO */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Card className="rounded-3xl shadow-lg border-0 hover:shadow-xl transition-shadow duration-300 h-full bg-white/80 backdrop-blur-md" title={<span className="font-black text-xl flex items-center"><SafetyCertificateOutlined className="mr-2 text-indigo-600"/>  Vehicle Type served</span>}>
-            <List
-              itemLayout="horizontal"
-              dataSource={[
-                { title: 'Car transports people', desc: 'Under 7 seats, circulation height i= 2e2m' },
-                { title: 'Motorcycles, Scooters', desc: 'Types of two-wheeled motorbikes' },
-                { title: 'Electric bicycle', desc: 'Supports separate charging zones' },
-              ]}
-              renderItem={item => (
-                <List.Item>
-                  <List.Item.Meta
-                    title={<span className="font-bold text-gray-800">{item.title}</span>}
-                    description={item.desc}
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-
-          <Card className="rounded-3xl shadow-lg border-0 hover:shadow-xl transition-shadow duration-300 h-full bg-gradient-to-br from-orange-50/50 to-red-50/30 backdrop-blur-md" title={<span className="font-black text-xl flex items-center"><BookOutlined className="mr-2 text-orange-600"/>  Parking lot rules</span>}>
-            <List
-              size="small"
-              dataSource={buildingProfile?.rules ? buildingProfile.rules.split('\n') : [
-                'Warning that vehicles left in the parking lot for more than 72 hours will be recorded according to regulations',
-                'Reminder NOT to leave valuable assets in the vehicle (Laptop, casheee) e Management Reject compensates in case of loss e',
-                'Comply with the speed limit of 5km/h in the tunnel',
-                'Park on the right line, do not park in the Zone for disabled people without a card',
-              ]}
-              renderItem={(item: any, index: number) => (
-                <List.Item className="border-b-0 py-2 text-gray-700">
-                  <div className="flex items-start">
-                    <span className="bg-orange-200 text-orange-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mr-3 mt-0.5 shrink-0">{index + 1}</span> 
-                    <span>{item}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {slots.length > 0 ? slots.map(renderSlotCard) : (
+                  <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+                    Chưa có dữ liệu bãi đỗ.
                   </div>
-                </List.Item>
-              )}
-            />
-          </Card>
+                )}
+            </div>
+        </section>
+
+        {/* PRICING SECTION */}
+        <section className="relative">
+            <div className="text-center mb-8 md:mb-16 max-w-3xl mx-auto">
+                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight mb-4">Gói dịch vụ linh hoạt</h2>
+                <p className="text-slate-500 font-medium text-sm md:text-base">Thanh toán tự động không tiền mặt qua cổng điện tử hoặc ví VNPay. Bảng giá minh bạch, không phụ phí ẩn, tích hợp nhận diện biển số.</p>
+            </div>
+
+            {renderPricingCards()}
         </section>
 
       </main>

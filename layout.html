@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBMS | Hệ Thống Đỗ Xe Thông Minh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: '#0B1120',
+                        cyan: '#06b6d4',
+                        cyanGlow: 'rgba(6, 182, 212, 0.5)',
+                        panel: 'rgba(30, 41, 59, 0.4)'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        tech: ['Space Grotesk', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { background-color: #0B1120; color: white; overflow-x: hidden; }
+        
+        /* Glassmorphism Classes */
+        .glass-header {
+            background: rgba(11, 17, 32, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Hiệu ứng tia sáng quét (Radar/Scanner) cho Card */
+        .tech-card {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .tech-card:hover {
+            transform: translateY(-5px);
+            border-color: #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+        }
+        .tech-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(6, 182, 212, 0.2), transparent);
+            transform: skewX(-20deg);
+            transition: all 0.5s ease;
+        }
+        .tech-card:hover::before {
+            left: 150%;
+            transition: all 0.7s ease;
+        }
+
+        /* Hero Background với Overlay 2 lớp */
+        .hero-section {
+            background-image: 
+                linear-gradient(to bottom, rgba(11, 17, 32, 0.4), #0B1120),
+                url('assets/hero-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        /* Animation */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 4s ease-in-out infinite; }
+    </style>
+</head>
+<body class="antialiased font-sans">
+
+    <header class="fixed w-full top-0 z-50 glass-header">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-12">
+                <a href="#" class="flex items-center gap-2 group">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.5)] group-hover:scale-105 transition">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <span class="font-tech font-bold text-2xl tracking-wider text-white">PBMS<span class="text-cyan">.</span></span>
+                </a>
+                
+                <nav class="hidden md:flex gap-8 text-sm font-semibold text-gray-300">
+                    <a href="#" class="text-cyan border-b-2 border-cyan pb-1">Trang chủ</a>
+                    <a href="#" class="hover:text-cyan transition">Đặt chỗ (Booking)</a>
+                    <a href="#" class="hover:text-cyan transition">Vé tháng</a>
+                    <a href="#" class="hover:text-cyan transition">Hỗ trợ (e-KYC)</a>
+                </nav>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/30">
+                    <span class="w-2 h-2 rounded-full bg-green-400 animate-ping"></span>
+                    <span class="text-xs font-tech text-green-400 tracking-wide">SYSTEM: ONLINE</span>
+                </div>
+                <div class="flex items-center gap-3 pl-4 border-l border-gray-700 cursor-pointer hover:opacity-80 transition">
+                    <img src="https://ui-avatars.com/api/?name=Khach+Hang&background=06b6d4&color=fff" class="w-10 h-10 rounded-full border-2 border-cyan shadow-[0_0_10px_rgba(6,182,212,0.5)]">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero-section min-h-[90vh] flex flex-col justify-center pt-20 relative">
+        <div class="max-w-7xl mx-auto px-6 w-full z-10">
+            <div class="max-w-3xl">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan/30 bg-cyan/10 text-cyan mb-6 backdrop-blur-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span class="text-xs font-bold uppercase tracking-wider">Hệ thống Điều hướng AI Đã Kích Hoạt</span>
+                </div>
+                <h1 class="text-5xl md:text-7xl font-bold leading-tight mb-6 font-tech">
+                    Không gian thông minh.<br>
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Trải nghiệm không chạm.</span>
+                </h1>
+                <p class="text-gray-400 text-lg md:text-xl mb-10 max-w-2xl leading-relaxed">
+                    Đỗ xe dễ dàng hơn bao giờ hết. Cập nhật chỗ trống theo thời gian thực, điều hướng thông minh bằng AI và thanh toán tự động qua nhận diện biển số (LPR).
+                </p>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 md:p-6 flex flex-col md:flex-row gap-4 items-center justify-between mt-8 w-full max-w-4xl relative z-20">
+                <div class="flex-1 w-full">
+                    <label class="block text-xs text-cyan tracking-wider mb-2 uppercase font-semibold">Loại phương tiện</label>
+                    <select class="w-full bg-slate-900/50 border border-slate-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-cyan appearance-none">
+                        <option>🚗 Ô tô (Dưới 7 chỗ)</option>
+                        <option>🚙 Xe điện (Có trạm sạc)</option>
+                        <option>🛵 Xe máy</option>
+                    </select>
+                </div>
+                <div class="hidden md:block w-px h-12 bg-slate-700"></div>
+                <div class="flex-1 w-full">
+                    <label class="block text-xs text-cyan tracking-wider mb-2 uppercase font-semibold">Thời gian đến dự kiến</label>
+                    <input type="time" class="w-full bg-slate-900/50 border border-slate-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-cyan" value="08:30">
+                </div>
+                <div class="w-full md:w-auto pt-6 md:pt-0">
+                    <button class="w-full md:w-48 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 px-8 rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] transition-all transform hover:-translate-y-1">
+                        ĐẶT CHỖ NGAY
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-20 bg-navy relative">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-slate-800 pb-6">
+                <div>
+                    <h2 class="text-3xl font-tech font-bold flex items-center gap-3">
+                        <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                        Tình trạng lưu bãi
+                    </h2>
+                    <p class="text-gray-400 mt-2">Dữ liệu được cập nhật trực tiếp từ hệ thống cảm biến IoT</p>
+                </div>
+                <p class="text-sm text-cyan font-mono mt-4 md:mt-0">Lần cập nhật cuối: Vừa xong</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                <div class="glass-panel tech-card rounded-2xl p-6 relative">
+                    <div class="absolute right-[-20px] bottom-[-20px] opacity-20 w-32 animate-float">
+                        <img src="assets/car-3d.png" alt="Car" onerror="this.style.display='none'">
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-6 border border-blue-500/30">
+                        <span class="text-2xl">🚗</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-200">Ô tô (Car)</h3>
+                    <div class="mt-4 flex items-end justify-between relative z-10">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase tracking-wide">Chỗ trống</p>
+                            <p class="text-4xl font-tech font-bold text-green-400 mt-1">22</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">Available</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel tech-card rounded-2xl p-6 relative border-cyan/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
+                    <div class="absolute right-[-20px] bottom-[-20px] opacity-20 w-32 animate-float" style="animation-delay: 1s;">
+                        <img src="assets/car-3d.png" alt="EV" onerror="this.style.display='none'">
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mb-6 border border-cyan-500/30">
+                        <span class="text-2xl">⚡</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-200">Xe Điện (EV)</h3>
+                    <div class="mt-4 flex items-end justify-between relative z-10">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase tracking-wide">Chỗ trống</p>
+                            <p class="text-4xl font-tech font-bold text-cyan mt-1">10</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-cyan-500/20 text-cyan rounded border border-cyan-500/30">Fast Charge</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel tech-card rounded-2xl p-6 relative">
+                    <div class="absolute right-[-20px] bottom-[-20px] opacity-20 w-28 animate-float" style="animation-delay: 0.5s;">
+                        <img src="assets/motor-3d.png" alt="Motor" onerror="this.style.display='none'">
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mb-6 border border-purple-500/30">
+                        <span class="text-2xl">🛵</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-200">Xe Máy</h3>
+                    <div class="mt-4 flex items-end justify-between relative z-10">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase tracking-wide">Chỗ trống</p>
+                            <p class="text-4xl font-tech font-bold text-green-400 mt-1">30</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">Available</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl p-6 relative bg-slate-900/80 border-red-500/20 grayscale-[50%]">
+                    <div class="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
+                        <span class="text-2xl opacity-50">🚚</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-400">Xe Tải (Van)</h3>
+                    <div class="mt-4 flex items-end justify-between relative z-10">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase tracking-wide">Chỗ trống</p>
+                            <p class="text-4xl font-tech font-bold text-red-500 mt-1">00</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded border border-red-500/30 animate-pulse">SOLD OUT</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="py-20 bg-[#070b16] border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-tech font-bold mb-4">Gói dịch vụ linh hoạt</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">Thanh toán tự động không tiền mặt qua cổng điện tử hoặc ví VNPay. Bảng giá minh bạch, không phụ phí ẩn.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                
+                <div class="glass-panel rounded-2xl p-8 border border-slate-700 hover:border-slate-500 transition">
+                    <h3 class="text-xl font-bold text-white mb-2">Khách Vãng Lai</h3>
+                    <p class="text-sm text-gray-400 mb-6">Phù hợp cho nhu cầu đỗ xe ngắn hạn, mua sắm.</p>
+                    <div class="mb-6 pb-6 border-b border-slate-700">
+                        <span class="text-4xl font-tech font-bold">10.000<span class="text-lg text-gray-500 font-sans">đ</span></span>
+                        <span class="text-gray-500">/ block 4h</span>
+                    </div>
+                    <ul class="space-y-4 text-sm text-gray-300 mb-8">
+                        <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Thanh toán ngay tại cổng ra</li>
+                        <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Nhận diện biển số LPR chính xác 99%</li>
+                        <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Hỗ trợ hoàn tiền nếu ra sớm (< 10 phút)</li>
+                    </ul>
+                    <button class="w-full py-3 rounded-xl border border-slate-600 text-white font-semibold hover:bg-slate-800 transition">Xem chi tiết biểu phí</button>
+                </div>
+
+                <div class="rounded-2xl p-1 bg-gradient-to-b from-cyan-500 to-blue-600 shadow-[0_0_30px_rgba(6,182,212,0.3)] transform md:-translate-y-4">
+                    <div class="bg-navy h-full rounded-xl p-8 relative overflow-hidden">
+                        <div class="absolute top-4 right-4 bg-cyan text-navy text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Tiết kiệm nhất</div>
+                        
+                        <h3 class="text-xl font-bold text-white mb-2">Vé Tháng (Monthly Pass)</h3>
+                        <p class="text-sm text-cyan-200 mb-6">Giải pháp tối ưu cho cư dân và nhân viên văn phòng.</p>
+                        <div class="mb-6 pb-6 border-b border-slate-700">
+                            <span class="text-4xl font-tech font-bold">200.000<span class="text-lg text-gray-500 font-sans">đ</span></span>
+                            <span class="text-gray-500">/ tháng</span>
+                        </div>
+                        <ul class="space-y-4 text-sm text-gray-300 mb-8 relative z-10">
+                            <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> <span class="text-white font-semibold">Cố định chỗ đỗ tại ZONE VIP</span></li>
+                            <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Ra vào không giới hạn số lần</li>
+                            <li class="flex items-center gap-3"><svg class="w-5 h-5 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Tích hợp thẻ vật lý RFID chống sao chép</li>
+                        </ul>
+                        <button class="w-full py-3 rounded-xl bg-cyan hover:bg-cyan-400 text-navy font-bold transition shadow-lg relative z-10">Đăng ký Vé Tháng ngay</button>
+                        
+                        <div class="absolute -bottom-16 -right-16 w-64 h-64 bg-blue-500/20 blur-3xl rounded-full"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-[#04070d] border-t border-slate-900 pt-16 pb-8">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 border-b border-slate-800 pb-12 mb-8">
+                <div class="col-span-1 md:col-span-2">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="font-tech font-bold text-2xl text-white">PBMS<span class="text-cyan">.</span></span>
+                    </div>
+                    <p class="text-gray-500 text-sm max-w-sm mb-6">Hệ thống Quản lý Bãi đỗ xe Thông minh ứng dụng AI và IoT hàng đầu. An toàn, Minh bạch, Nhanh chóng.</p>
+                    <div class="flex items-center gap-4">
+                        <img src="assets/vnpay-logo.png" alt="VNPay" class="h-8 opacity-70 hover:opacity-100 transition" onerror="this.style.display='none'">
+                        <div class="px-3 py-1 border border-slate-700 rounded text-xs text-slate-400 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            Bảo mật RSA 2048-bit
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Hỗ trợ Khách hàng</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-cyan transition">Tra cứu hóa đơn</a></li>
+                        <li><a href="#" class="hover:text-cyan transition">Báo mất thẻ RFID</a></li>
+                        <li><a href="#" class="hover:text-cyan transition">Quy định bãi giữ xe</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-4">Liên hệ (24/7)</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li>Hotline: <span class="text-cyan font-mono">0123 456 789</span></li>
+                        <li>Email: support@pbms.vn</li>
+                        <li>Khu Công Nghệ Cao, Quận 9, TP.HCM</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
+                <p>&copy; 2026 PBMS - Smart Parking Management System. All rights reserved.</p>
+                <div class="flex gap-4 mt-4 md:mt-0">
+                    <a href="#" class="hover:text-white transition">Điều khoản dịch vụ</a>
+                    <a href="#" class="hover:text-white transition">Chính sách bảo mật</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -19,6 +19,7 @@ const PreBookingScreen = lazy(() => import('../../features/customer/PreBookingSc
 const MyParkingScreen = lazy(() => import('../../features/customer/MyParkingScreen').then(m => ({ default: m.MyParkingScreen })));
 const HelpdeskScreen = lazy(() => import('../../features/customer/HelpdeskScreen').then(m => ({ default: m.HelpdeskScreen })));
 const CustomerMonthlyPassScreen = lazy(() => import('../../features/customer/CustomerMonthlyPassScreen').then(m => ({ default: m.CustomerMonthlyPassScreen })));
+const CustomerRulesScreen = lazy(() => import('../../features/customer/CustomerRulesScreen').then(m => ({ default: m.CustomerRulesScreen })));
 const UserManagementScreen = lazy(() => import('../../features/admin/UserManagementScreen').then(m => ({ default: m.UserManagementScreen })));
 const VehicleTypeScreen = lazy(() => import('../../features/manager/VehicleTypeScreen').then(m => ({ default: m.VehicleTypeScreen })));
 const SpaceMapScreen = lazy(() => import('../../features/manager/SpaceMapScreen').then(m => ({ default: m.SpaceMapScreen })));
@@ -65,7 +66,7 @@ export const AppRouter = () => {
           if (data.action === 'UPDATE' && data.email === email) {
             logout();
           }
-        } catch (e) {}
+        } catch (e) { }
       });
       return () => sub.unsubscribe();
     }
@@ -89,8 +90,8 @@ export const AppRouter = () => {
           <Route path="/login" element={<LoginScreen />} />
 
           {/* ADMIN LAYOUT ROUTES */}
-          <Route 
-            path="/admin" 
+          <Route
+            path="/admin"
             element={
               <ProtectedRoute allowedRoles={['ROLE_SUPER_ADMIN', 'ROLE_ADMIN']}>
                 <AdminLayout />
@@ -103,8 +104,8 @@ export const AppRouter = () => {
           </Route>
 
           {/* MANAGER LAYOUT ROUTES */}
-          <Route 
-            path="/manager" 
+          <Route
+            path="/manager"
             element={
               <ProtectedRoute allowedRoles={['ROLE_MANAGER']}>
                 <ManagerLayout />
@@ -127,8 +128,8 @@ export const AppRouter = () => {
           </Route>
 
           {/* CUSTOMER LAYOUT ROUTES */}
-          <Route 
-            path="/customer" 
+          <Route
+            path="/customer"
             element={
               <ProtectedRoute allowedRoles={['ROLE_CUSTOMER']}>
                 <CustomerLayout />
@@ -140,11 +141,12 @@ export const AppRouter = () => {
             <Route path="my-parking" element={<MyParkingScreen />} />
             <Route path="monthly-pass" element={<CustomerMonthlyPassScreen />} />
             <Route path="helpdesk" element={<HelpdeskScreen />} />
+            <Route path="rules" element={<CustomerRulesScreen />} />
           </Route>
 
           {/* STAFF LAYOUT ROUTES */}
-          <Route 
-            path="/staff" 
+          <Route
+            path="/staff"
             element={
               <ProtectedRoute allowedRoles={['ROLE_STAFF']}>
                 <StaffLayout />

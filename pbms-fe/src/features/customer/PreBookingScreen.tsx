@@ -1,6 +1,6 @@
 import { simulatedDayjs, useSystemTime, useSimulatedOffset, refreshSimulatedOffset } from '../../core/utils/timeProvider';
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert } from 'antd';
 import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -17,13 +17,20 @@ const GATEWAYS = [
 
 export const PreBookingScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   
-  const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<number | null>(location.state?.vehicleTypeId || null);
   const [plateNumber, setPlateNumber] = useState<string>('');
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
   
-  const [arrivalTime, setArrivalTime] = useState<dayjs.Dayjs>(simulatedDayjs().add(30, 'minute'));
-  const [endTime, setEndTime] = useState<dayjs.Dayjs>(simulatedDayjs().add(2, 'hour').add(30, 'minute'));
+  const [arrivalTime, setArrivalTime] = useState<dayjs.Dayjs>(() => {
+    if (location.state?.arrivalTime) return dayjs(location.state.arrivalTime);
+    return simulatedDayjs().add(30, 'minute');
+  });
+  const [endTime, setEndTime] = useState<dayjs.Dayjs>(() => {
+    if (location.state?.arrivalTime) return dayjs(location.state.arrivalTime).add(2, 'hour');
+    return simulatedDayjs().add(2, 'hour').add(30, 'minute');
+  });
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
 
   // Automatically adjust time if system offset syncs after page load
@@ -97,9 +104,11 @@ export const PreBookingScreen = () => {
 
   useEffect(() => {
     // If the offset changes (e.g., initial fetch from server), update the selected times
-    setArrivalTime(simulatedDayjs().add(earlyMins, 'minute'));
-    setEndTime(simulatedDayjs().add(2, 'hour').add(earlyMins, 'minute'));
-  }, [systemOffset, earlyMins]);
+    if (!location.state?.arrivalTime) {
+      setArrivalTime(simulatedDayjs().add(earlyMins, 'minute'));
+      setEndTime(simulatedDayjs().add(2, 'hour').add(earlyMins, 'minute'));
+    }
+  }, [systemOffset, earlyMins, location.state]);
 
   const addDebugLog = (type: string, data: any) => {
     setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type, data }]);
@@ -332,7 +341,7 @@ export const PreBookingScreen = () => {
           <Card title={<span className="font-black text-xl"><CarOutlined className="mr-2 text-blue-600"/>1. Vehicle Information</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
             <div className="mb-6">
               <Text className="block font-bold mb-3 text-slate-700">Vehicle Type:</Text>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {VEHICLES.map((v: any) => (
                   <div
                     key={v.id}

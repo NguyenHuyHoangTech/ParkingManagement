@@ -293,6 +293,8 @@ export const ShiftManagementScreen = () => {
             </Button>,
           ]}
           width={600}
+          style={{ top: 40 }}
+          styles={{ body: { maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' } }}
         >
           <div className="py-4">
             <Text className="block mb-4 text-gray-600">You are assigned to a shift. Please select a position or task to begin.</Text>

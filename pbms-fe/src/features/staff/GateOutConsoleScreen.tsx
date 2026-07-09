@@ -391,7 +391,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           {!scanData ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900">
               <AimOutlined className="text-6xl mb-4 opacity-30 animate-spin" style={{ animationDuration: '3s' }} />
-              <Text className="text-slate-400 font-bold tracking-widest text-lg">WAITING FOR THE CAR SIGNAL Raeee</Text>
+              <Text className="text-slate-400 font-bold tracking-widest text-lg">WAITING FOR THE CAR SIGNAL OUT...</Text>
             </div>
           ) : (
             <>
@@ -412,14 +412,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         </div>
 
         {/* RIGHT SIDE: Info, Plates, Billing, Actions (55% width) */}
-        <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-y-auto overflow-x-hidden shadow-sm">
+        <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-hidden shadow-sm relative">
           
           {/* Scrollable Detail Area (Split into 2 internal columns) */}
-          <div className="flex-1 p-2 flex flex-col xl:flex-row gap-2 min-h-0">
+          <div className="flex-1 p-2 flex flex-col xl:flex-row gap-4 overflow-y-auto custom-scrollbar">
             {scanData ? (
               <>
                 {/* Internal Left: Info & Plates */}
-                <div className="w-full xl:w-1/2 flex flex-col gap-2 h-full">
+                <div className="w-full xl:w-1/2 flex flex-col gap-2">
                   
                   {/* Identity & Slot */}
                   <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex justify-between items-center flex-none">
@@ -512,7 +512,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 </div>
 
                 {/* Internal Right: Billing & Payment */}
-                <div className="w-full xl:w-1/2 flex flex-col h-full bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4">
+                <div className="w-full xl:w-1/2 flex flex-col bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4">
                   {/* LOCKED SESSION BANNER */}
                   {scanData?.status === 'LOCKED' && (
                     <div className="mb-3 bg-red-600/20 border-2 border-red-500 rounded-xl p-3 flex items-center gap-3 animate-pulse">
@@ -637,8 +637,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 </div>
               </>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">
-                <Text className="font-bold tracking-widest text-lg uppercase text-slate-300">Waiting for dataeee</Text>
+            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                <Text className="font-bold tracking-widest text-lg uppercase text-slate-300">Waiting for data...</Text>
               </div>
             )}
           </div>

@@ -390,8 +390,8 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
   const renderInGatePanel = () => (
     <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden w-full bg-slate-100">
-      {/* TASK 1 & 2: Top Zone (Cameras) - STRICT h-[38%] */}
-      <div className="h-[38%] flex-none p-2 relative flex bg-slate-900 border-b-4 border-slate-800">
+      {/* TASK 1 & 2: Top Zone (Cameras) */}
+      <div className="h-[35%] min-h-[200px] max-h-[300px] flex-none p-2 relative flex bg-slate-900 border-b-4 border-slate-800">
         <div className="absolute top-0 left-0 bg-black/70 text-white px-2 py-1 text-[10px] z-10 font-bold uppercase tracking-widest">
           Camera Feeds
         </div>
@@ -416,7 +416,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       </div>
 
       {/* TASK 1 & 3: Middle Zone (Info & Alerts) - Flexible Space */}
-      <div className="flex-1 overflow-hidden p-2 flex flex-col gap-2 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2 bg-slate-50 custom-scrollbar">
         {scanData?.isBlacklisted && (
           <div className="bg-red-100 border border-red-500 text-red-700 p-2 font-bold text-center rounded-lg animate-pulse shadow-sm flex-none">
             <WarningOutlined className="mr-2" />
