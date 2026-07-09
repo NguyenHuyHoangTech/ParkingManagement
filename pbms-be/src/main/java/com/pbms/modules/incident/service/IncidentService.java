@@ -31,7 +31,6 @@ public class IncidentService {
     private final RfidCardRepository rfidCardRepository;
     private final ZoneRepository zoneRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final com.pbms.modules.finance.service.PricingCalculatorService pricingCalculatorService;
     private final com.pbms.modules.operation.repository.MonthlyTicketRepository monthlyTicketRepository;
     private final com.pbms.modules.identity.repository.UserRepository userRepository;
     private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
