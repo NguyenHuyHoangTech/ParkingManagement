@@ -95,7 +95,9 @@ export const CustomerLayout = () => {
               </div>
 
               <div className="flex items-center gap-2 lg:gap-4 xl:gap-6 shrink-0">
-                  <SystemClock className="hidden xl:block text-slate-500 text-xs font-mono font-medium" />
+                  <div className="hidden xl:block text-slate-500 text-xs font-mono font-medium">
+                    <SystemClock />
+                  </div>
                   
                   <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border shrink-0 ${connected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                       <span className={`w-2 h-2 rounded-full animate-ping ${connected ? 'bg-green-500' : 'bg-red-500'}`}></span>

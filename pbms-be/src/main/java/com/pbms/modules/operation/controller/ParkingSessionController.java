@@ -248,11 +248,12 @@ public class ParkingSessionController {
             currentFee = currentFee.add(ps.getOvertimeFee());
         }
         
+        com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = null;
         if (currentFee == null && ps.getVehicleType() != null && ps.getTimeIn() != null && 
             ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus()))) {
             try {
                 String rfidCode = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : null;
-                com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(rfidCode, ps.getPlate());
+                checkoutInfo = gateOperationService.getCheckOutSessionInfo(rfidCode, ps.getPlate());
                 if (checkoutInfo != null && (checkoutInfo.getExpectedFee() != null || checkoutInfo.getOvertimeFee() != null)) {
                     currentBaseFee = checkoutInfo.getExpectedFee() != null ? checkoutInfo.getExpectedFee() : BigDecimal.ZERO;
                     currentOvertimeFee = checkoutInfo.getOvertimeFee() != null ? checkoutInfo.getOvertimeFee() : BigDecimal.ZERO;
@@ -290,6 +291,7 @@ public class ParkingSessionController {
         map.put("baseFee", currentBaseFee);
         map.put("overtimeFee", currentOvertimeFee);
         map.put("status", ps.getStatus());
+        map.put("checkoutInfo", checkoutInfo);
 
         if (incidentTickets != null && !incidentTickets.isEmpty()) {
             List<Map<String, Object>> incidentDetails = incidentTickets.stream()

@@ -293,6 +293,10 @@ public class GateOperationService {
             throw new IllegalArgumentException("No active parking session found for the provided vehicle");
         }
 
+        return getCheckOutSessionInfo(session, com.pbms.common.utils.TimeProvider.now());
+    }
+
+    public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(ParkingSession session, java.time.LocalDateTime targetTime) {
         com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = new com.pbms.modules.operation.dto.CheckOutSessionInfoDTO();
         info.setPlateNumberIn(session.getPlate());
         info.setRfid(session.getRfidCard() != null ? session.getRfidCard().getCardCode() : "N/A");
@@ -316,7 +320,7 @@ public class GateOperationService {
             info.setSuggestedZoneName("N/A");
         }
 
-        java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+        java.time.LocalDateTime now = targetTime;
         java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
         long duration = java.time.Duration.between(session.getTimeIn(), now).toMinutes();
         if (duration < 0)
@@ -643,12 +647,17 @@ public class GateOperationService {
                 .orElseThrow(() -> new IllegalArgumentException("No active session found for this card"));
 
         RfidCard card = session.getRfidCard();
-        if (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus()))) {
-            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất" : "Đã bị báo hỏng";
+        
+        boolean hasCardIncident = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
+                session.getId(),
+                java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
+                java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+                
+        if (hasCardIncident || (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus())))) {
             return GateResponseDTO.builder()
                     .sessionId(session.getId())
                     .status("ERROR")
-                    .message("Thẻ RFID " + statusVN + ". Giao dịch bị khóa, Barrier không mở. Vui lòng liên hệ Quản lý (Manager)!")
+                    .message("Xe đang có sự cố thẻ chưa được xử lý. Giao dịch bị khóa, Barrier không mở. Vui lòng nộp phí tại quầy!")
                     .build();
         }
 

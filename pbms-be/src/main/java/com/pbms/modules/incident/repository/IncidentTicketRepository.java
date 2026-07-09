@@ -16,6 +16,10 @@ public interface IncidentTicketRepository extends JpaRepository<IncidentTicket, 
     List<IncidentTicket> findByUserIdAndResolvedAtBetweenAndStatus(Long userId, java.time.LocalDateTime start, java.time.LocalDateTime end, String status);
     boolean existsBySessionIdAndIssueTypeAndStatusNot(Long sessionId, String issueType, String status);
     boolean existsByReportedPlateAndIssueTypeAndStatusNot(String reportedPlate, String issueType, String status);
+    
+    boolean existsBySessionIdAndIssueTypeAndStatusIn(Long sessionId, String issueType, java.util.List<String> statuses);
+    boolean existsByReportedPlateAndIssueTypeAndStatusIn(String reportedPlate, String issueType, java.util.List<String> statuses);
+    boolean existsBySessionIdAndIssueTypeInAndStatusIn(Long sessionId, java.util.List<String> issueTypes, java.util.List<String> statuses);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(i) FROM IncidentTicket i JOIN i.session s " +
             "WHERE i.issueType = :issueType AND i.status != :status " +

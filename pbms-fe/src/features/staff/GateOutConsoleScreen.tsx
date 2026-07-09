@@ -5,8 +5,9 @@ import { useWebSocket } from '../../core/websocket/useWebSocket';
 import dayjs from 'dayjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, message, Tag, Typography, Modal, Row, Col, Radio, Input, Divider, Select, InputNumber, QRCode } from 'antd';
-import { CarOutlined, LockOutlined, UnlockOutlined, CheckCircleOutlined, DollarOutlined, AimOutlined, WarningOutlined, CloseCircleOutlined, QrcodeOutlined, IdcardOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { CarOutlined, LockOutlined, UnlockOutlined, CheckCircleOutlined, DollarOutlined, AimOutlined, WarningOutlined, CloseCircleOutlined, QrcodeOutlined, StopOutlined, CameraOutlined, ExceptionOutlined, IdcardOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { FeeBreakdown } from '../../components/FeeBreakdown';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
 import Konva from 'konva';
@@ -523,66 +524,19 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       </div>
                     </div>
                   )}
-                  <div className="flex flex-col gap-2 mb-4">
-                    <div className="flex justify-between items-center text-sm text-slate-300">
-                      <span>Parking duration:</span>
-                      <span className="font-bold text-white text-base">{duration} minute</span>
-                    </div>
-                    
-                    {scanData.customerType === 'BOOK' ? (
-                      <>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Reservation Fee (Total):</span>
-                          <span className="font-bold text-green-400 text-base">Paid</span>
-                        </div>
-                        {scanData.overtimeMinutes > 0 ? (
-                          <div className="flex justify-between items-center text-sm text-slate-300">
-                            <span>Overtime fee ({scanData.overtimeMinutes}  minute):</span>
-                            <span className="font-bold text-red-400 text-base">+ {(scanData?.overtimeFee || scanData?.expectedFee || 0).toLocaleString()} ₫</span>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between items-center text-sm text-slate-300">
-                            <span>Additional fees:</span>
-                            <span className="font-bold text-green-400 text-base">Arrived on time/before time (0 VND)</span>
-                          </div>
-                        )}
-                      </>
-                    ) : scanData.customerType === 'MONTHLY' && scanData.overtimeMinutes > 0 ? (
-                      <>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Basic fee (Monthly covered):</span>
-                          <span className="font-bold text-green-400 text-base">Covered until expired</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Overtime fee (from expiration - {scanData.overtimeMinutes} minute):</span>
-                          <span className="font-bold text-red-400 text-base">+ {(scanData?.overtimeFee || 0).toLocaleString()} ₫</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Penalty surcharge:</span>
-                          <span className="font-bold text-red-400 text-base">+ {(scanData?.feePenalty || 0).toLocaleString()} ₫</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Basic fee:</span>
-                          <span className="font-bold text-white text-base">{(scanData?.expectedFee || scanData?.feeBase || 0).toLocaleString()} ₫</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-slate-300">
-                          <span>Penalty surcharge:</span>
-                          <span className="font-bold text-red-400 text-base">+ {(scanData?.feePenalty || 0).toLocaleString()} ₫</span>
-                        </div>
-                      </>
-                    )}
-
-                    <div className="flex justify-between items-center text-sm text-slate-300">
-                      <span>Discounts/Promotions:</span>
-                      <span className="font-bold text-green-400 text-base">- {(scanData?.discount || scanData?.discountFee || 0).toLocaleString()} ₫</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center pt-4 border-t border-slate-600">
-                    <span className="text-sm font-bold text-slate-400 tracking-widest uppercase">TOTAL PAYMENT:</span>
-                    <span className="text-3xl font-bold text-yellow-400">{totalFee.toLocaleString()} ₫</span>
+                  <div className="mb-4">
+                    <FeeBreakdown 
+                      durationMinutes={duration}
+                      customerType={scanData.customerType}
+                      expectedFee={scanData.expectedFee || scanData.feeBase || 0}
+                      overtimeMinutes={scanData.overtimeMinutes}
+                      overtimeFee={scanData.overtimeFee || 0}
+                      penaltyFee={scanData.feePenalty || 0}
+                      discountFee={scanData.discount || scanData.discountFee || 0}
+                      totalFee={totalFee}
+                      isPaid={scanData.customerType === 'BOOK' && totalFee === 0}
+                      isLightMode={false}
+                    />
                   </div>
 
                   {/* Payment Radio */}

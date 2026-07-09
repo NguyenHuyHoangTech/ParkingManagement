@@ -7,7 +7,6 @@ import com.pbms.modules.infrastructure.domain.Gate;
 import com.pbms.modules.infrastructure.repository.GateRepository;
 import com.pbms.modules.operation.domain.ParkingSession;
 import com.pbms.modules.operation.repository.ParkingSessionRepository;
-import com.pbms.modules.incident.repository.IncidentTicketRepository;
 import com.pbms.modules.operation.repository.StaffWorkSessionRepository;
 import com.pbms.modules.finance.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,6 @@ public class WorkSessionService {
     private final UserRepository userRepository;
     private final GateRepository gateRepository;
     private final ParkingSessionRepository parkingSessionRepository;
-    private final IncidentTicketRepository incidentTicketRepository;
     private final TransactionRepository transactionRepository;
 
     @Transactional
@@ -226,24 +224,8 @@ public class WorkSessionService {
                 }
             }
             
-            // Account for Patrol penalty collections
-            if ("PATROL".equals(session.getGate().getGateType())) {
-                List<com.pbms.modules.incident.domain.IncidentTicket> resolvedTickets = incidentTicketRepository
-                        .findByUserIdAndResolvedAtBetweenAndStatus(
-                                staff.getId(),
-                                session.getLoginTime(),
-                                com.pbms.common.utils.TimeProvider.now(),
-                                "RESOLVED"
-                        );
-                
-                BigDecimal patrolRevenue = resolvedTickets.stream()
-                        .map(t -> t.getFineAmount() != null ? t.getFineAmount() : BigDecimal.ZERO)
-                        .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
-                        
-                totalRevenue = totalRevenue.add(patrolRevenue);
-                cashRevenue = cashRevenue.add(patrolRevenue); // Assume patrol fines are collected in cash on floor
-                totalTransactions += resolvedTickets.size();
-            }
+            // Account for Patrol penalty collections is now handled automatically via Transaction records
+            // during the checkout phase of the incident resolution, exactly like normal checkout gates.
         }
 
         Map<String, Object> preview = new HashMap<>();

@@ -72,5 +72,8 @@ public class IncidentTicket extends BaseEntity {
 
     @Column(name = "reported_plate", length = 50)
     private String reportedPlate;
+
+    @Column(name = "cancel_type", length = 50)
+    private String cancelType;
 }
 

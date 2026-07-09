@@ -103,6 +103,23 @@ public class IncidentTicketDTO {
     /** Tên khu vực được gợi ý đỗ ban đầu */
     private String sessionSuggestedZone;
 
+    /** Fee Breakdown for Phase 2 UI */
+    private String customerType;
+    private Long durationMinutes;
+    private Long overtimeMinutes;
+    private BigDecimal expectedFee;
+    private BigDecimal overtimeFee;
+    private BigDecimal discountFee;
+
     /** Tên đăng nhập / Email của nhân viên đã xử lý sự cố này */
     private String staffEmail;
+
+    /** Loại lý do khi hủy sự cố (nếu có) */
+    private String cancelType;
+
+    /** URL/Đường dẫn ảnh biển số lúc Check-in */
+    private String sessionPicInPlate;
+
+    /** Email của người tạo sự cố (khách hàng hoặc nhân viên) */
+    private String creatorEmail;
 }

@@ -7,6 +7,7 @@ import axiosClient from '../../core/api/axiosClient';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getImageUrl } from '../../core/utils/imageHelper';
 import { simulatedDayjs } from '../../core/utils/timeProvider';
+import { FeeBreakdown } from '../../components/FeeBreakdown';
 
 interface Booking {
   id: string;
@@ -374,6 +375,7 @@ export const MyParkingScreen = () => {
 
     const isBooking = session.status === 'BOOKED';
     const totalFee = session.totalFee || 0;
+    const totalPenalty = (session.incidentDetails || []).reduce((sum: number, inc: any) => sum + (inc.fineAmount || 0), 0);
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in mt-6">
@@ -418,20 +420,31 @@ export const MyParkingScreen = () => {
             )}
           />
           <div className="flex-1 flex flex-col bg-gray-50 rounded-xl border border-gray-200 p-4 mt-auto">
-            <div className="flex justify-between items-center mb-2">
-              <Text className="text-gray-500">Base fee:</Text>
-              <Text strong>{(session.baseFee || 0).toLocaleString()} ₫</Text>
-            </div>
-            {session.overtimeFee > 0 && (
-              <div className="flex justify-between items-center mb-2 text-red-500">
-                <Text>Overtime surcharge:</Text>
-                <Text strong>+ {(session.overtimeFee || 0).toLocaleString()} ₫</Text>
-              </div>
+            {session.checkoutInfo ? (
+              <FeeBreakdown
+                durationMinutes={session.checkoutInfo.durationMinutes || 0}
+                customerType={session.checkoutInfo.customerType || 'GUEST'}
+                expectedFee={session.checkoutInfo.expectedFee || session.baseFee || 0}
+                overtimeMinutes={session.checkoutInfo.overtimeMinutes || 0}
+                overtimeFee={session.checkoutInfo.overtimeFee || session.overtimeFee || 0}
+                penaltyFee={totalPenalty || 0}
+                discountFee={session.checkoutInfo.discountFee || 0}
+                totalFee={totalFee}
+                isLightMode={true}
+              />
+            ) : (
+              <FeeBreakdown
+                durationMinutes={0} 
+                customerType={'GUEST'}
+                expectedFee={session.baseFee || 0}
+                overtimeMinutes={0}
+                overtimeFee={session.overtimeFee || 0}
+                penaltyFee={totalPenalty || 0}
+                discountFee={0}
+                totalFee={totalFee}
+                isLightMode={true}
+              />
             )}
-            <div className="flex justify-between items-center mb-4 mt-2 pt-2 border-t border-gray-200">
-              <Text strong className="text-lg">TOTAL FEE:</Text>
-              <Text strong className="text-2xl text-blue-600">{totalFee.toLocaleString()} ₫</Text>
-            </div>
 
             {session.incidentDetails && session.incidentDetails.length > 0 ? (
               <>

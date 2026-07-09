@@ -78,7 +78,15 @@ public class IncidentTicketController {
             java.math.BigDecimal penaltyFee = requestBody.get("penaltyFee") != null
                     ? new java.math.BigDecimal(requestBody.get("penaltyFee").toString())
                     : null;
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee);
+            java.math.BigDecimal discountAmount = requestBody.get("discountAmount") != null
+                    ? new java.math.BigDecimal(requestBody.get("discountAmount").toString())
+                    : null;
+            String paymentMethod = (String) requestBody.get("paymentMethod");
+            if (paymentMethod == null || paymentMethod.isBlank()) {
+                paymentMethod = "CASH";
+            }
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, 
+                    resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, paymentMethod);
             return ResponseEntity.ok(ApiResponse.success(dto, "Incident resolved successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
@@ -91,8 +99,10 @@ public class IncidentTicketController {
             @RequestBody java.util.Map<String, String> requestBody) {
         try {
             String reason = requestBody.get("reason");
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.cancelIncident(id, reason);
-            return ResponseEntity.ok(ApiResponse.success(dto, "What's the difference?"));
+            String cancelType = requestBody.get("cancelType");
+            String cancelImageUrl = requestBody.get("cancelImageUrl");
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.cancelIncident(id, reason, cancelType, cancelImageUrl);
+            return ResponseEntity.ok(ApiResponse.success(dto, "Incident cancelled successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
         }
@@ -109,9 +119,16 @@ public class IncidentTicketController {
     }
 
     @PutMapping("/{id}/process-phase1")
-    public ResponseEntity<ApiResponse<com.pbms.modules.incident.dto.IncidentTicketDTO>> processPhase1(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<com.pbms.modules.incident.dto.IncidentTicketDTO>> processPhase1(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, Object> requestBody) {
         try {
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.processPhase1(id);
+            String resolutionNotes = requestBody != null ? (String) requestBody.get("resolutionNotes") : null;
+            String resolutionImageUrl = requestBody != null ? (String) requestBody.get("resolutionImageUrl") : null;
+            java.math.BigDecimal fineAmount = (requestBody != null && requestBody.get("fineAmount") != null)
+                    ? new java.math.BigDecimal(requestBody.get("fineAmount").toString())
+                    : null;
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.processPhase1(id, resolutionNotes, resolutionImageUrl, fineAmount);
             return ResponseEntity.ok(ApiResponse.success(dto, "Transitioning to the 2nd stage"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
