@@ -25,6 +25,10 @@ dayjs.extend(customParseFormat);
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 
+/*
+Viết Thử Tiếng Việt
+*/
+
 interface Slice {
   id: string;
   duration: number | null;
@@ -90,7 +94,7 @@ export const PricingConfigScreen = () => {
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [selectedSliceId, setSelectedSliceId] = useState<string | null>(null);
   const [activeAccordion, setActiveAccordion] = useState<string | string[]>(['1', '2']);
-  
+
   const isDirty = initialConfig ? JSON.stringify(config) !== JSON.stringify(initialConfig) : false;
 
   // Calculator State
@@ -394,9 +398,9 @@ export const PricingConfigScreen = () => {
       let endH = Math.floor(largestGap.end / 60);
       const endM = largestGap.end % 60;
       if (endH === 24 && endM === 0) {
-          endH = 0;
+        endH = 0;
       } else {
-          endH = endH % 24;
+        endH = endH % 24;
       }
       newStartTime = `${startH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
       newEndTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
@@ -406,8 +410,8 @@ export const PricingConfigScreen = () => {
     }
 
     setConfig(prev => {
-      const newColor = prev.shifts.length % 2 === 0 
-        ? 'bg-blue-100 border-blue-300 text-blue-800' 
+      const newColor = prev.shifts.length % 2 === 0
+        ? 'bg-blue-100 border-blue-300 text-blue-800'
         : 'bg-indigo-100 border-indigo-300 text-indigo-800';
 
       return {
