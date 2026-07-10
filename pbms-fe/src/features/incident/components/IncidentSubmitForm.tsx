@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Select, Input, Button, message, Upload } from 'antd';
+import { Form, Select, Input, Button, message, Upload, Radio, Table, Typography } from 'antd';
 import { 
   CameraOutlined, CarOutlined, QrcodeOutlined, 
   LockOutlined, WarningOutlined, SearchOutlined, 
@@ -9,6 +9,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 interface IncidentSubmitFormProps {
   onSuccess: (category: string, plate: string) => void;
@@ -24,6 +25,49 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
   
   const [uploadedFile, setUploadedFile] = useState<any>(null);
   const [uploadedFile2, setUploadedFile2] = useState<any>(null);
+  const [damageCause, setDamageCause] = useState<'NATURAL' | 'USER'>('NATURAL');
+
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const [selectedVType, setSelectedVType] = useState<number | null>(null);
+
+  const { data: mapConfig } = useQuery({
+    queryKey: ['mapConfig'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/infrastructure/map/config');
+      return res.data?.data || {};
+    },
+    enabled: selectedCategory === 'ZONE_VIOLATION' && userRole === 'STAFF'
+  });
+
+  const floors = mapConfig?.floors || [];
+  const zones = mapConfig?.zones || [];
+
+  const { data: monthlyTickets = [] } = useQuery({
+    queryKey: ['monthly_tickets'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/operation/monthly-tickets');
+      return res.data?.data || [];
+    },
+    enabled: selectedCategory === 'ZONE_VIOLATION' && userRole === 'STAFF'
+  });
+
+  const filteredMonthlyTickets = monthlyTickets.filter((mt: any) => {
+    if (mt.status !== 'ACTIVE' && mt.status !== 'EXPIRING_SOON') return false;
+    if (selectedVType && mt.vehicleTypeId !== selectedVType) return false;
+    if (selectedFloor) {
+      const monthlyZonesOnFloor = zones.filter((z: any) => z.floorId === selectedFloor && z.functionType === 'MONTHLY');
+      const allowedVTypes = monthlyZonesOnFloor.map((z: any) => z.vehicleTypeId);
+      if (!allowedVTypes.includes(mt.vehicleTypeId)) return false;
+    }
+    return true;
+  });
+
+  const monthlyTicketColumns = [
+    { title: 'Biển số', dataIndex: 'plate', key: 'plate', render: (t: string) => <Text strong>{t}</Text> },
+    { title: 'Loại xe', dataIndex: 'type', key: 'type' },
+    { title: 'Khách', dataIndex: 'user', key: 'user' },
+    { title: 'SĐT', dataIndex: 'phone', key: 'phone' },
+  ];
 
   const { data: vehicleTypes = [] } = useQuery({
     queryKey: ['vehicleTypes'],
@@ -36,6 +80,20 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
       }
     }
   });
+
+  const { data: systemConfigs } = useQuery({
+    queryKey: ['systemConfigs'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/system/configs');
+      return res.data.data;
+    }
+  });
+
+  const getDamagedCardPenalty = () => {
+    if (!systemConfigs) return 50000;
+    const cfg = systemConfigs.find((c: any) => c.configKey === 'PENALTY_DAMAGED_CARD');
+    return cfg ? Number(cfg.configValue) : 50000;
+  };
 
   const getBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -147,7 +205,8 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
         vehicleTypeId: values.vehicleTypeId,
         description: `BKS: ${values.plate || 'N/A'} - ${values.description || ''}`,
         priority: values.category === 'LOST_CARD' || values.category === 'BLACKLIST_VIOLATION' ? 'HIGH' : 'MEDIUM',
-        uploadedDocUrl: mockUrl
+        uploadedDocUrl: mockUrl,
+        damageCause: values.category === 'DAMAGED_CARD' ? damageCause : undefined
       });
       
     } catch (error) {
@@ -156,7 +215,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
   };
 
   let options = [
-    { value: 'LOST_CARD', label: 'Báo mất thẻ (Yêu cầu khóa xe)', icon: <LockOutlined className="text-red-500" /> },
+    { value: 'LOST_CARD', label: 'Báo mất thẻ (Ghi nhận phạt)', icon: <LockOutlined className="text-red-500" /> },
     { value: 'DAMAGED_CARD', label: 'Báo thẻ hỏng / Không đọc được', icon: <WarningOutlined className="text-orange-500" /> },
     { value: 'SLOT_OCCUPIED', label: 'Chỗ đỗ đặt trước bị chiếm dụng', icon: <CarOutlined className="text-blue-500" /> },
     { value: 'FIND_CAR', label: 'Tìm xe không thấy', icon: <SearchOutlined className="text-green-500" /> },
@@ -173,11 +232,12 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
   }
 
   return (
-    <Form form={form} layout="vertical" onFinish={handleIncidentSubmit} className="animate-fade-in">
+    <Form form={form} layout="vertical" onFinish={handleIncidentSubmit} className="animate-fade-in relative pb-20 md:pb-0">
       <Form.Item 
         name="category" 
         label={<span className="font-medium text-gray-700 text-base">Bạn đang gặp sự cố gì?</span>}
         rules={[{ required: true, message: 'Vui lòng chọn loại sự cố' }]}
+        className="md:px-0 px-4 pt-4 md:pt-0"
       >
         <Select 
           size="large"
@@ -196,9 +256,9 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
         />
       </Form.Item>
 
-      <div className="transition-all duration-300">
+      <div className="transition-all duration-300 md:px-0 px-4">
         {selectedCategory && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-slate-50 p-4 md:p-6 rounded-xl border border-slate-200 mb-6 animate-fade-in-up">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 bg-slate-50 md:p-6 p-4 rounded-xl border border-slate-200 mb-6 animate-fade-in-up">
             
             {selectedCategory !== 'OTHER_FEEDBACK' && (
               <Form.Item 
@@ -213,7 +273,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                   className="h-12"
                   options={vehicleTypes.map((vt: any) => ({ value: vt.id, label: vt.typeName }))}
                   disabled={isCheckingPlate} 
-                  onChange={() => setIsPlateVerified(false)}
+                  onChange={(val) => { setIsPlateVerified(false); setSelectedVType(val); }}
                 />
               </Form.Item>
             )}
@@ -235,6 +295,41 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                   )}
                 </div>
               </Form.Item>
+            )}
+
+            {selectedCategory === 'ZONE_VIOLATION' && userRole === 'STAFF' && (
+              <div className="col-span-1 md:col-span-2 bg-white p-4 rounded-lg border border-blue-100">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-3 gap-2">
+                  <Text strong className="text-blue-700">Tra cứu vé tháng (Gợi ý tìm xe)</Text>
+                  <Select 
+                    placeholder="Lọc theo tầng (Tùy chọn)" 
+                    className="w-full sm:w-48"
+                    value={selectedFloor}
+                    onChange={setSelectedFloor}
+                    options={floors.map((f: any) => ({ label: f.name, value: f.id }))}
+                    allowClear
+                  />
+                </div>
+                <Table 
+                  dataSource={filteredMonthlyTickets} 
+                  columns={monthlyTicketColumns} 
+                  rowKey="id" 
+                  size="small"
+                  pagination={{ pageSize: 4 }}
+                  bordered
+                  rowClassName="cursor-pointer hover:bg-blue-50 transition-colors"
+                  onRow={(record: any) => ({
+                    onClick: () => {
+                      form.setFieldsValue({ plate: record.plate });
+                      setIsPlateVerified(false);
+                      message.success(`Đã điền biển số ${record.plate}`);
+                    }
+                  })}
+                />
+                <Text type="secondary" className="text-xs mt-2 block">
+                  Mẹo: Chọn "Loại xe" ở trên để lọc bảng này. Click vào 1 dòng để tự động điền Biển số vào form.
+                </Text>
+              </div>
             )}
 
             {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK' && selectedCategory !== 'ZONE_VIOLATION' && selectedCategory !== 'BLACKLIST_VIOLATION') && (
@@ -259,7 +354,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
             {selectedCategory === 'DAMAGED_CARD' ? (
               <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Form.Item label="Tải lên ảnh Thẻ bị hỏng" className="mb-0">
-                    <Upload maxCount={1} beforeUpload={(file) => { setUploadedFile(file); return false; }} onRemove={() => setUploadedFile(null)} className="w-full block" listType="picture">
+                    <Upload maxCount={1} beforeUpload={(file) => { setUploadedFile(file); return false; }} onRemove={() => setUploadedFile(null)} className="w-full block" listType="picture" capture="environment" accept="image/*">
                       <div className="w-full h-32 border-2 border-dashed border-orange-300 rounded-lg flex flex-col items-center justify-center bg-white text-orange-500 hover:bg-orange-50 hover:border-orange-500 cursor-pointer transition-colors group">
                         <CameraOutlined className="text-3xl mb-2 group-hover:scale-110 transition-transform" />
                         <span className="text-sm font-medium">Bấm mở Camera / Tải ảnh thẻ lên</span>
@@ -267,7 +362,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                     </Upload>
                 </Form.Item>
                 <Form.Item label="Tải lên ảnh CCCD/Giấy tờ chủ xe" className="mb-0">
-                    <Upload maxCount={1} beforeUpload={(file) => { setUploadedFile2(file); return false; }} onRemove={() => setUploadedFile2(null)} className="w-full block" listType="picture">
+                    <Upload maxCount={1} beforeUpload={(file) => { setUploadedFile2(file); return false; }} onRemove={() => setUploadedFile2(null)} className="w-full block" listType="picture" capture="environment" accept="image/*">
                       <div className="w-full h-32 border-2 border-dashed border-orange-300 rounded-lg flex flex-col items-center justify-center bg-white text-orange-500 hover:bg-orange-50 hover:border-orange-500 cursor-pointer transition-colors group">
                         <CameraOutlined className="text-3xl mb-2 group-hover:scale-110 transition-transform" />
                         <span className="text-sm font-medium">Bấm mở Camera / Tải CCCD lên</span>
@@ -292,12 +387,27 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                     onRemove={() => setUploadedFile(null)}
                     className="w-full block" 
                     listType="picture"
+                    capture="environment"
+                    accept="image/*"
                   >
                     <div className="w-full h-32 border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center bg-white text-blue-500 hover:bg-blue-50 hover:border-blue-500 cursor-pointer transition-colors group">
                       <CameraOutlined className="text-3xl mb-2 group-hover:scale-110 transition-transform" />
                       <span className="text-sm font-medium">Bấm mở Camera / Tải ảnh lên</span>
                     </div>
                   </Upload>
+              </Form.Item>
+            )}
+
+            {selectedCategory === 'DAMAGED_CARD' && (
+              <Form.Item label="Nguyên nhân hỏng thẻ" className="mb-0 col-span-1 md:col-span-2 mt-2">
+                <Radio.Group 
+                  value={damageCause} 
+                  onChange={(e) => setDamageCause(e.target.value)}
+                  className="flex flex-col gap-2"
+                >
+                  <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên / Lỗi kỹ thuật (Miễn phí đổi thẻ)</span></Radio>
+                  <Radio value="USER"><span className="text-base text-red-600 font-medium">Do người dùng làm gãy, vỡ, cong (Áp dụng phí phạt: {getDamagedCardPenalty().toLocaleString()}đ)</span></Radio>
+                </Radio.Group>
               </Form.Item>
             )}
 
@@ -315,22 +425,24 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
         )}
       </div>
 
-      <Button 
-        type="primary" 
-        htmlType="submit" 
-        loading={createIncidentMutation.isPending}
-        disabled={!selectedCategory || (!isPlateVerified && selectedCategory !== 'OTHER_FEEDBACK')}
-        className={`w-full h-14 rounded-xl font-bold text-lg shadow-lg transition-all duration-300 flex items-center justify-center ${
-          selectedCategory === 'LOST_CARD' ? 'bg-red-600 hover:bg-red-700' :
-          selectedCategory === 'SLOT_OCCUPIED' ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 border-0' :
-          'bg-blue-600 hover:bg-blue-700'
-        }`}
-        icon={selectedCategory === 'LOST_CARD' ? <SafetyCertificateOutlined /> : undefined}
-      >
-        {selectedCategory === 'LOST_CARD' ? 'GỬI YÊU CẦU & KHÓA XE KHẨN CẤP' : 
-         selectedCategory === 'SLOT_OCCUPIED' ? 'BÁO CÁO & ĐỔI CHỖ' : 
-         'GỬI YÊU CẦU XỬ LÝ'}
-      </Button>
+      <div className="fixed md:static bottom-0 left-0 right-0 p-4 md:p-0 bg-white md:bg-transparent border-t md:border-0 border-gray-200 z-50">
+        <Button 
+          type="primary" 
+          htmlType="submit" 
+          loading={createIncidentMutation.isPending}
+          disabled={!selectedCategory || (!isPlateVerified && selectedCategory !== 'OTHER_FEEDBACK')}
+          className={`w-full h-14 rounded-xl font-bold text-lg shadow-lg md:shadow-md transition-all duration-300 flex items-center justify-center ${
+            selectedCategory === 'LOST_CARD' ? 'bg-red-600 hover:bg-red-700' :
+            selectedCategory === 'SLOT_OCCUPIED' ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 border-0' :
+            'bg-blue-600 hover:bg-blue-700'
+          }`}
+          icon={selectedCategory === 'LOST_CARD' ? <SafetyCertificateOutlined /> : undefined}
+        >
+          {selectedCategory === 'LOST_CARD' ? 'GỬI YÊU CẦU & GHI NHẬN PHẠT' : 
+           selectedCategory === 'SLOT_OCCUPIED' ? 'BÁO CÁO & ĐỔI CHỖ' : 
+           'GỬI YÊU CẦU XỬ LÝ'}
+        </Button>
+      </div>
     </Form>
   );
 };

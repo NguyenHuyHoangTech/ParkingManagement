@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Steps, Button, Tag, Input, Upload, message, InputNumber, Modal, Select, Divider, Form, Radio } from 'antd';
+import { Card, Typography, Steps, Button, Tag, Input, Upload, message, InputNumber, Modal, Select, Divider, Form, Radio, Table } from 'antd';
 import { 
   CameraOutlined, CheckCircleOutlined, CloseCircleOutlined, UploadOutlined, LockOutlined, WarningOutlined
 } from '@ant-design/icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
 import { getImageUrl } from '../../../core/utils/imageHelper';
 import { FeeBreakdown } from '../../../components/FeeBreakdown';
@@ -30,21 +30,106 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   // Phase 1 Staff States
   const [p1Notes, setP1Notes] = useState('');
   const [p1File, setP1File] = useState<any>(null);
+  const [p1FineAmount, setP1FineAmount] = useState<number | undefined>(ticket.fineAmount || 0);
 
   // Phase 2 Staff States
   const [p2Notes, setP2Notes] = useState('');
   const [p2File, setP2File] = useState<any>(null);
   const [feeDiscount, setFeeDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
+  const [damageCausePhase2, setDamageCausePhase2] = useState<'NATURAL' | 'USER'>('NATURAL');
+  const [isFeeVisible, setIsFeeVisible] = useState(false);
+
+  // Zone Violation Monthly Ticket Lookup States
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const [selectedVType, setSelectedVType] = useState<number | null>(null);
+
+  const { data: mapConfig } = useQuery({
+    queryKey: ['mapConfig'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/infrastructure/map/config');
+      return res.data?.data || {};
+    },
+    enabled: ticket?.type === 'ZONE_VIOLATION' && userRole === 'STAFF'
+  });
+
+  const floors = mapConfig?.floors || [];
+  const zones = mapConfig?.zones || [];
+
+  const { data: vehicleTypes = [] } = useQuery({
+    queryKey: ['vehicle_types'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/operation/vehicle-types');
+      return res.data?.data || [];
+    },
+    enabled: ticket?.type === 'ZONE_VIOLATION' && userRole === 'STAFF'
+  });
+
+  const { data: monthlyTickets = [] } = useQuery({
+    queryKey: ['monthly_tickets'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/operation/monthly-tickets');
+      return res.data?.data || [];
+    },
+    enabled: ticket?.type === 'ZONE_VIOLATION' && userRole === 'STAFF'
+  });
+
+  const filteredMonthlyTickets = monthlyTickets.filter((mt: any) => {
+    if (mt.status !== 'ACTIVE' && mt.status !== 'EXPIRING_SOON') return false;
+    if (selectedVType && mt.vehicleTypeId !== selectedVType) return false;
+    if (selectedFloor) {
+      const monthlyZonesOnFloor = zones.filter((z: any) => z.floorId === selectedFloor && z.functionType === 'MONTHLY');
+      const allowedVTypes = monthlyZonesOnFloor.map((z: any) => z.vehicleTypeId);
+      if (!allowedVTypes.includes(mt.vehicleTypeId)) return false;
+    }
+    return true;
+  });
+
+  const monthlyTicketColumns = [
+    { title: 'Biển số', dataIndex: 'plate', key: 'plate', render: (t: string) => <Text strong>{t}</Text> },
+    { title: 'Loại xe', dataIndex: 'type', key: 'type' },
+    { title: 'Khách hàng', dataIndex: 'user', key: 'user' },
+    { title: 'SĐT', dataIndex: 'phone', key: 'phone' },
+  ];
+
+  const { data: systemConfigs } = useQuery({
+    queryKey: ['systemConfigs'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/system/configs');
+      return res.data.data;
+    },
+    enabled: ticket.type === 'DAMAGED_CARD' && ticket.phase === 2
+  });
+
+  const getDamagedCardPenalty = () => {
+    if (!systemConfigs) return 50000;
+    const cfg = systemConfigs.find((c: any) => c.configKey === 'PENALTY_DAMAGED_CARD');
+    return cfg ? Number(cfg.configValue) : 50000;
+  };
+
+  useEffect(() => {
+    if (ticket && ticket.type === 'DAMAGED_CARD' && ticket.fineAmount > 0) {
+      setDamageCausePhase2('USER');
+    }
+    setP1FineAmount(ticket.fineAmount || 0);
+  }, [ticket]);
+
+  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION'].includes(ticket.type);
+
+  const effectivePenaltyFee = (ticket.type === 'DAMAGED_CARD') 
+    ? (damageCausePhase2 === 'USER' ? getDamagedCardPenalty() : 0)
+    : (ticket.fineAmount || 0);
 
   useEffect(() => {
     // Reset states when ticket changes
     setP1Notes('');
     setP1File(null);
+    setP1FineAmount(ticket.fineAmount || 0);
     setP2Notes('');
     setP2File(null);
     setFeeDiscount(0);
     setPaymentMethod('CASH');
+    setIsFeeVisible(false);
   }, [ticket.id]);
 
   const getBase64 = (file: File): Promise<string> =>
@@ -59,10 +144,14 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const processPhase1Mutation = useMutation({
     mutationFn: async () => {
       const docUrl = p1File ? await getBase64(p1File) : '';
-      await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, {
+      const payload: any = {
         resolutionNotes: p1Notes,
         resolutionImageUrl: docUrl,
-      });
+      };
+      if (isAutoCheckoutType && p1FineAmount !== undefined) {
+        payload.fineAmount = p1FineAmount;
+      }
+      await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, payload);
     },
     onSuccess: () => {
       message.success('Đã xác nhận Giai đoạn 1');
@@ -78,7 +167,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         resolutionNotes: p2Notes,
         resolutionImageUrl: docUrl,
         parkingFee: calculatedParkingFee,
-        penaltyFee: ticket.fineAmount,
+        penaltyFee: effectivePenaltyFee,
         paymentMethod: paymentMethod
       };
       
@@ -253,7 +342,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                           </Upload>
                         </Form.Item>
                         <Button type="primary" onClick={() => processPhase1Mutation.mutate()} loading={processPhase1Mutation.isPending} className="w-full">
-                          Xác nhận thông tin & Khóa xe (Phase 1)
+                          Xác nhận thông tin & Xử lý (Phase 1)
                         </Button>
                       </Form>
                     </div>
@@ -347,73 +436,132 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                       </>
                     );
                   })()}
+                  {userRole === 'STAFF' && ticket.type === 'ZONE_VIOLATION' && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <Title level={5} className="text-slate-700">Tra cứu danh sách vé tháng</Title>
+                      <Text type="secondary" className="block mb-2 text-sm">Tra cứu danh sách vé tháng để dễ dàng liên hệ với chủ xe đỗ sai vị trí.</Text>
+                      <div className="flex gap-4 mb-4">
+                        <Select 
+                          placeholder="Chọn tầng" 
+                          className="w-48"
+                          value={selectedFloor}
+                          onChange={setSelectedFloor}
+                          options={floors.map((f: any) => ({ label: f.name, value: f.id }))}
+                          allowClear
+                        />
+                        <Select 
+                          placeholder="Chọn loại xe" 
+                          className="w-48"
+                          value={selectedVType}
+                          onChange={setSelectedVType}
+                          options={vehicleTypes.map((v: any) => ({ label: v.typeName, value: v.id }))}
+                          allowClear
+                        />
+                      </div>
+                      <Table 
+                        dataSource={filteredMonthlyTickets} 
+                        columns={monthlyTicketColumns} 
+                        rowKey="id" 
+                        size="small"
+                        pagination={{ pageSize: 5 }}
+                        bordered
+                      />
+                    </div>
+                  )}
                   {/* Giao diện Thanh toán & Hoàn tất GĐ2 */}
                   {userRole === 'STAFF' && ticket.phase === 2 && ticket.status === 'WAITING_CHECKOUT' && (
                     <div className="mt-4 pt-4 border-t border-blue-200 bg-white p-4 rounded-lg border border-blue-100">
-                      {ticket.type === 'FEE_DISPUTE' && !isManager ? (
+                      {isAutoCheckoutType ? (
+                        <div className="text-center p-4 bg-blue-50 text-blue-800 rounded font-medium border border-blue-200">
+                          <Title level={5} className="text-blue-700 m-0 mb-2">Chờ xe ra bãi</Title>
+                          Hệ thống sẽ không tính phí và cho xe ra tại bước này. Vui lòng chờ xe ra bãi, sự cố sẽ tự động hoàn thành và chuyển sang Giai đoạn 3 cùng với phần phí phạt đã xác nhận.
+                          <div className="text-sm mt-2 text-slate-500 italic">Bạn chỉ có thể hủy sự cố (nút bên dưới) nếu có sai sót.</div>
+                        </div>
+                      ) : ticket.type === 'FEE_DISPUTE' && !isManager ? (
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
                           Chỉ Quản lý (Manager) mới có quyền giảm phí và hoàn tất sự cố này.
                         </div>
                       ) : (
                         <>
                           <Title level={5} className="text-green-700">Chi tiết Phí ra bãi</Title>
-                          <div className="bg-slate-50 p-4 rounded-lg mb-4 border border-slate-200">
-                            {ticket.feePausedAt ? (
-                              <FeeBreakdown 
-                                durationMinutes={ticket.durationMinutes || 0}
-                                customerType={ticket.customerType || 'GUEST'}
-                                expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
-                                overtimeMinutes={ticket.overtimeMinutes || 0}
-                                overtimeFee={ticket.overtimeFee || 0}
-                                penaltyFee={ticket.fineAmount || 0}
-                                discountFee={(ticket.discountFee || 0) + (feeDiscount || 0)}
-                                totalFee={calculatedParkingFee + (ticket.fineAmount || 0) - (feeDiscount || 0)}
-                                isLightMode={true}
-                              />
-                            ) : (
-                              <div className="text-center py-4">
-                                <Button size="large" type="primary" ghost onClick={() => pauseFeeMutation.mutate()} loading={pauseFeeMutation.isPending}>
-                                  Tính phí đến hiện tại
-                                </Button>
-                                <div className="text-xs text-amber-600 italic mt-2">
-                                  Vui lòng ấn "Tính phí đến hiện tại" trước khi thu tiền
-                                </div>
+                          {!isFeeVisible ? (
+                            <div className="bg-slate-50 p-6 rounded-lg mb-4 border border-slate-200 text-center">
+                              <Button size="large" type="primary" onClick={() => { setIsFeeVisible(true); pauseFeeMutation.mutate(); }} loading={pauseFeeMutation.isPending}>
+                                Tính phí đỗ xe hiện tại
+                              </Button>
+                              <div className="text-xs text-amber-600 italic mt-3">
+                                Ấn để tra cứu mức phí. Phí đỗ xe vẫn tiếp tục tính bình thường.
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="bg-slate-50 p-4 rounded-lg mb-4 border border-slate-200">
+                                  <FeeBreakdown 
+                                    durationMinutes={ticket.durationMinutes || 0}
+                                    customerType={ticket.customerType || 'GUEST'}
+                                    expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
+                                    overtimeMinutes={ticket.overtimeMinutes || 0}
+                                    overtimeFee={ticket.overtimeFee || 0}
+                                    penaltyFee={effectivePenaltyFee}
+                                    discountFee={(ticket.discountFee || 0) + (feeDiscount || 0)}
+                                    totalFee={calculatedParkingFee + effectivePenaltyFee - (feeDiscount || 0)}
+                                    isLightMode={true}
+                                  />
+                                  <div className="text-center mt-3">
+                                    <Button size="small" type="primary" ghost onClick={() => pauseFeeMutation.mutate()} loading={pauseFeeMutation.isPending}>
+                                      Cập nhật lại phí hiện tại
+                                    </Button>
+                                    <div className="text-[10px] text-slate-500 italic mt-1">
+                                      Lưu ý: Phí đỗ xe sẽ không bị đóng băng và tiếp tục được tính cho đến khi bạn hoàn tất sự cố.
+                                    </div>
+                                  </div>
+                              </div>
 
-                          <Form layout="vertical">
-                            {ticket.type === 'FEE_DISPUTE' && (
-                              <Form.Item label="Số tiền giảm (VND) - Trừ thẳng vào Tổng thanh toán">
-                                <InputNumber 
-                                  className="w-full" 
-                                  size="large" 
-                                  min={0} 
-                                  value={feeDiscount} 
-                                  onChange={v => setFeeDiscount(v || 0)} 
-                                />
-                              </Form.Item>
-                            )}
-                            <Form.Item label="Ghi chú hoàn tất">
-                              <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p2Notes} onChange={e => setP2Notes(e.target.value)} placeholder="Ghi chú lại quá trình thu tiền & cho xe ra bãi" />
-                            </Form.Item>
-                            <Form.Item label="Tải ảnh bằng chứng (Biên lai thu tiền, CCCD,...)">
-                              <Upload beforeUpload={f => { setP2File(f); return false; }} maxCount={1} listType="picture">
-                                <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
-                              </Upload>
-                            </Form.Item>
-                            <Button 
-                              type="primary" 
-                              className="bg-green-600" 
-                              onClick={() => resolvePhase2Mutation.mutate()} 
-                              loading={resolvePhase2Mutation.isPending} 
-                              disabled={!ticket.feePausedAt}
-                              block
-                            >
-                              Xác nhận đã thu đủ tiền & Cho xe ra bãi
+                              <Form layout="vertical">
+                                {ticket.type === 'DAMAGED_CARD' && (
+                                  <Form.Item label="Xác nhận nguyên nhân hỏng thẻ (Cập nhật phí phạt)">
+                                    <Radio.Group 
+                                      value={damageCausePhase2} 
+                                      onChange={(e) => setDamageCausePhase2(e.target.value)}
+                                      className="flex flex-col gap-2"
+                                    >
+                                      <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên (Miễn phí)</span></Radio>
+                                      <Radio value="USER"><span className="text-base text-red-600 font-medium">Do khách hàng (Thu phí đền thẻ: {getDamagedCardPenalty().toLocaleString()}đ)</span></Radio>
+                                    </Radio.Group>
+                                  </Form.Item>
+                                )}
+                                {ticket.type === 'FEE_DISPUTE' && (
+                                  <Form.Item label="Số tiền giảm (VND) - Trừ thẳng vào Tổng thanh toán">
+                                    <InputNumber 
+                                      className="w-full" 
+                                      size="large" 
+                                      min={0} 
+                                      value={feeDiscount} 
+                                      onChange={v => setFeeDiscount(v || 0)} 
+                                    />
+                                  </Form.Item>
+                                )}
+                                <Form.Item label="Ghi chú hoàn tất">
+                                  <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p2Notes} onChange={e => setP2Notes(e.target.value)} placeholder="Ghi chú lại quá trình thu tiền & cho xe ra bãi" />
+                                </Form.Item>
+                                <Form.Item label="Tải ảnh bằng chứng (Biên lai thu tiền, CCCD,...)">
+                                  <Upload beforeUpload={f => { setP2File(f); return false; }} maxCount={1} listType="picture">
+                                    <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                                  </Upload>
+                                </Form.Item>
+                                <Button 
+                                  type="primary" 
+                                  className="bg-green-600" 
+                                  onClick={() => resolvePhase2Mutation.mutate()} 
+                                  loading={resolvePhase2Mutation.isPending} 
+                                  block
+                                >
+                                  Xác nhận đã thu đủ tiền & Cho xe ra bãi
 
-                            </Button>
-                          </Form>
+                                </Button>
+                              </Form>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -480,7 +628,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       </div>
 
       {/* Footer - Hủy */}
-      {(ticket.status === 'PENDING' || ticket.status === 'WAITING_CHECKOUT') && (
+      {(ticket.status === 'PENDING' || ticket.status === 'WAITING_CHECKOUT') && ticket.type !== 'LPR_MISMATCH' && (
         <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">
           {userRole === 'STAFF' ? (
             <Button danger icon={<CloseCircleOutlined />} onClick={() => setCancelModalVisible(true)}>
@@ -504,7 +652,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         <Form layout="vertical">
           <Form.Item label="Lý do hủy" required>
             <Select value={cancelType} onChange={setCancelType}>
-              <Select.Option value="GUEST_FOUND_CARD">Khách đã tìm thấy thẻ</Select.Option>
+              <Select.Option value="GUEST_FOUND_CARD">Khách yêu cầu hủy</Select.Option>
               <Select.Option value="INFO_INCORRECT">Thông tin cung cấp sai</Select.Option>
               <Select.Option value="OTHER">Lý do khác</Select.Option>
             </Select>

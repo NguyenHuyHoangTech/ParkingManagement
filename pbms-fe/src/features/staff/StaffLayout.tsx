@@ -83,23 +83,48 @@ export const StaffLayout = () => {
             notification.error({
               message: '🚨 Zone Capacity Conflict!',
               description: data.message + ' (Check the queue to retry)',
-              placement: 'topRight',
+              placement: window.innerWidth < 768 ? 'top' : 'topRight',
               duration: 0
             });
           } else if (data.type === 'ZONE_RESERVED') {
             setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
-            notification.success({
-              message: '✅ Virtual Slot Reserved!',
-              description: `Reservation for ${data.plate} in ${data.zoneName} has been successfully assigned.`,
-              placement: 'topRight',
-              duration: 5
-            });
-            window.dispatchEvent(new CustomEvent('add-notification', {
-              detail: {
-                message: `[Assigned] ${data.plate} in ${data.zoneName} has been assigned a slot successfully.`,
-                type: 'success'
-              }
-            }));
+            const plate = data.plate || '';
+            const zoneName = data.zoneName || '';
+            const msg = data.message || '';
+
+            if (msg.includes('expired') || msg.includes('Reservation expired')) {
+              // No-show: reservation slot released, don't show misleading "reserved" toast
+              notification.info({
+                message: '⏰ Đặt chỗ đã hết hạn',
+                description: plate ? `Đặt chỗ cho xe ${plate} (khu ${zoneName}) đã hết giờ. Chỗ đỗ đã được giải phóng.` : 'Một đặt chỗ đã hết giờ và được giải phóng.',
+                placement: window.innerWidth < 768 ? 'top' : 'topRight',
+                duration: 5
+              });
+            } else if (msg.includes('arrived')) {
+              notification.success({
+                message: '🚗 Xe đặt chỗ đã đến!',
+                description: plate ? `Xe ${plate} đã đến và được dẫn vào khu ${zoneName}.` : 'Xe đặt chỗ đã đến.',
+                placement: window.innerWidth < 768 ? 'top' : 'topRight',
+                duration: 5
+              });
+            } else {
+              notification.success({
+                message: '✅ Đặt chỗ thành công!',
+                description: plate ? `Đặt chỗ cho xe ${plate} tại khu ${zoneName} đã được xác nhận.` : 'Đặt chỗ đã được xác nhận.',
+                placement: window.innerWidth < 768 ? 'top' : 'topRight',
+                duration: 5
+              });
+            }
+            if (plate) {
+              window.dispatchEvent(new CustomEvent('add-notification', {
+                detail: {
+                  message: msg.includes('expired')
+                    ? `[Hết hạn] Đặt chỗ xe ${plate} khu ${zoneName} đã hết giờ.`
+                    : `[Đặt chỗ] ${plate} tại khu ${zoneName} đã được xác nhận.`,
+                  type: msg.includes('expired') ? 'warning' : 'success'
+                }
+              }));
+            }
           } else if (data.type === 'RESERVATION_ARRIVED') {
             setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
           }
@@ -113,7 +138,7 @@ export const StaffLayout = () => {
             notification.warning({
               message: '🚨 Monthly Zone Violation',
               description: data.message,
-              placement: 'topRight',
+              placement: window.innerWidth < 768 ? 'top' : 'topRight',
               duration: 5
             });
           }
@@ -134,7 +159,7 @@ export const StaffLayout = () => {
       notification.error({
         message: 'Resolution Failed',
         description: err.response?.data?.message || 'Zone is still full.',
-        placement: 'topRight'
+        placement: window.innerWidth < 768 ? 'top' : 'topRight'
       });
     }
   };

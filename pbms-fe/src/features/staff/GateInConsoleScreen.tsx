@@ -505,62 +505,44 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             </div>
           )}
 
-          {scanData && routingStatusList && Array.isArray(routingStatusList) ? (
-            <div className="grid grid-cols-2 gap-1.5 shrink-0">
-              <Text className="text-slate-500 text-[9px] font-bold tracking-widest uppercase col-span-2">Coordination Order:</Text>
-              {routingStatusList.map((zoneStatus: any, idx: number) => {
-                const isSuggested = scanData?.suggestedZoneId === zoneStatus.zoneId;
-                const isFull = zoneStatus.available <= 0;
-                return (
-                  <div key={zoneStatus.zoneId} className={`flex flex-col p-1.5 rounded border ${isSuggested ? 'bg-green-100 border-green-500' : (isFull ? 'bg-red-50 border-red-400' : 'bg-slate-50 border-slate-300')}`}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className={`font-bold text-xs truncate ${isSuggested ? 'text-green-700' : 'text-slate-700'}`}>#{idx + 1} {zoneStatus.zoneName}</span>
-                      <span className={`font-mono text-xs font-bold ${isFull ? 'text-red-600' : 'text-blue-600'}`}>{zoneStatus.available} <span className="text-[10px] font-normal text-slate-500">/ {zoneStatus.capacity}</span></span>
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] font-mono text-slate-500">
-                      <span>Reserved incoming: <strong className="text-orange-500">{zoneStatus.reserved}</strong></span>
-                      <span>Fill rate: <strong className={(zoneStatus.occupancyRate || 0) >= 90 ? 'text-red-500' : 'text-blue-500'}>{(zoneStatus.occupancyRate || 0).toFixed(1)}%</strong></span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5 shrink-0">
-              {Array.isArray(mapData) && mapData.filter((z: any) => z.floorId === activeGate?.floorId).map((zone: any) => {
-                const total = zone.capacity || 0;
-                const disabledCount = (zone.slots || []).filter((s: any) => s.status === 'DISABLED').length;
-                const occupiedCount = (zone.slots || []).filter((s: any) => s.status === 'OCCUPIED').length;
-                
-                const effectiveCapacity = Math.max(0, total - disabledCount);
-                const reserved = zone.pendingReservations || 0;
-                const availableCount = Math.max(0, effectiveCapacity - occupiedCount - reserved);
-                
-                const occupancyRate = effectiveCapacity > 0 
-                  ? ((occupiedCount + reserved) / effectiveCapacity) * 100 
-                  : 0;
+          <div className="grid grid-cols-2 gap-1.5 shrink-0">
+            {Array.isArray(mapData) && mapData.filter((z: any) => z.floorId === activeGate?.floorId).map((zone: any) => {
+              const total = zone.capacity || 0;
+              const disabledCount = (zone.slots || []).filter((s: any) => s.status === 'DISABLED').length;
+              const occupiedCount = (zone.slots || []).filter((s: any) => s.status === 'OCCUPIED').length;
+              
+              const effectiveCapacity = Math.max(0, total - disabledCount);
+              const reserved = zone.pendingReservations || 0;
+              const availableCount = Math.max(0, effectiveCapacity - occupiedCount - reserved);
+              
+              const occupancyRate = effectiveCapacity > 0 
+                ? ((occupiedCount + reserved) / effectiveCapacity) * 100 
+                : 0;
 
-                const isFull = availableCount <= 0;
-                const isSuggested = scanData?.suggestedZoneId === zone.id;
+              const isFull = availableCount <= 0;
+              const isOverbooked = occupancyRate > 100;
+              const isSuggested = scanData?.suggestedZoneId === zone.id;
 
-                return (
-                  <div key={zone.id} className={`flex flex-col p-1.5 rounded border ${isSuggested ? 'bg-green-100 border-green-500' : (isFull ? 'bg-red-50 border-red-400' : 'bg-slate-50 border-slate-300')}`}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className={`font-bold text-xs truncate mr-1 ${isSuggested ? 'text-green-700' : 'text-slate-700'}`} title={zone.zoneName || zone.name}>{zone.zoneName || zone.name}</span>
-                      <span className={`font-mono text-xs font-bold ${isFull ? 'text-red-600' : 'text-blue-600'}`}>{availableCount} <span className="text-[10px] font-normal text-slate-500">/ {effectiveCapacity}</span></span>
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] font-mono text-slate-500">
-                      <span>Reserved incoming: <strong className="text-orange-500">{reserved}</strong></span>
-                      <span>Fill rate: <strong className={occupancyRate >= 90 ? 'text-red-500' : 'text-blue-500'}>{occupancyRate.toFixed(1)}%</strong></span>
-                    </div>
+              return (
+                <div key={zone.id} className={`flex flex-col p-1.5 rounded border ${isSuggested ? 'bg-green-100 border-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' : (isFull ? 'bg-red-50 border-red-400' : 'bg-slate-50 border-slate-300')}`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className={`font-bold text-xs truncate flex items-center gap-1 mr-1 ${isSuggested ? 'text-green-700' : 'text-slate-700'}`} title={zone.zoneName || zone.name}>
+                      {zone.zoneName || zone.name}
+                      {isOverbooked && <WarningOutlined className="text-red-500 text-sm" title="Overbooked!" />}
+                    </span>
+                    <span className={`font-mono text-xs font-bold ${isFull ? 'text-red-600' : 'text-blue-600'}`}>{availableCount} <span className="text-[10px] font-normal text-slate-500">/ {effectiveCapacity}</span></span>
                   </div>
-                );
-              })}
-              {(!Array.isArray(mapData) || mapData.filter((z: any) => z.floorId === activeGate?.floorId).length === 0) && (
-                <div className="text-center text-slate-500 text-xs py-2 italic col-span-2">No zones on this floor</div>
-              )}
-            </div>
-          )}
+                  <div className="flex justify-between items-center text-[9px] font-mono text-slate-500">
+                    <span>Reserved incoming: <strong className="text-orange-500">{reserved}</strong></span>
+                    <span>Fill rate: <strong className={occupancyRate > 100 ? 'text-red-600' : occupancyRate >= 90 ? 'text-red-500' : 'text-blue-500'}>{occupancyRate.toFixed(1)}%</strong></span>
+                  </div>
+                </div>
+              );
+            })}
+            {(!Array.isArray(mapData) || mapData.filter((z: any) => z.floorId === activeGate?.floorId).length === 0) && (
+              <div className="text-center text-slate-500 text-xs py-2 italic col-span-2">No zones on this floor</div>
+            )}
+          </div>
         </div>
       </div>
 

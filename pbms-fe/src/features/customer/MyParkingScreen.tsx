@@ -20,6 +20,8 @@ interface Booking {
   reservationFee?: number;
   refundStatus?: string;
   refundAmount?: number;
+  vehicleTypeId?: number;
+  rfid?: string;
 }
 
 interface MonthlyPass {
@@ -33,12 +35,22 @@ interface MonthlyPass {
 }
 
 interface HistoryRecord {
-  type: string;
+  recordType: 'SESSION' | 'RESERVATION';
+  type: string; // display label
   plateNumber: string;
   fee: number;
   timeIn: string;
   timeOut: string;
   incidentDetails?: any[];
+  // Reservation-specific
+  status?: string;
+  zoneName?: string;
+  expectedEntryTime?: string;
+  expectedDurationMinutes?: number;
+  reservationFee?: number;
+  refundAmount?: number;
+  refundStatus?: string;
+  forfeitedAmount?: number;
 }
 
 const { Title, Text } = Typography;
@@ -76,7 +88,21 @@ export const MyParkingScreen = () => {
   // Strict Walk-in 2FA Lookup
   const [plateNumberInput, setPlateNumberInput] = useState('');
   const [rfidInput, setRfidInput] = useState('');
+  const [vehicleTypeIdInput, setVehicleTypeIdInput] = useState<number | undefined>(undefined);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchParams, setSearchParams] = useState({ plate: '', rfid: '', vehicleTypeId: undefined as number | undefined });
+
+  const { data: vehicleTypes = [] } = useQuery({
+    queryKey: ['system-vehicle-types'],
+    queryFn: async () => {
+      try {
+        const res = await axiosClient.get('/public/vehicle-types');
+        return res.data.data || [];
+      } catch (err) {
+        return [];
+      }
+    }
+  });
 
   const [isEditPlateVisible, setIsEditPlateVisible] = useState(false);
   const [plateToEdit, setPlateToEdit] = useState<{ type: 'reservation' | 'monthly', id: string, currentPlate: string } | null>(null);
@@ -147,14 +173,43 @@ export const MyParkingScreen = () => {
       try {
         if (!selectedHistoryPlate) return [];
         const res = await axiosClient.get(`/operation/parking-sessions/history?plate=${selectedHistoryPlate}`);
-        return (res.data.data || []).map((item: any) => ({
-          type: 'MONTHLY PASS',
-          plateNumber: item.plate,
-          fee: item.totalFee || 0,
-          timeIn: item.timeIn ? dayjs(item.timeIn).format('HH:mm DD/MM/YYYY') : '---',
-          timeOut: item.timeOut ? dayjs(item.timeOut).format('HH:mm DD/MM/YYYY') : '---',
-          incidentDetails: item.incidentDetails
-        }));
+        return (res.data.data || []).map((item: any) => {
+          if (item.recordType === 'RESERVATION') {
+            const resStatus = item.status || 'UNKNOWN';
+            const labelMap: Record<string, string> = {
+              PENDING: 'Đặt chỗ (Chờ)',
+              ACTIVE: 'Đặt chỗ (Đang sử dụng)',
+              COMPLETED: 'Đặt chỗ (Hoàn thành)',
+              CANCELLED: 'Đặt chỗ (Đã huỷ)',
+              COMPLETED_UNUSED: 'Đặt chỗ (Không đến - Mất phí)',
+            };
+            return {
+              recordType: 'RESERVATION' as const,
+              type: labelMap[resStatus] || `Đặt chỗ (${resStatus})`,
+              plateNumber: item.plate,
+              fee: item.reservationFee || 0,
+              timeIn: item.expectedEntryTime ? dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY') : '---',
+              timeOut: '---',
+              status: resStatus,
+              zoneName: item.zoneName,
+              expectedDurationMinutes: item.expectedDurationMinutes,
+              reservationFee: item.reservationFee || 0,
+              refundAmount: item.refundAmount || 0,
+              refundStatus: item.refundStatus,
+              forfeitedAmount: item.forfeitedAmount || 0,
+            };
+          }
+          // Normal parking session
+          return {
+            recordType: 'SESSION' as const,
+            type: 'Vào bãi',
+            plateNumber: item.plate,
+            fee: item.totalFee || 0,
+            timeIn: item.timeIn ? dayjs(item.timeIn).format('HH:mm DD/MM/YYYY') : '---',
+            timeOut: item.timeOut ? dayjs(item.timeOut).format('HH:mm DD/MM/YYYY') : '---',
+            incidentDetails: item.incidentDetails
+          };
+        });
       } catch (err) {
         return [];
       }
@@ -164,12 +219,16 @@ export const MyParkingScreen = () => {
 
   // We only fetch active session if we have searched in the Walk-in tab
   const { data: session, isLoading, isFetching } = useQuery({
-    queryKey: ['my-active-session', plateNumberInput, rfidInput],
+    queryKey: ['my-active-session', searchParams.plate, searchParams.rfid, searchParams.vehicleTypeId],
     queryFn: async () => {
-      const res = await axiosClient.get(`/operation/parking-sessions/my-active?plate=${encodeURIComponent(plateNumberInput)}&rfid=${encodeURIComponent(rfidInput)}`);
+      let url = `/operation/parking-sessions/my-active?plate=${encodeURIComponent(searchParams.plate)}&rfid=${encodeURIComponent(searchParams.rfid)}`;
+      if (searchParams.vehicleTypeId) {
+        url += `&vehicleTypeId=${searchParams.vehicleTypeId}`;
+      }
+      const res = await axiosClient.get(url);
       return res.data?.data || null;
     },
-    enabled: hasSearched
+    enabled: hasSearched && !!searchParams.plate && !!searchParams.rfid && !!searchParams.vehicleTypeId
   });
 
 
@@ -189,14 +248,17 @@ export const MyParkingScreen = () => {
   }, [session]);
 
   const handleSearchWalkIn = () => {
+    setSearchParams({ plate: plateNumberInput, rfid: rfidInput, vehicleTypeId: vehicleTypeIdInput });
     setHasSearched(true);
   };
 
-  const handleViewParkingStatus = (plate: string) => {
+  const handleViewParkingStatus = (plate: string, vehicleTypeId?: number, rfid?: string) => {
     setActiveTab('1');
     navigate(`/customer/my-parking?tab=walkin`, { replace: true });
     setPlateNumberInput(plate);
-    setRfidInput('');
+    setRfidInput(rfid || '');
+    setVehicleTypeIdInput(vehicleTypeId);
+    setSearchParams({ plate, rfid: rfid || '', vehicleTypeId });
     setHasSearched(true);
   };
 
@@ -489,13 +551,21 @@ export const MyParkingScreen = () => {
     <div className="animate-fade-in">
       <Card className="bg-blue-50/50 border-blue-100 mb-6 shadow-sm">
         <Title level={5} className="mb-4 text-blue-800">Look up Guest Vehicle (2FA Security)</Title>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input 
             size="large" 
             placeholder="Enter License Plate" 
             prefix={<CarOutlined className="text-gray-400" />} 
             value={plateNumberInput}
             onChange={(e) => setPlateNumberInput(e.target.value)}
+          />
+          <Select
+            size="large"
+            allowClear
+            placeholder="Loại phương tiện (Bắt buộc)"
+            value={vehicleTypeIdInput}
+            onChange={setVehicleTypeIdInput}
+            options={vehicleTypes.map((v: any) => ({ label: v.typeName, value: v.id }))}
           />
           <Input 
             size="large" 
@@ -511,7 +581,7 @@ export const MyParkingScreen = () => {
             icon={<SearchOutlined />} 
             size="large" 
             className="bg-blue-600"
-            disabled={!plateNumberInput.trim() || !rfidInput.trim()}
+            disabled={!plateNumberInput.trim() || !rfidInput.trim() || !vehicleTypeIdInput}
             onClick={handleSearchWalkIn}
           >
             Search
@@ -523,12 +593,15 @@ export const MyParkingScreen = () => {
     </div>
   );
 
-  const renderBookingsTab = () => (
-    <div className="animate-fade-in">
-      {bookings.length > 0 ? (
+  const renderBookingsTab = () => {
+    const activeBookings = bookings.filter(b => b.status === 'PENDING' || b.status === 'ACTIVE');
+    const historyBookings = bookings.filter(b => b.status !== 'PENDING' && b.status !== 'ACTIVE');
+
+    const renderList = (data: any[]) => (
+      data.length > 0 ? (
         <List
           grid={{ gutter: 16, column: 1 }}
-          dataSource={bookings}
+          dataSource={data}
           renderItem={item => {
             const isExpired = item.status === 'PENDING' && dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 120, 'minute').isBefore(simulatedDayjs());
             let displayStatus = isExpired ? 'COMPLETED_UNUSED' : item.status;
@@ -563,7 +636,9 @@ export const MyParkingScreen = () => {
                       </Tag>
                       <Text type="secondary" className="text-[10px] md:text-xs">ID: {item.id}</Text>
                     </div>
-                    <Title level={4} className={`m-0 tracking-widest ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400 line-through' : ''}`}>{item.plateNumber}</Title>
+                    <Title level={4} className={`m-0 tracking-widest ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400 line-through' : ''}`}>
+                      {item.plateNumber} {item.vehicleType ? `- ${item.vehicleType}` : ''}
+                    </Title>
                     <div className="mt-4 space-y-1">
                       <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Expected arrival: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text></Text>
                       <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Reserved location: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{item.zoneName || item.slotName}</Text></Text>
@@ -599,14 +674,27 @@ export const MyParkingScreen = () => {
                         </Button>
                       </div>
                     )}
-                    {['PENDING', 'ACTIVE'].includes(displayStatus) && (
+                    {displayStatus === 'ACTIVE' && (
                       <Button
                         type="default"
                         className="w-full sm:w-auto border-blue-400 text-blue-600 hover:bg-blue-50"
                         icon={<SearchOutlined />}
-                        onClick={() => handleViewParkingStatus(item.plateNumber)}
+                        onClick={() => handleViewParkingStatus(item.plateNumber, item.vehicleTypeId, item.rfid)}
                       >
-                        View Parking Status
+                        Tra cứu
+                      </Button>
+                    )}
+                    {displayStatus !== 'ACTIVE' && displayStatus !== 'PENDING' && (
+                      <Button
+                        type="default"
+                        className="w-full sm:w-auto border-gray-400 text-gray-600 hover:bg-gray-50 mt-2 sm:mt-0"
+                        icon={<HistoryOutlined />}
+                        onClick={() => {
+                          setSelectedHistoryPlate(item.plateNumber);
+                          setIsHistoryDrawerVisible(true);
+                        }}
+                      >
+                        View History
                       </Button>
                     )}
                     {displayStatus === 'PENDING_REFUND' && (
@@ -621,14 +709,34 @@ export const MyParkingScreen = () => {
         />
       ) : (
         <div className="py-16 text-center">
-          <Empty description={<span className="text-gray-500 font-medium text-lg">You have no reservations</span>} />
+          <Empty description={<span className="text-gray-500 font-medium text-lg">No reservations found in this category</span>} />
           <Button type="primary" className="mt-4 bg-blue-600" onClick={() => navigate('/customer/pre-booking')}>
             Create Reservation Now
           </Button>
         </div>
-      )}
-    </div>
-  );
+      )
+    );
+
+    return (
+      <div className="animate-fade-in">
+        <Tabs
+          defaultActiveKey="active"
+          items={[
+            {
+              key: 'active',
+              label: 'Đang xử lý / Trong bãi',
+              children: renderList(activeBookings),
+            },
+            {
+              key: 'history',
+              label: 'Lịch sử / Đã hoàn thành',
+              children: renderList(historyBookings),
+            }
+          ]}
+        />
+      </div>
+    );
+  };
 
   const renderMonthlyPassTab = () => (
     <div className="animate-fade-in">
@@ -1149,63 +1257,131 @@ export const MyParkingScreen = () => {
       </Modal>
 
       <Drawer
-        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2"/>Parking History for {selectedHistoryPlate}</span>}
-        width={500}
+        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2"/>Lịch sử cho xe {selectedHistoryPlate}</span>}
+        width={520}
         onClose={() => setIsHistoryDrawerVisible(false)}
         open={isHistoryDrawerVisible}
         className="bg-slate-50"
       >
         <div className="animate-fade-in">
-          {historyRecords.filter(r => r.plateNumber === selectedHistoryPlate).length > 0 ? (
+          {isHistoryLoading ? (
+            <div className="py-16 text-center"><Spin size="large" /></div>
+          ) : historyRecords.length > 0 ? (
             <Timeline
               className="mt-4"
-              items={historyRecords.filter(r => r.plateNumber === selectedHistoryPlate).map(record => ({
-                color: record.type === 'MONTHLY PASS' ? 'green' : 'orange',
-                children: (
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 mb-4 shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <Title level={5} className="m-0 tracking-widest text-slate-800">{record.plateNumber}</Title>
-                        <Tag color={record.type === 'MONTHLY PASS' ? 'green' : 'orange'} className="mt-1">
-                          {record.type}
-                        </Tag>
+              items={historyRecords.map(record => {
+                const isReservation = record.recordType === 'RESERVATION';
+                const statusColorMap: Record<string, string> = {
+                  PENDING: 'blue', ACTIVE: 'processing', COMPLETED: 'green',
+                  CANCELLED: 'red', COMPLETED_UNUSED: 'orange',
+                };
+                const dotColor = isReservation
+                  ? (record.status === 'COMPLETED_UNUSED' || record.status === 'CANCELLED' ? 'red' : 'blue')
+                  : (record.fee > 0 ? 'green' : 'gray');
+
+                return {
+                  color: dotColor,
+                  dot: isReservation ? (
+                    record.status === 'COMPLETED_UNUSED' ? <WarningOutlined style={{ color: '#ef4444' }} /> :
+                    record.status === 'CANCELLED' ? <CloseCircleOutlined style={{ color: '#ef4444' }} /> :
+                    <CheckCircleOutlined style={{ color: '#3b82f6' }} />
+                  ) : <CarOutlined style={{ color: record.fee > 0 ? '#22c55e' : '#94a3b8' }} />,
+                  children: isReservation ? (
+                    // ---- RESERVATION CARD ----
+                    <div className={`bg-white p-4 rounded-xl border shadow-sm mb-4 ${
+                      (record.status === 'COMPLETED_UNUSED') ? 'border-red-200 bg-red-50' :
+                      record.status === 'CANCELLED' ? 'border-orange-200 bg-orange-50' : 'border-blue-100'
+                    }`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <Title level={5} className="m-0 tracking-widest text-slate-800">{record.plateNumber}</Title>
+                          <Tag color={statusColorMap[record.status || ''] || 'default'} className="mt-1">
+                            {record.type}
+                          </Tag>
+                        </div>
+                        <div className="text-right">
+                          <Text type="secondary" className="block text-xs">Phí đặt chỗ</Text>
+                          <Text strong className="text-blue-600 text-base">{(record.reservationFee || 0).toLocaleString()} VND</Text>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <Text strong className="text-blue-600 text-lg">{record.fee === 0 ? 'Free' : `${record.fee.toLocaleString()} VND`}</Text>
+                      <Divider className="my-2" />
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <Text type="secondary" className="block mb-1">📅 Giờ dự kiến vào:</Text>
+                          <Text strong className="text-slate-700">{record.timeIn}</Text>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">🅿️ Khu vực:</Text>
+                          <Text strong className="text-slate-700">{record.zoneName || 'N/A'}</Text>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">⏱ Thời lượng dự kiến:</Text>
+                          <Text strong className="text-slate-700">{record.expectedDurationMinutes ? `${record.expectedDurationMinutes} phút` : '---'}</Text>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">💸 Hoàn tiền:</Text>
+                          <Text strong className={(record.refundAmount || 0) > 0 ? 'text-green-600' : 'text-slate-400'}>
+                            {(record.refundAmount || 0) > 0 ? `+${(record.refundAmount || 0).toLocaleString()} VND` : 'Không có'}
+                          </Text>
+                        </div>
                       </div>
-                    </div>
-                    <Divider className="my-2" />
-                    <div className="grid grid-cols-2 gap-4 text-sm mt-2">
-                      <div>
-                        <Text type="secondary" className="block mb-1">Time In:</Text>
-                        <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeIn}</Text>
-                      </div>
-                      <div>
-                        <Text type="secondary" className="block mb-1">Time Out:</Text>
-                        <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeOut}</Text>
-                      </div>
-                    </div>
-                    {record.incidentDetails && record.incidentDetails.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-red-100">
-                        {record.incidentDetails.map((inc: any, idx: number) => (
-                          <div key={idx} className="mb-3">
-                            <Tag color="red" className="mb-2">⚠️ Violation Warning ({inc.type})</Tag>
-                            <div className="flex gap-2 overflow-x-auto">
-                              {(inc.urls || []).map((url: string, uidx: number) => (
-                                <img key={uidx} src={getImageUrl(url)} alt="Violation" className="h-20 rounded-md border border-red-200" />
-                              ))}
-                            </div>
+                      {(record.forfeitedAmount || 0) > 0 && (
+                        <div className="mt-3 pt-2 border-t border-red-200">
+                          <div className="flex justify-between items-center">
+                            <Text className="text-red-600 font-semibold">⚠️ Phí bị giữ lại:</Text>
+                            <Text strong className="text-red-600 text-base">{(record.forfeitedAmount || 0).toLocaleString()} VND</Text>
                           </div>
-                        ))}
+                          <Text type="secondary" className="text-xs block mt-1">
+                            {record.status === 'COMPLETED_UNUSED' ? 'Xe không đến trong thời gian đặt chỗ, phí đặt chỗ không được hoàn.' : 'Huỷ muộn, phí đặt chỗ không được hoàn toàn.'}
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // ---- PARKING SESSION CARD ----
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 mb-4 shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <Title level={5} className="m-0 tracking-widest text-slate-800">{record.plateNumber}</Title>
+                          <Tag color="green" className="mt-1">{record.type}</Tag>
+                        </div>
+                        <div className="text-right">
+                          <Text strong className="text-blue-600 text-lg">{record.fee === 0 ? 'Miễn phí' : `${record.fee.toLocaleString()} VND`}</Text>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )
-              }))}
+                      <Divider className="my-2" />
+                      <div className="grid grid-cols-2 gap-4 text-sm mt-2">
+                        <div>
+                          <Text type="secondary" className="block mb-1">Giờ vào:</Text>
+                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeIn}</Text>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">Giờ ra:</Text>
+                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeOut}</Text>
+                        </div>
+                      </div>
+                      {record.incidentDetails && record.incidentDetails.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-red-100">
+                          {record.incidentDetails.map((inc: any, idx: number) => (
+                            <div key={idx} className="mb-3">
+                              <Tag color="red" className="mb-2">⚠️ Violation Warning ({inc.type})</Tag>
+                              <div className="flex gap-2 overflow-x-auto">
+                                {(inc.urls || []).map((url: string, uidx: number) => (
+                                  <img key={uidx} src={getImageUrl(url)} alt="Violation" className="h-20 rounded-md border border-red-200" />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                };
+              })}
             />
           ) : (
             <div className="py-12 text-center">
-              <Empty description={<span className="text-slate-500">No parking history for this vehicle</span>} />
+              <Empty description={<span className="text-slate-500">Chưa có lịch sử cho xe này</span>} />
             </div>
           )}
         </div>

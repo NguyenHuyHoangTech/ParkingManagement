@@ -207,114 +207,65 @@ export const PricingConfigScreen = () => {
     return { left: `${left}%`, width: `${width}%`, isWrap: false };
   };
 
+  const testCalculateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return await axiosClient.post('/finance/pricing-policies/test-calculate', payload);
+    },
+    onSuccess: (data: any) => {
+      const result = data.data.data;
+      setCalcResult({
+        total: result.fee,
+        breakdown: result.breakdown,
+        minutes: timeOut ? Math.max(1, timeOut.diff(timeIn, 'minute') > 0 ? timeOut.diff(timeIn, 'minute') : timeOut.diff(timeIn, 'minute') + 24 * 60) : 0
+      });
+    },
+    onError: (error: any) => {
+      message.error('Lỗi khi tính thử phí: ' + (error.response?.data?.message || error.message));
+    }
+  });
+
   const calculatePrice = () => {
     if (!timeIn || !timeOut) return;
 
-    let minutes = timeOut.diff(timeIn, 'minute');
-    if (minutes < 0) {
-      // Assuming next day
-      minutes += 24 * 60;
-    }
-    if (minutes === 0) minutes = 1; // Minimum 1 minute
-
-    let total = 0;
-    const breakdown: string[] = [];
-
-    const { globalBaseGuardEnabled, globalBaseGuardTime, globalBaseGuardPrice, globalMaxCapEnabled, globalMaxCapPrice } = config;
-
-    // PRE-PROCESSING LAYER: GLOBAL BASE INTERCEPTOR
-    if (globalBaseGuardEnabled && minutes <= globalBaseGuardTime) {
-      total = globalBaseGuardPrice;
-      breakdown.push(`[Pre-processing] Short parking (${minutes}p <= ${globalBaseGuardTime}p)`);
-      breakdown.push(`-> Algorithm end: Calculate base price ${(globalBaseGuardPrice || 0).toLocaleString()} VND`);
-    } else {
-      if (globalBaseGuardEnabled) {
-        breakdown.push(`[Pre-processing] Exceeded base price (${minutes}p > ${globalBaseGuardTime}p) -> Skip base price, move to shift slicer.`);
-      }
-
-      // STEP 1: SHIFT SLICER (Helper_SliceByShift)
-      const startMinOfDay = timeIn.hour() * 60 + timeIn.minute();
-      const chunks: { shift: Shift, duration: number }[] = [];
-
-      let currentShiftId: string | null = null;
-      let chunkDuration = 0;
-
-      const getShiftForMinute = (min: number) => {
-        const wrappedMin = min % 1440;
-        return config.shifts.find(s => {
-          const sm = parseTime(s.startTime);
-          const em = parseTime(s.endTime);
-          if (sm < em) return wrappedMin >= sm && wrappedMin < em;
-          return wrappedMin >= sm || wrappedMin < em;
+    // Create policy payload dynamically (similar to handleSave)
+    const policyPayload = {
+      id: (config as any).id,
+      policyName: config.policyName || `Pricing table ${vehicleTypesData?.find((v: any) => v.id === activeTabId)?.typeName || 'Default'}`,
+      vehicleTypeId: activeTabId,
+      globalBaseMins: config.globalBaseGuardEnabled ? config.globalBaseGuardTime : 0,
+      globalBaseFee: config.globalBaseGuardEnabled ? config.globalBaseGuardPrice : 0,
+      maxParkingCap: config.globalMaxCapEnabled ? (config.globalMaxCapPrice || 0) : 999999999,
+      monthlyRate: config.monthlyRate,
+      status: 'ACTIVE',
+      shifts: config.shifts.map(s => {
+        const totalDurationMins = getShiftDuration(s);
+        const blocks = s.slices.map((sl, idx) => {
+          const isTail = sl.isTail;
+          return {
+            id: typeof sl.id === 'number' ? sl.id : null,
+            blockOrder: idx + 1,
+            durationMins: isTail ? getTailDuration(s) : sl.duration,
+            fee: sl.price
+          };
         });
-      };
+        return {
+          id: typeof s.id === 'number' ? s.id : null,
+          shiftName: s.name,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          totalDurationMins: totalDurationMins,
+          blocks: blocks
+        };
+      })
+    };
 
-      // Loop through each minute to slice
-      for (let i = 0; i < minutes; i++) {
-        const currentMin = (startMinOfDay + i) % 1440;
-        const shift = getShiftForMinute(currentMin);
-        const shiftId = shift ? shift.id : 'unknown';
+    const payload = {
+      policy: policyPayload,
+      timeIn: timeIn.format('YYYY-MM-DDTHH:mm:ss'),
+      timeOut: timeOut.format('YYYY-MM-DDTHH:mm:ss')
+    };
 
-        if (currentShiftId === null) {
-          currentShiftId = shiftId;
-          chunkDuration = 1;
-        } else if (currentShiftId === shiftId) {
-          chunkDuration++;
-        } else {
-          const prevShift = config.shifts.find(s => s.id === currentShiftId);
-          if (prevShift) chunks.push({ shift: prevShift, duration: chunkDuration });
-          currentShiftId = shiftId;
-          chunkDuration = 1;
-        }
-      }
-
-      // Push the final slice
-      if (currentShiftId !== 'unknown') {
-        const prevShift = config.shifts.find(s => s.id === currentShiftId);
-        if (prevShift) chunks.push({ shift: prevShift, duration: chunkDuration });
-      }
-
-      // STEP 2: BLOCK SLIDER MACHINE (Helper_SlideBlocks)
-      chunks.forEach((chunk, index) => {
-        breakdown.push(`--- Slice ${index + 1}: ${chunk.shift.name} (Duration ${chunk.duration} minutes) ---`);
-        let remainingChunkTime = chunk.duration;
-
-        for (let i = 0; i < chunk.shift.slices.length; i++) {
-          const slice = chunk.shift.slices[i];
-          if (remainingChunkTime <= 0) break;
-
-          const blockDuration = slice.isTail ? getTailDuration(chunk.shift) : (slice.duration || 0);
-          const blockName = slice.isTail ? 'Latch Class' : `Layer ${i + 1}`;
-
-          if (remainingChunkTime > 0) {
-            total += slice.price;
-            if (remainingChunkTime <= blockDuration) {
-              breakdown.push(`[Sliding] ${blockName}: +${(slice.price || 0).toLocaleString()}VND (Consumed ${remainingChunkTime}p, End of slice)`);
-              remainingChunkTime -= blockDuration;
-              break;
-            } else {
-              breakdown.push(`[Sliding] ${blockName}: +${(slice.price || 0).toLocaleString()}VND (Fully consumed ${blockDuration}p)`);
-              remainingChunkTime -= blockDuration;
-            }
-          }
-        }
-
-        if (remainingChunkTime > 0) {
-          breakdown.push(`⚠️ Warning: Remaining slice ${remainingChunkTime}p not charged (due to config compared to shift duration).`);
-        }
-      });
-    }
-
-    // STEP 3: AGGREGATE AND APPLY CEILING (Main_CalculateTotalFee)
-    breakdown.push(`======================`);
-    if (globalMaxCapEnabled && globalMaxCapPrice && total > globalMaxCapPrice) {
-      total = globalMaxCapPrice;
-      breakdown.push(`-> Hit Lot Max Cap. Cap applied: ${(globalMaxCapPrice || 0).toLocaleString()} VND`);
-    } else {
-      breakdown.push(`-> Total estimated bill: ${total.toLocaleString()} VND`);
-    }
-
-    setCalcResult({ total, breakdown, minutes });
+    testCalculateMutation.mutate(payload);
   };
 
 
@@ -787,7 +738,7 @@ export const PricingConfigScreen = () => {
                 />
               </div>
               <div className="pt-5">
-                <Button type="primary" onClick={calculatePrice} className="bg-blue-600 shadow-sm">Calculate</Button>
+                <Button type="primary" onClick={calculatePrice} loading={testCalculateMutation.isPending} className="bg-blue-600 shadow-sm">Calculate</Button>
               </div>
             </div>
 

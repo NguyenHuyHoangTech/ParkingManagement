@@ -41,6 +41,7 @@ public class ParkingSessionController {
     private final IncidentTicketRepository incidentTicketRepository;
     private final com.pbms.modules.infrastructure.repository.ZoneRepository zoneRepository;
     private final com.pbms.modules.operation.service.GateOperationService gateOperationService;
+    private final com.pbms.modules.operation.repository.ReservationRepository reservationRepository;
 
     /**
      * GET /api/v1/parking-sessions/my-active
@@ -49,7 +50,8 @@ public class ParkingSessionController {
     @GetMapping("/my-active")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMyActiveSession(
             @RequestParam(required = false) String plate,
-            @RequestParam(required = false) String rfid) {
+            @RequestParam(required = false) String rfid,
+            @RequestParam(required = false) Long vehicleTypeId) {
 
         ParkingSession session = null;
 
@@ -59,6 +61,9 @@ public class ParkingSessionController {
                 if (("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) 
                         && s.getRfidCard() != null 
                         && s.getRfidCard().getCardCode().equals(rfid.trim())) {
+                    if (vehicleTypeId != null && s.getVehicleType() != null && !s.getVehicleType().getId().equals(vehicleTypeId)) {
+                        continue;
+                    }
                     session = s;
                     break;
                 }
@@ -67,6 +72,9 @@ public class ParkingSessionController {
             java.util.List<ParkingSession> list = parkingSessionRepository.findByPlateOrderByTimeInDesc(plate.trim().toUpperCase());
             for (ParkingSession s : list) {
                 if ("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) {
+                    if (vehicleTypeId != null && s.getVehicleType() != null && !s.getVehicleType().getId().equals(vehicleTypeId)) {
+                        continue;
+                    }
                     session = s;
                     break;
                 }
@@ -75,6 +83,9 @@ public class ParkingSessionController {
             session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "ACTIVE").orElse(null);
             if (session == null) {
                 session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "LOCKED").orElse(null);
+            }
+            if (session != null && vehicleTypeId != null && session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
+                session = null;
             }
         }
 
@@ -92,19 +103,64 @@ public class ParkingSessionController {
 
     /**
      * GET /api/v1/parking-sessions/history?plate=...
-     * Get parking history by license plate
+     * Get combined history: parking sessions + reservations by license plate
      */
     @GetMapping("/history")
+    @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getHistory(
             @RequestParam String plate) {
 
-        List<Map<String, Object>> history = parkingSessionRepository
-                .findByPlateOrderByTimeInDesc(plate.trim().toUpperCase())
+        String normalizedPlate = plate.trim().toUpperCase();
+
+        // 1. Actual parking sessions (the vehicle physically entered)
+        List<Map<String, Object>> sessionHistory = parkingSessionRepository
+                .findByPlateOrderByTimeInDesc(normalizedPlate)
                 .stream()
                 .map(this::toSessionMap)
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(ApiResponse.success(history, "Fetched parking history"));
+        // 2. Reservation history (bookings, cancellations, no-shows, forfeited fees)
+        List<Map<String, Object>> reservationHistory = reservationRepository
+                .findByVehicle_PlateNumberOrderByExpectedEntryTimeDesc(normalizedPlate)
+                .stream()
+                .filter(r -> !"".equals(r.getStatus())) // include all statuses
+                .map(r -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("recordType", "RESERVATION");
+                    m.put("id", r.getId());
+                    m.put("plate", normalizedPlate);
+                    m.put("status", r.getStatus());
+                    m.put("zoneName", r.getZone() != null ? r.getZone().getZoneName() : "N/A");
+                    m.put("expectedEntryTime", r.getExpectedEntryTime());
+                    m.put("expectedDurationMinutes", r.getExpectedDurationMinutes());
+                    m.put("reservationFee", r.getReservationFee());
+                    m.put("refundAmount", r.getRefundAmount());
+                    m.put("refundStatus", r.getRefundStatus());
+                    // forfeited = fee paid - refund
+                    java.math.BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : java.math.BigDecimal.ZERO;
+                    java.math.BigDecimal refund = r.getRefundAmount() != null ? r.getRefundAmount() : java.math.BigDecimal.ZERO;
+                    m.put("forfeitedAmount", fee.subtract(refund));
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        // Merge and sort by time descending (sessions by timeIn, reservations by expectedEntryTime)
+        List<Map<String, Object>> combined = new java.util.ArrayList<>();
+        combined.addAll(sessionHistory);
+        combined.addAll(reservationHistory);
+        combined.sort((a, b) -> {
+            java.time.LocalDateTime ta = a.get("timeIn") != null
+                    ? (java.time.LocalDateTime) a.get("timeIn")
+                    : (java.time.LocalDateTime) a.get("expectedEntryTime");
+            java.time.LocalDateTime tb = b.get("timeIn") != null
+                    ? (java.time.LocalDateTime) b.get("timeIn")
+                    : (java.time.LocalDateTime) b.get("expectedEntryTime");
+            if (ta == null) return 1;
+            if (tb == null) return -1;
+            return tb.compareTo(ta);
+        });
+
+        return ResponseEntity.ok(ApiResponse.success(combined, "Fetched combined parking history"));
     }
 
     /**
@@ -231,7 +287,11 @@ public class ParkingSessionController {
             suggestedZoneName = ps.getSlot().getZone().getZoneName();
             suggestedZoneId = ps.getSlot().getZone().getId();
         } else if (ps.getSuggestedZoneId() != null) {
-            suggestedZoneName = zoneRepository.findById(ps.getSuggestedZoneId()).map(z -> z.getZoneName()).orElse("N/A");
+            if (ps.getSuggestedZoneId() == -1L) {
+                suggestedZoneName = "FREE";
+            } else {
+                suggestedZoneName = zoneRepository.findById(ps.getSuggestedZoneId()).map(z -> z.getZoneName()).orElse("N/A");
+            }
             suggestedZoneId = ps.getSuggestedZoneId();
         } else if (ps.getReservation() != null && ps.getReservation().getZone() != null) {
             suggestedZoneName = ps.getReservation().getZone().getZoneName();

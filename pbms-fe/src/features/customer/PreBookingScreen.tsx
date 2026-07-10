@@ -372,25 +372,49 @@ export const PreBookingScreen = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4">
                 <div>
                   <Text className="block font-bold mb-2 text-slate-700">Expected arrival:</Text>
-                  <DatePicker 
-                    showTime 
-                    format="HH:mm DD/MM/YYYY" 
-                    value={arrivalTime}
-                    onChange={(val) => val && setArrivalTime(val)} 
-                    className="w-full h-12 rounded-lg" 
-                    minDate={simulatedDayjs().add(30, 'minute')}
-                  />
+                  <div className="hidden md:block">
+                    <DatePicker 
+                      showTime 
+                      format="HH:mm DD/MM/YYYY" 
+                      value={arrivalTime}
+                      onChange={(val) => val && setArrivalTime(val)} 
+                      className="w-full h-12 rounded-lg text-lg" 
+                      minDate={simulatedDayjs().add(30, 'minute')}
+                      inputReadOnly={true}
+                    />
+                  </div>
+                  <div className="block md:hidden">
+                    <input 
+                      type="datetime-local"
+                      className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-base"
+                      value={arrivalTime.format('YYYY-MM-DDTHH:mm')}
+                      min={simulatedDayjs().add(30, 'minute').format('YYYY-MM-DDTHH:mm')}
+                      onChange={(e) => { if(e.target.value) setArrivalTime(dayjs(e.target.value)) }}
+                    />
+                  </div>
                 </div>
                 <div>
-                <Text className="block font-bold mb-2 text-slate-700">Expected to pick up the car:</Text>
-                <DatePicker 
-                  showTime 
-                  format="HH:mm DD/MM/YYYY" 
-                  value={endTime}
-                  onChange={(val) => val && setEndTime(val)} 
-                  className="w-full h-12 rounded-lg" 
-                  minDate={arrivalTime}
-                />
+                  <Text className="block font-bold mb-2 text-slate-700">Expected to pick up the car:</Text>
+                  <div className="hidden md:block">
+                    <DatePicker 
+                      showTime 
+                      format="HH:mm DD/MM/YYYY" 
+                      value={endTime}
+                      onChange={(val) => val && setEndTime(val)} 
+                      className="w-full h-12 rounded-lg text-lg" 
+                      minDate={arrivalTime}
+                      inputReadOnly={true}
+                    />
+                  </div>
+                  <div className="block md:hidden">
+                    <input 
+                      type="datetime-local"
+                      className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-base"
+                      value={endTime.format('YYYY-MM-DDTHH:mm')}
+                      min={arrivalTime.format('YYYY-MM-DDTHH:mm')}
+                      onChange={(e) => { if(e.target.value) setEndTime(dayjs(e.target.value)) }}
+                    />
+                  </div>
               </div>
             </div>
             {isOutOfOperatingHours && !operatingHours.is247 && (
@@ -453,10 +477,10 @@ export const PreBookingScreen = () => {
                     />
                   </div>
                 )}
-              </>
-            )}
-          </Card>
-        </div>
+                </>
+              )}
+            </Card>
+          </div>
 
         <div className="lg:col-span-1">
           <div className="lg:sticky lg:top-24 space-y-6">

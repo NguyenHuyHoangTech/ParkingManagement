@@ -10,6 +10,22 @@ import axiosClient from '../../core/api/axiosClient';
 
 const { Title, Text } = Typography;
 
+const mobileBottomSheetStyle = `
+  @media (max-width: 768px) {
+    .mobile-bottom-sheet .ant-modal {
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      position: absolute;
+      bottom: 0;
+    }
+    .mobile-bottom-sheet .ant-modal-content {
+      border-radius: 24px 24px 0 0 !important;
+      padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
+    }
+  }
+`;
+
 interface Gate {
   id: number;
   name: string;
@@ -207,37 +223,40 @@ export const ShiftManagementScreen = () => {
           </Tag>
         </div>
 
-        <Card className="shadow-sm border-gray-200 rounded-2xl mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-center bg-blue-50 p-6 rounded-xl border border-blue-100 mb-8">
-            <div className="mb-4 md:mb-0">
+        <Card className="shadow-sm border-gray-200 rounded-2xl mb-8 md:mb-8 pb-24 md:pb-6">
+          <style>{mobileBottomSheetStyle}</style>
+          
+          <div className="flex flex-col md:flex-row justify-between items-center bg-blue-50 p-4 md:p-6 rounded-xl border border-blue-100 mb-6 md:mb-8">
+            <div className="w-full md:w-auto">
               <Text className="block text-blue-600 font-medium mb-1">Current time:</Text>
-              <Title level={3} className="m-0 text-blue-800">{simulatedDayjs().format('HH:mm - DD/MM/YYYY')}</Title>
+              <Title level={3} className="m-0 text-blue-800 text-2xl md:text-3xl">{simulatedDayjs().format('HH:mm - DD/MM/YYYY')}</Title>
             </div>
 
-            {shiftStatus === 'CLOSED' ? (
-              <Button
-                type="primary"
-                size="large"
-                icon={<LoginOutlined />}
-                onClick={() => setIsStartModalVisible(true)}
-                className="bg-blue-600 px-4 sm:px-8 h-12 font-medium shadow-md w-full md:w-auto text-sm sm:text-base"
-              >
-
-                STARTING NEW ONLINE SHIFT
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                danger
-                size="large"
-                icon={<LogoutOutlined />}
-                onClick={() => setIsCloseModalVisible(true)}
-                className="px-4 sm:px-8 h-12 font-medium animate-pulse w-full md:w-auto text-sm sm:text-base"
-              >
-
-                FINAL SHIFT & HANDover
-              </Button>
-            )}
+            {/* Desktop Action Button */}
+            <div className="hidden md:block">
+              {shiftStatus === 'CLOSED' ? (
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<LoginOutlined />}
+                  onClick={() => setIsStartModalVisible(true)}
+                  className="bg-blue-600 px-8 h-12 font-medium shadow-md text-base"
+                >
+                  STARTING NEW ONLINE SHIFT
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  danger
+                  size="large"
+                  icon={<LogoutOutlined />}
+                  onClick={() => setIsCloseModalVisible(true)}
+                  className="px-8 h-12 font-medium animate-pulse text-base"
+                >
+                  FINAL SHIFT & HANDover
+                </Button>
+              )}
+            </div>
           </div>
 
           {shiftStatus === 'OPEN' && (
@@ -280,6 +299,32 @@ export const ShiftManagementScreen = () => {
           </div>
         </Card>
 
+        {/* Mobile Fixed Bottom Action Bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {shiftStatus === 'CLOSED' ? (
+            <Button
+              type="primary"
+              size="large"
+              icon={<LoginOutlined />}
+              onClick={() => setIsStartModalVisible(true)}
+              className="bg-blue-600 w-full h-14 text-base font-bold shadow-lg rounded-xl"
+            >
+              STARTING NEW ONLINE SHIFT
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              danger
+              size="large"
+              icon={<LogoutOutlined />}
+              onClick={() => setIsCloseModalVisible(true)}
+              className="w-full h-14 text-base font-bold shadow-lg rounded-xl animate-pulse"
+            >
+              FINAL SHIFT & HANDover
+            </Button>
+          )}
+        </div>
+
         {/* Select Shift Start Location Modal */}
         <Modal
           title={<span className="text-xl font-bold"><SelectOutlined className="mr-2 text-blue-600" />Choose Work Location</span>}
@@ -293,8 +338,9 @@ export const ShiftManagementScreen = () => {
             </Button>,
           ]}
           width={600}
+          className="mobile-bottom-sheet"
           style={{ top: 40 }}
-          styles={{ body: { maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' } }}
+          styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' } }}
         >
           <div className="py-4">
             <Text className="block mb-4 text-gray-600">You are assigned to a shift. Please select a position or task to begin.</Text>
@@ -409,6 +455,7 @@ export const ShiftManagementScreen = () => {
             </Button>,
           ]}
           width={500}
+          className="mobile-bottom-sheet"
         >
           {isLoadingPreview ? <Spin className="block mx-auto my-8" /> : (
             <div className="py-4">

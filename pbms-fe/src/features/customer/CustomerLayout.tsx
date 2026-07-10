@@ -18,6 +18,7 @@ import { UserProfileSettingsModal } from '../shared/components/UserProfileSettin
 import { SystemClock } from '../shared/components/SystemClock';
 import { useQuery } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
+import { GlobalReservationDebugWidget } from '../debug/GlobalReservationDebugWidget';
 
 const { Content } = Layout;
 
@@ -104,6 +105,10 @@ export const CustomerLayout = () => {
                       <span className={`text-[10px] xl:text-xs font-mono font-bold tracking-wide ${connected ? 'text-green-700' : 'text-red-700'}`}>
                         SYSTEM: {connected ? 'ONLINE' : 'OFFLINE'}
                       </span>
+                  </div>
+
+                  <div className="hidden lg:block shrink-0">
+                    <GlobalReservationDebugWidget />
                   </div>
 
                   <div className="hidden lg:block pl-2 lg:pl-4 border-l border-slate-200 shrink-0">

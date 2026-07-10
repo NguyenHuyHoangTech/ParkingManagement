@@ -1,227 +1,329 @@
-import React, { useState } from 'react';
-import { Card, Typography, Button, Table, Tag, Alert, Modal } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Typography, Button, Badge, List, Tag, Select, FloatButton, Modal, message } from 'antd';
+import { PlusOutlined, CreditCardOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
-import dayjs from 'dayjs';
-import { 
-  CustomerServiceOutlined, 
-  CheckCircleFilled,
-  WarningOutlined,
-  MessageOutlined,
-  BookOutlined,
-  SafetyCertificateOutlined
-} from '@ant-design/icons';
+
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
 import { IncidentDetailPanel } from '../incident/components/IncidentDetailPanel';
 
 const { Title, Text } = Typography;
 
 export const HelpdeskScreen = () => {
-  const [systemMessage, setSystemMessage] = useState<{ type: 'success' | 'warning' | 'info'; title: string; desc: string } | null>(null);
-  const [isRulesExpanded, setIsRulesExpanded] = useState<boolean>(false);
-  
-  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [queueFilter, setQueueFilter] = useState<string>('ALL');
 
-  const { data: buildingProfile } = useQuery({
-    queryKey: ['public-building-profile'],
-    queryFn: async () => {
-      try {
-        const res = await axiosClient.get('/public/building-profile');
-        return res.data.data;
-      } catch (err) {
-        return null;
+  // Handle mobile hardware back button using History API
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Whenever user presses physical back button, we go back to the main list
+      setSelectedTicket(null);
+      if (window.location.hash !== '#create') {
+         setSelectedCategory(prev => prev === 'CREATE_INCIDENT' ? 'ALL' : prev);
       }
-    }
-  });
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
-  const { data: tickets = [] } = useQuery({
+  const navigateToDetail = (ticket: any) => {
+    window.history.pushState({ view: 'detail' }, '', '#detail');
+    setSelectedTicket(ticket);
+  };
+
+  const navigateToForm = () => {
+    window.history.pushState({ view: 'form' }, '', '#create');
+    setSelectedCategory('CREATE_INCIDENT');
+    setSelectedTicket(null);
+  };
+
+  const navigateBack = () => {
+    window.history.back(); // This will trigger popstate
+  };
+
+  // Fetch incidents for the current user
+  const { data: ticketsData = [] } = useQuery({
     queryKey: ['incidents'],
     queryFn: async () => {
       try {
         const res = await axiosClient.get('/incident/incidents');
-        return res.data.data || [];
+        return res.data?.data || [];
       } catch (err) {
         return [];
       }
-    }
+    },
+    refetchInterval: 5000
+  });
+
+  const filteredTickets = ticketsData.filter((t: any) => {
+    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory;
+    if (!catMatch) return false;
+    
+    if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+    if (queueFilter === 'PHASE_2') return t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+    if (queueFilter === 'PHASE_3') return t.status === 'RESOLVED';
+    if (queueFilter === 'CANCELLED') return t.status === 'CANCELLED' || t.status === 'REJECTED';
+    return true;
   });
 
   const handleIncidentSuccess = (category: string, plate: string) => {
-    switch (category) {
-      case 'SLOT_OCCUPIED':
-        setSystemMessage({
-          type: 'warning',
-          title: 'Record Report - Please move to Waiting Zone',
-          desc: `The System has received the Incident Slote Report. Please move the vehicle to the Temporary Waiting Zonee Staff will verify and regulate the new location and send the results via the tracking table belowe`
-        });
-        const bg = document.getElementById('helpdesk-container');
-        if (bg) {
-          bg.classList.add('bg-orange-50');
-          setTimeout(() => bg.classList.remove('bg-orange-50'), 2000);
+    if (category === 'SLOT_OCCUPIED') {
+      Modal.info({
+        title: 'Ghi nhận sự cố thành công',
+        content: 'Hệ thống đã ghi nhận sự cố của quý khách. Để không làm lỡ thời gian, quý khách có thể chủ động đỗ tại bất kỳ ô trống nào gần nhất, hoặc liên hệ nhân viên bảo vệ để được hỗ trợ đưa xe vào vị trí dự phòng. Chi tiết tiến độ xử lý đã được cập nhật trong mục Quản lý sự cố. Rất mong quý khách thông cảm cho trải nghiệm chưa trọn vẹn này!',
+        okText: 'Đã hiểu',
+        onOk: () => {
+          navigateBack();
         }
-        break;
-      case 'FIND_CAR':
-        setSystemMessage({
-          type: 'info',
-          title: 'System coordinated Staff',
-          desc: `Please stay where you are and we will send staff to assist you`
-        });
-        break;
-      case 'LOST_CARD':
-        setSystemMessage({
-          type: 'warning',
-          title: 'Lock gate Emergency Check-OUT',
-          desc: `Parking session for Vehicle [${plate}] has been added to RED LIST for theft prevention. System logged. Please provide evidence to staff at check-out.`
-        });
-        break;
-      case 'DAMAGED_CARD':
-        setSystemMessage({
-          type: 'info',
-          title: 'Report of damaged card has been received',
-          desc: `System logged card for vehicle [${plate}] as physically damaged. Please bring to counter at check-out for verification.`
-        });
-        break;
-      case 'FEE_DISPUTE':
-        setSystemMessage({
-          type: 'info',
-          title: 'Fee check request has been sent',
-          desc: 'Tickets have been transferred to Management for review. Note: Fees are still being calculated until Management decides to freeze or reduce them.'
-        });
-        break;
-      default:
-        setSystemMessage({
-          type: 'success',
-          title: 'Thank you for your comments',
-          desc: 'Your feedback has been sent to the Management Board for service improvement'
-        });
+      });
+    } else {
+      message.success('Đã gửi yêu cầu hỗ trợ thành công!');
+      navigateBack();
     }
   };
 
-  const columns = [
-    { title: 'Ticket code', dataIndex: 'id', key: 'id', render: (text: string) => <Text strong>{text || 'NEW'}</Text> },
-    { title: 'Classify', dataIndex: 'type', key: 'type' },
-    { title: 'License Plate', dataIndex: 'plate', key: 'plate' },
-    { title: 'Describe', dataIndex: 'description', key: 'description' },
-    { title: 'Time created', dataIndex: 'time', key: 'time', render: (text: string) => <Text>{text ? dayjs(text).format('HH:mm DD/MM/YYYY') : '-'}</Text> },
-    { 
-      title: 'Status', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status: string) => {
-        let color = 'default';
-        let label = status;
-        if (status === 'PENDING') { color = 'warning'; label = 'Pending'; }
-        else if (status === 'WAITING_CHECKOUT') { color = 'processing'; label = 'Processing'; }
-        else if (status === 'RESOLVED') { color = 'success'; label = 'Resolved'; }
-        else if (status === 'REJECTED' || status === 'CANCELLED') { color = 'error'; label = status; }
-        return <Tag color={color}>{label}</Tag>;
-      }
-    },
-    {
-      title: 'Hành động',
-      key: 'action',
-      render: (_: any, record: any) => (
-        <Button type="link" size="small" onClick={() => setSelectedTicket(record)}>
-          Xem chi tiết
-        </Button>
-      )
-    }
-  ];
+  const renderMobileView = () => {
+    const isShowingDetail = selectedTicket !== null;
+    const isShowingForm = selectedCategory === 'CREATE_INCIDENT' && selectedTicket === null;
+    const isShowingList = !isShowingDetail && !isShowingForm;
 
-  return (
-    <div id="helpdesk-container" className="min-h-screen bg-gray-50/50 p-4 md:p-6 transition-colors duration-700 ease-in-out">
-      <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-              <CustomerServiceOutlined className="text-2xl text-white" />
-            </div>
-            <div>
-              <Title level={2} className="m-0 text-gray-800 tracking-tight">Incident Support</Title>
-              <Text type="secondary" className="text-gray-500">Center for receiving and processing exceptions automatically</Text>
-            </div>
-          </div>
-          <Button 
-            type={isRulesExpanded ? "primary" : "default"} 
-            icon={<BookOutlined />} 
-            onClick={() => setIsRulesExpanded(!isRulesExpanded)}
-            className="rounded-full shadow-sm"
-          >
-            Xem quy định bãi xe {isRulesExpanded ? '(Thu gọn)' : ''}
-          </Button>
-        </div>
+    return (
+      <div className="flex flex-col h-full bg-slate-50 w-full relative">
+        {isShowingList && (
+          <div className="flex flex-col h-full overflow-hidden animate-fade-in w-full">
+            {/* Header */}
+            <div className="bg-white p-4 shadow-sm border-b border-gray-100 shrink-0 z-10 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <Title level={4} className="m-0 text-gray-800">Hỗ trợ khách hàng</Title>
+              </div>
+              
+              {/* Horizontal Scroll Categories */}
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                {[
+                  { id: 'ALL', label: 'Tất cả', count: ticketsData.length },
+                  { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+                  { id: 'OVERSTAY', label: 'Quá giờ', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
+                  { id: 'LOST_CARD', label: 'Mất thẻ', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
+                  { id: 'DAMAGED_CARD', label: 'Hỏng thẻ', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+                  { id: 'LPR_MISMATCH', label: 'Sai biển số', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
+                  { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+                  { id: 'FIND_CAR', label: 'Tìm xe', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
+                  { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+                  { id: 'OTHER_FEEDBACK', label: 'Góp ý', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }
+                ].map(cat => (
+                  <div 
+                    key={cat.id} 
+                    className={`px-4 py-2 rounded-full cursor-pointer transition-all font-medium flex items-center gap-2 shrink-0 snap-start border ${selectedCategory === cat.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-600 border-gray-200'}`} 
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    <span className="whitespace-nowrap text-sm">{cat.label}</span>
+                    {cat.count > 0 && (
+                      <Badge 
+                        count={cat.count} 
+                        style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#e5e7eb', color: selectedCategory === cat.id ? '#1890ff' : '#4b5563', boxShadow: 'none' }} 
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
 
-        {isRulesExpanded && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm animate-fade-in-up transition-all">
-            <Title level={4} className="text-slate-800 mb-4"><SafetyCertificateOutlined className="mr-2 text-blue-600" /> Quy định bãi đỗ xe</Title>
-            <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap bg-slate-50 p-4 rounded-xl border border-slate-100">
-              {buildingProfile?.rules || "Hiện tại chưa có quy định nào được thiết lập."}
+              {/* Filters */}
+              <Select size="large" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
+                {value: 'ALL', label: 'Tất cả trạng thái'},
+                {value: 'PHASE_1', label: 'Đang xử lý (Phase 1)'},
+                {value: 'PHASE_2', label: 'Chờ ra bãi (Phase 2)'},
+                {value: 'PHASE_3', label: 'Hoàn tất (Phase 3)'},
+                {value: 'CANCELLED', label: 'Đã Hủy/Từ chối'},
+              ]} />
             </div>
-          </div>
-        )}
 
-        {/* Request Form */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
-          {systemMessage ? (
-            <div className="animate-fade-in-up p-4">
-              <Alert
-                message={<span className="font-semibold text-lg">{systemMessage.title}</span>}
-                description={<span className="text-base mt-1 block">{systemMessage.desc}</span>}
-                type={systemMessage.type}
-                showIcon
-                icon={systemMessage.type === 'success' ? <CheckCircleFilled className="mt-1" /> : undefined}
-                className="rounded-xl border-2 py-4 px-5 shadow-sm"
-                action={
-                  <Button onClick={() => setSystemMessage(null)} type="link" className="font-medium">
-                    Create New Request
-                  </Button>
-                }
-              />
+            {/* Ticket List */}
+            <div className="flex-1 overflow-y-auto p-3 pb-24">
+              <List dataSource={filteredTickets} renderItem={(item: any) => (
+                  <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
+                    <div className="flex justify-between items-start mb-2">
+                      <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
+                      <Text type="secondary" className="text-xs">{item.time ? new Date(item.time).toLocaleDateString('vi-VN') : ''}</Text>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
+                      {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
+                        <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
+                      ) : item.status === 'RESOLVED' ? (
+                        <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất</Tag>
+                      ) : (
+                        <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
+                      )}
+                    </div>
+                  </div>
+                )} />
+                {filteredTickets.length === 0 && (
+                  <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
+                    <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
+                    <Text className="text-slate-500">Không có sự cố nào</Text>
+                  </div>
+                )}
             </div>
-          ) : (
-            <div className="p-2">
-              <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
-            </div>
-          )}
-        </Card>
-        
-        {/* Ticket History */}
-        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden mt-6 md:mt-8">
-          <Title level={5} className="mb-4 text-gray-600 uppercase text-xs tracking-wider font-bold">Recent Request History</Title>
-          <div className="overflow-x-auto">
-            <Table 
-              dataSource={tickets} 
-              columns={columns} 
-              rowKey="id" 
-              pagination={false} 
-              size="small" 
-              className="min-w-[600px]"
+
+            {/* FAB */}
+            <FloatButton
+              icon={<PlusOutlined />}
+              type="primary"
+              style={{ right: 24, bottom: 24, width: 56, height: 56 }}
+              tooltip="Tạo yêu cầu mới"
+              onClick={navigateToForm}
             />
           </div>
-        </Card>
+        )}
 
+        {isShowingForm && (
+          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
+            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
+              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
+              <Title level={4} className="m-0 text-gray-800">Gửi yêu cầu hỗ trợ</Title>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-24">
+              <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
+            </div>
+          </div>
+        )}
+
+        {isShowingDetail && selectedTicket && (
+          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-right">
+            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
+              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
+              <Title level={4} className="m-0 text-gray-800 flex-1 truncate">{selectedTicket.plate || selectedTicket.rfid || 'Chi tiết'}</Title>
+              {selectedTicket.status === 'RESOLVED' ? <Tag color="success">Hoàn tất</Tag> : <Tag color="processing">Phase {selectedTicket.phase}</Tag>}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <IncidentDetailPanel 
+                ticket={selectedTicket} 
+                userRole="CUSTOMER" 
+                onClose={navigateBack} 
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDesktopView = () => (
+    <div className="flex flex-row flex-1 h-full animate-fade-in bg-gray-100 p-4 gap-4 overflow-hidden">
+      {/* Pane 1: Category Sidebar */}
+      <div className={`w-64 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden shrink-0`}>
+        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center shrink-0">
+          <Text strong className="text-gray-700 text-base">Phân loại sự cố</Text>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 pb-3">
+          {[
+            { id: 'ALL', label: 'Tất cả sự cố', icon: '📋', count: ticketsData.length },
+            { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố Mới', icon: '➕', count: 0 },
+            { id: 'ZONE_VIOLATION', label: 'Đỗ sai khu vực', icon: '🚨', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+            { id: 'OVERSTAY', label: 'Quá giờ', icon: '🕒', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
+            { id: 'LOST_CARD', label: 'Báo mất thẻ', icon: '🔥', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
+            { id: 'DAMAGED_CARD', label: 'Báo hỏng thẻ', icon: '💳', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+            { id: 'LPR_MISMATCH', label: 'Sai biển số', icon: '🤖', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
+            { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ đỗ', icon: '🚗', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+            { id: 'FIND_CAR', label: 'Tìm xe', icon: '🔍', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
+            { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', icon: '💰', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+            { id: 'OTHER_FEEDBACK', label: 'Góp ý khác', icon: '💬', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }
+          ].map(cat => (
+             <div 
+               key={cat.id} 
+               className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex justify-between items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`} 
+               onClick={() => { setSelectedCategory(cat.id); setSelectedTicket(null); }}
+             >
+               <div className="flex items-center gap-3">
+                 <span className="text-lg">{cat.icon}</span>
+                 <span className="whitespace-nowrap">{cat.label}</span>
+               </div>
+               {cat.count > 0 && (
+                 <Badge 
+                   count={cat.count} 
+                   style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#1890ff', color: selectedCategory === cat.id ? '#1890ff' : '#fff' }} 
+                 />
+               )}
+             </div>
+          ))}
+        </div>
       </div>
 
-      <Modal
-        open={!!selectedTicket}
-        onCancel={() => setSelectedTicket(null)}
-        footer={null}
-        width={700}
-        destroyOnClose
-        styles={{ body: { padding: 0 } }}
-        closeIcon={false}
-      >
-        {selectedTicket && (
-          <IncidentDetailPanel 
-            ticket={selectedTicket} 
-            userRole="CUSTOMER" 
-            onClose={() => setSelectedTicket(null)} 
-          />
-        )}
-      </Modal>
+      {/* Pane 2: Ticket Queue */}
+      <div className={`w-80 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden shrink-0`}>
+        <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-2 shrink-0">
+          <div className="flex justify-between items-center">
+            <Text strong className="text-gray-700 text-base">Danh sách ({filteredTickets.length})</Text>
+          </div>
+          <Select size="small" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
+            {value: 'ALL', label: 'Tất cả trạng thái'},
+            {value: 'PHASE_1', label: 'Đang xử lý (Phase 1)'},
+            {value: 'PHASE_2', label: 'Chờ ra bãi (Phase 2)'},
+            {value: 'PHASE_3', label: 'Hoàn tất (Phase 3)'},
+            {value: 'CANCELLED', label: 'Đã Hủy/Từ chối'},
+          ]} />
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <List dataSource={filteredTickets} renderItem={(item: any) => (
+              <div className={`p-3 mb-2 rounded-xl cursor-pointer border transition-all ${selectedTicket?.id === item.id ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-gray-200 hover:border-blue-300'}`} onClick={() => setSelectedTicket(item)}>
+                <div className="flex justify-between items-start mb-1"><Text strong className="text-gray-800 tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text><Text type="secondary" className="text-xs">{item.time ? new Date(item.time).toLocaleDateString('vi-VN') : ''}</Text></div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 text-[10px] sm:text-xs">{item.type}</Tag>
+                  {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
+                    <Tag color="default" className="m-0 border-0 text-[10px] sm:text-xs">Đã hủy</Tag>
+                  ) : item.status === 'RESOLVED' ? (
+                    <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Hoàn tất</Tag>
+                  ) : (
+                    <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 text-[10px] sm:text-xs">Phase {item.phase}</Tag>
+                  )}
+                </div>
+              </div>
+            )} />
+        </div>
+      </div>
 
+      {/* Pane 3: Details */}
+      <div className={`flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col`}>
+        {selectedCategory === 'CREATE_INCIDENT' && !selectedTicket ? (
+          <div className="flex flex-col h-full overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
+              <div>
+                <Title level={4} className="m-0 text-blue-700">Tạo yêu cầu hỗ trợ mới</Title>
+                <Text className="text-sm text-gray-500">Gửi thông tin sự cố để ban quản lý hỗ trợ giải quyết</Text>
+              </div>
+            </div>
+            <div className="p-8 flex-1">
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
+              </div>
+            </div>
+          </div>
+        ) : selectedTicket ? (
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex-1 overflow-hidden p-4">
+              <IncidentDetailPanel 
+                ticket={selectedTicket} 
+                userRole="CUSTOMER" 
+                onClose={() => setSelectedTicket(null)} 
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center bg-slate-50"><CreditCardOutlined className="text-6xl text-slate-300 mb-4" /><Title level={4} className="text-slate-400">Chưa chọn sự cố</Title><Text>Vui lòng chọn một sự cố từ danh sách</Text></div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] h-[100dvh] overflow-hidden bg-slate-50">
+      <div className="lg:hidden h-full">
+        {renderMobileView()}
+      </div>
+      <div className="hidden lg:flex h-full w-full">
+        {renderDesktopView()}
+      </div>
     </div>
   );
 };

@@ -97,7 +97,7 @@ public class ZoneRoutingService {
             return !now.isBefore(startWindow) && !now.isAfter(endWindow);
         }).count();
         
-        long pendingReservations = Math.min(physicalAvailableSlots, countInWindow);
+        long pendingReservations = countInWindow;
         long effectiveLoad = occupiedSlots + pendingReservations;
 
         return BigDecimal.valueOf(effectiveLoad)
@@ -414,7 +414,7 @@ public class ZoneRoutingService {
                 java.time.LocalDateTime endWindow = r.getExpectedEntryTime().plusMinutes(r.getExpectedDurationMinutes());
                 return !nowTime.isBefore(startWindow) && !nowTime.isAfter(endWindow);
             }).count();
-            long pendingReservations = Math.min(physicalAvailableSlots, countInWindow);
+            long pendingReservations = countInWindow;
 
             BigDecimal occRate = calculateZoneOccupancy(z.getId());
             RoutingRule r = applicableRules.stream().filter(rule -> rule.getZone().getId().equals(z.getId())).findFirst().orElse(null);

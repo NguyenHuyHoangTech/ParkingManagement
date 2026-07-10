@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Typography, Row, Col, Form, Input, Button, Slider, Select, message, Tabs, Table, Tag, DatePicker, ConfigProvider, theme, Radio } from 'antd';
-import { ApiOutlined, SendOutlined, FastForwardOutlined, ClockCircleOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons';
+import { Card, Typography, Row, Col, Form, Input, Button, Slider, Select, message, Table, Tag, DatePicker, ConfigProvider, theme, Radio } from 'antd';
+import { SendOutlined, FastForwardOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 axios.defaults.headers.common['X-API-KEY'] = 'PBMS-HARDWARE-SECURE-KEY-2024';
 import { Client } from '@stomp/stompjs';
 import { SimulatorMap } from './SimulatorMap';
+import { DashboardLayout } from './layouts/DashboardLayout';
 
 const { Title, Text } = Typography;
 
@@ -155,11 +156,14 @@ const App = () => {
   const [timeForm] = Form.useForm();
   const [lastPayload, setLastPayload] = useState<any>(null);
   const [debugMinimized, setDebugMinimized] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('map');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   
   React.useEffect(() => {
     const stompClient = new Client({
       brokerURL: 'ws://localhost:8080/ws-pbms',
       onConnect: () => {
+        setConnectionStatus('connected');
         stompClient.subscribe('/topic/time-sync', (message) => {
           if (message.body) {
             try {
@@ -250,22 +254,20 @@ const App = () => {
     }
   }, [selectedSessionIdForOut, selectedSession?.plate, vehicleTypes.length]);
 
-
+  const currentCheckoutPlate = Form.useWatch('plate', checkoutForm);
+  const currentCheckoutVehicleType = Form.useWatch('vehicleType', checkoutForm);
+  
+  const checkoutPreviewImages = React.useMemo(() => {
+    if (!currentCheckoutPlate && !selectedSession) return { panorama: null, lpr: null };
+    const plate = currentCheckoutPlate || selectedSession?.plate;
+    const typeStr = currentCheckoutVehicleType || (selectedSession ? vehicleTypes.find((v: any) => v.id === selectedSession.vehicleTypeId)?.typeName : 'CAR');
+    return {
+      panorama: generateMockLicensePlateImage(plate, 'OUT', typeStr),
+      lpr: generateMockLprImage(plate)
+    };
+  }, [currentCheckoutPlate, currentCheckoutVehicleType, selectedSession, vehicleTypes]);
 
   const renderInteractiveCheckoutTab = () => {
-    const currentCheckoutPlate = Form.useWatch('plate', checkoutForm);
-    const currentCheckoutVehicleType = Form.useWatch('vehicleType', checkoutForm);
-    
-    const checkoutPreviewImages = React.useMemo(() => {
-      if (!currentCheckoutPlate && !selectedSession) return { panorama: null, lpr: null };
-      const plate = currentCheckoutPlate || selectedSession?.plate;
-      const typeStr = currentCheckoutVehicleType || (selectedSession ? vehicleTypes.find((v: any) => v.id === selectedSession.vehicleTypeId)?.typeName : 'CAR');
-      return {
-        panorama: generateMockLicensePlateImage(plate, 'OUT', typeStr),
-        lpr: generateMockLprImage(plate)
-      };
-    }, [currentCheckoutPlate, currentCheckoutVehicleType, selectedSession, vehicleTypes]);
-
     const filteredSessions = activeSessions.filter((s: any) => 
       s.floorId === selectedFloorIdForOut && 
       s.vehicleTypeId === selectedVehicleTypeIdForOut
@@ -424,6 +426,7 @@ const App = () => {
   }, [selectedGateId, selectedGate, form]);
 
   const currentPlate = Form.useWatch('plate', form);
+  const customerType = Form.useWatch('customerType', form);
   const currentActionType = Form.useWatch('actionType', form);
   const currentVehicleType = Form.useWatch('vehicleType', form);
 
@@ -569,9 +572,6 @@ const App = () => {
   ];
 
   const renderHardwareTab = () => {
-    const currentPlate = Form.useWatch('plate', form);
-    const customerType = Form.useWatch('customerType', form);
-
     const activeReservations = reservations; // Already filtered above
     const filteredReservations = activeReservations.filter((r: any) => {
         let match = true;
@@ -892,52 +892,17 @@ const App = () => {
         )}
       </div>
 
-      <div className="min-h-screen bg-slate-50 text-gray-800 p-8 font-mono">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8 border-b border-gray-200 pb-4">
-            <Title level={2} className="m-0 text-green-400 flex items-center font-mono">
-              <ApiOutlined className="mr-3" /> Hardware Simulation Terminal (IoT Mock)
-            </Title>
-            <Text className="text-gray-500 font-mono mt-2 block">
-              Công cụ chuyên dụng để mô phỏng sự kiện phần cứng, thiết lập trạng thái cảm biến và điều hướng thời gian toàn hệ thống.
-            </Text>
-          </div>
-
-          <Tabs 
-            defaultActiveKey="1"
-            type="card"
-            className="iot-tabs [&_.ant-tabs-nav::before]:border-gray-200 [&_.ant-tabs-tab]:bg-white [&_.ant-tabs-tab]:border-gray-200 [&_.ant-tabs-tab]:text-gray-500 [&_.ant-tabs-tab-active]:bg-slate-50 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-blue-400 [&_.ant-tabs-tab-active]:!border-b-transparent"
-            items={[
-              {
-                key: '1',
-                label: <span className="font-bold text-sm px-2"><ApiOutlined /> Trigger Camera & Gate Signal</span>,
-                children: <div className="pt-4">{renderHardwareTab()}</div>
-              },
-              {
-                key: '2',
-                label: <span className="font-bold text-sm px-2"><SendOutlined /> Sensor Map</span>,
-                children: <div className="pt-4">{renderSensorTab()}</div>
-              },
-              {
-                key: '3',
-                label: <span className="font-bold text-sm px-2"><ApiOutlined /> Real-time Data Stream</span>,
-                children: <div className="pt-4">{renderDataTab()}</div>
-              },
-              {
-                key: '4',
-                label: <span className="font-bold text-sm px-2"><ClockCircleOutlined /> Fast-Forward Time</span>,
-                children: <div className="pt-4">{renderTimeControllerTab()}</div>
-              },
-              {
-                key: '5',
-                label: <span className="font-bold text-sm px-2 text-red-400"><FastForwardOutlined /> Interactive Check-Out</span>,
-                children: <div className="pt-4">{renderInteractiveCheckoutTab()}</div>
-              }
-            ]}
-          />
-
-        </div>
-      </div>
+      <DashboardLayout 
+        activeKey={activeMenu} 
+        onMenuSelect={setActiveMenu}
+        connectionStatus={connectionStatus}
+      >
+        {activeMenu === 'map' && <div className="animate-fade-in">{renderSensorTab()}</div>}
+        {activeMenu === 'checkin' && <div className="animate-fade-in">{renderHardwareTab()}</div>}
+        {activeMenu === 'checkout' && <div className="animate-fade-in">{renderInteractiveCheckoutTab()}</div>}
+        {activeMenu === 'vehicles' && <div className="animate-fade-in">{renderDataTab()}</div>}
+        {activeMenu === 'time' && <div className="animate-fade-in">{renderTimeControllerTab()}</div>}
+      </DashboardLayout>
     </ConfigProvider>
   );
 };

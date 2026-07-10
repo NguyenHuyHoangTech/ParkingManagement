@@ -45,5 +45,25 @@ public class PricingPolicyController {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         }
     }
+
+    @PostMapping("/test-calculate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<com.pbms.modules.finance.dto.CalculationResultDTO>> testCalculateFee(@RequestBody com.pbms.modules.finance.dto.TestCalculateRequestDTO request) {
+        try {
+            com.pbms.modules.finance.domain.PricingPolicy policy = pricingConfigurationService.createTransientPolicy(request.getPolicy());
+            com.pbms.modules.finance.service.PricingCalculatorService calculatorService = 
+                new com.pbms.modules.finance.service.PricingCalculatorService(null); // No repo needed for test
+            
+            com.pbms.modules.finance.dto.CalculationResultDTO result = calculatorService.calculateWithTrace(
+                policy, 
+                request.getTimeIn(), 
+                request.getTimeOut()
+            );
+            return ResponseEntity.ok(ApiResponse.success(result, "Calculated"));
+        } catch (Exception e) {
+            log.error("Error calculating test fee: ", e);
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error calculating fee: " + e.getMessage()));
+        }
+    }
 }
 

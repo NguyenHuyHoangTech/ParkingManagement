@@ -30,6 +30,12 @@ public class PublicController {
     private final BuildingProfileService buildingProfileService;
     private final VehicleTypeService vehicleTypeService;
     private final SystemConfigService systemConfigService;
+    private final com.pbms.modules.operation.service.ReservationService reservationService;
+
+    @GetMapping("/debug/reservations/timers")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getDebugTimers() {
+        return ResponseEntity.ok(ApiResponse.success(reservationService.getDebugTimers(), "Fetched debug timers"));
+    }
 
     @GetMapping("/time-offset")
     public ResponseEntity<ApiResponse<Long>> getTimeOffset() {

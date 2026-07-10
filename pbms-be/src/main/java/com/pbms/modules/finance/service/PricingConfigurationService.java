@@ -134,5 +134,34 @@ public class PricingConfigurationService {
             // ignore
         }
     }
+
+    public PricingPolicy createTransientPolicy(PricingPolicyDTO dto) {
+        PricingPolicy policy = new PricingPolicy();
+        policy.setGlobalBaseMins(dto.getGlobalBaseMins());
+        policy.setGlobalBaseFee(dto.getGlobalBaseFee());
+        policy.setMaxParkingCap(dto.getMaxParkingCap());
+
+        if (dto.getShifts() != null) {
+            for (PricingShiftDTO sDTO : dto.getShifts()) {
+                PricingShift shift = new PricingShift();
+                shift.setShiftName(sDTO.getShiftName());
+                shift.setStartTime(LocalTime.parse(sDTO.getStartTime()));
+                shift.setEndTime(LocalTime.parse(sDTO.getEndTime()));
+                shift.setTotalDurationMins(sDTO.getTotalDurationMins());
+
+                if (sDTO.getBlocks() != null) {
+                    for (PricingBlockDTO bDTO : sDTO.getBlocks()) {
+                        PricingBlock block = new PricingBlock();
+                        block.setBlockOrder(bDTO.getBlockOrder());
+                        block.setDurationMins(bDTO.getDurationMins());
+                        block.setFee(bDTO.getFee());
+                        shift.getBlocks().add(block);
+                    }
+                }
+                policy.getShifts().add(shift);
+            }
+        }
+        return policy;
+    }
 }
 

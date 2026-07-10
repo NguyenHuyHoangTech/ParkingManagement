@@ -258,9 +258,11 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
 
                     let slotFill = '#ffffff';
                     let strokeColor = '#cbd5e1';
+                    let shadowColor = 'transparent';
                     if (liveSlot.status === 'OCCUPIED') {
                       slotFill = '#fee2e2'; // Light red
                       strokeColor = '#ef4444';
+                      shadowColor = '#ef4444';
                     } else if (liveSlot.status === 'DISABLED') {
                       slotFill = '#f1f5f9'; // Gray
                     }
@@ -292,6 +294,9 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
                           fill={slotFill}
                           stroke={strokeColor}
                           strokeWidth={2}
+                          shadowColor={shadowColor}
+                          shadowBlur={liveSlot.status === 'OCCUPIED' ? 10 : 0}
+                          shadowOpacity={0.4}
                         />
                         {/* Disabled Crosshatch pattern mock using lines */}
                         {liveSlot.status === 'DISABLED' && (
@@ -363,6 +368,9 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
                     stroke={gateColor}
                     strokeWidth={3}
                     cornerRadius={4}
+                    shadowColor={gateColor === '#059669' ? '#059669' : 'transparent'}
+                    shadowBlur={gateColor === '#059669' ? 12 : 0}
+                    shadowOpacity={0.5}
                   />
                   <KonvaText
                     x={0} y={gateH / 2 - 6}

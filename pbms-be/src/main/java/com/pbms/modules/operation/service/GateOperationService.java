@@ -155,8 +155,12 @@ public class GateOperationService {
                     }
                 }
             } else {
+                final Long targetTypeId = type.getId();
                 List<Reservation> allPending = reservationRepository
-                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING")
+                        .stream()
+                        .filter(r -> r.getVehicle().getVehicleType().getId().equals(targetTypeId))
+                        .collect(java.util.stream.Collectors.toList());
                 if (!allPending.isEmpty()) {
                     Reservation earliest = allPending.stream()
                             .min(java.util.Comparator.comparing(r -> r.getExpectedEntryTime())).orElse(null);
@@ -312,8 +316,12 @@ public class GateOperationService {
         if (session.getSlot() != null && session.getSlot().getZone() != null) {
             info.setSuggestedZoneName(session.getSlot().getZone().getZoneName());
         } else if (session.getSuggestedZoneId() != null) {
-            info.setSuggestedZoneName(zoneRepository.findById(session.getSuggestedZoneId())
-                    .map(zone -> zone.getZoneName()).orElse("N/A"));
+            if (session.getSuggestedZoneId() == -1L) {
+                info.setSuggestedZoneName("FREE");
+            } else {
+                info.setSuggestedZoneName(zoneRepository.findById(session.getSuggestedZoneId())
+                        .map(zone -> zone.getZoneName()).orElse("N/A"));
+            }
         } else if (session.getReservation() != null && session.getReservation().getZone() != null) {
             info.setSuggestedZoneName(session.getReservation().getZone().getZoneName());
         } else {
@@ -454,9 +462,13 @@ public class GateOperationService {
                     suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
                 }
             } else {
-                List<Reservation> allPending = reservationRepository
-                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
-                if (!allPending.isEmpty()) {
+                  final Long targetTypeId = type.getId();
+                  List<Reservation> allPending = reservationRepository
+                          .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING")
+                          .stream()
+                          .filter(r -> r.getVehicle().getVehicleType().getId().equals(targetTypeId))
+                          .collect(java.util.stream.Collectors.toList());
+                  if (!allPending.isEmpty()) {
                     Reservation earliest = allPending.stream()
                             .min(java.util.Comparator.comparing(r -> r.getExpectedEntryTime())).orElse(null);
                     if (earliest != null) {
@@ -547,10 +559,8 @@ public class GateOperationService {
                 isBlacklistedRef[0] = true;
                 blacklistReasonRef[0] = v.getBlacklistReason();
 
-                // Clear blacklist flag upon re-entry as we are moving the penalty to the new
-                // session
-                v.setIsBlacklisted(false);
-                vehicleRepository.save(v);
+                // DO NOT clear blacklist flag here. It should be cleared upon checkout
+                // or if the staff cancels the incident in Phase 2.
             }
         });
 
@@ -607,10 +617,12 @@ public class GateOperationService {
             }
             reservationRepository.save(activeRes);
 
+            String arrivedPlate = activeRes.getVehicle() != null ? activeRes.getVehicle().getPlateNumber() : "N/A";
+            String arrivedZone = activeRes.getZone() != null ? activeRes.getZone().getZoneName() : "N/A";
             messagingTemplate.convertAndSend("/topic/staff/notifications",
                     String.format(
-                            "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Vehicle arrived.\"}",
-                            activeRes.getId()));
+                            "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Vehicle arrived.\"}",
+                            activeRes.getId(), arrivedPlate, arrivedZone));
         }
 
         GateResponseDTO response = GateResponseDTO.builder()
@@ -740,6 +752,17 @@ public class GateOperationService {
                     : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             incidentTicketRepository.save(t);
+            
+            // If it was a blacklist violation, they have now paid/resolved it by checking out
+            if ("BLACKLIST_VIOLATION".equals(t.getIssueType())) {
+                vehicleRepository.findByPlateNumber(session.getPlate()).ifPresent(v -> {
+                    v.setIsBlacklisted(false);
+                    v.setBlacklistReason(null);
+                    v.setBlacklistEvidenceUrl(null);
+                    vehicleRepository.save(v);
+                    log.info("Vehicle {} removed from blacklist upon check-out", session.getPlate());
+                });
+            }
         }
 
         // Apply discount if valid

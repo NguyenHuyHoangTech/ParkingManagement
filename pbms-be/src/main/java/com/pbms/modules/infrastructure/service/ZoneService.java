@@ -51,8 +51,8 @@ public class ZoneService {
                 return !nowTime.isBefore(startWindow) && !nowTime.isAfter(endWindow);
             }).count();
 
-            long pendingReservations = Math.min(physicalAvailableSlots, countInWindow);
-            long availableSlots = physicalAvailableSlots - pendingReservations;
+            long pendingReservations = countInWindow;
+            long availableSlots = Math.max(0, physicalAvailableSlots - pendingReservations);
 
             List<SlotDTO> slotDTOs = slots.stream().map(s -> SlotDTO.builder()
                 .id(String.valueOf(s.getId())) // FE expects string

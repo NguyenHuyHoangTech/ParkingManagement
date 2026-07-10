@@ -52,4 +52,7 @@ public class IncidentTicketRequest {
     /** ID loại phương tiện được yêu cầu xác thực */
     @jakarta.validation.constraints.NotNull(message = "Vehicle type is required")
     private Long vehicleTypeId;
+
+    /** (Dành cho sự cố DAMAGED_CARD) Nguyên nhân hỏng thẻ ("NATURAL" hoặc "USER") */
+    private String damageCause;
 }

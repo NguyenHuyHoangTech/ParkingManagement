@@ -323,13 +323,25 @@ export const CustomerMonthlyPassScreen = () => {
 
             <div>
               <Text className="block font-bold mb-2 text-slate-700">Effective Start Date:</Text>
-              <DatePicker 
-                format="DD/MM/YYYY" 
-                value={startDate}
-                onChange={(val) => val && setStartDate(val)} 
-                className="w-full md:w-1/2 h-12 rounded-lg" 
-                minDate={simulatedDayjs()}
-              />
+              <div className="hidden md:block">
+                <DatePicker 
+                  format="DD/MM/YYYY" 
+                  value={startDate}
+                  onChange={(val) => val && setStartDate(val)} 
+                  className="w-full md:w-1/2 h-12 rounded-lg text-lg" 
+                  minDate={simulatedDayjs()}
+                  inputReadOnly={true}
+                />
+              </div>
+              <div className="block md:hidden">
+                <input 
+                  type="date"
+                  className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 bg-white text-base"
+                  value={startDate.format('YYYY-MM-DD')}
+                  min={simulatedDayjs().format('YYYY-MM-DD')}
+                  onChange={(e) => { if(e.target.value) setStartDate(dayjs(e.target.value)) }}
+                />
+              </div>
             </div>
           </Card>
 

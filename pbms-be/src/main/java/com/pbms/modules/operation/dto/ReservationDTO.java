@@ -13,6 +13,8 @@ public class ReservationDTO {
     private Long id;
     private String plateNumber;
     private String vehicleType;
+    private Long vehicleTypeId;
+    private String rfid;
     private String zoneName;
     private String slotName;
     

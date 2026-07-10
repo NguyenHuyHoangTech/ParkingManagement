@@ -30,7 +30,7 @@ export const HomeScreen = () => {
   
   // 2. HERO FORM STATE
   const [formVehicle, setFormVehicle] = useState<string>('');
-  const [formArrivalTime, setFormArrivalTime] = useState<dayjs.Dayjs | null>(null);
+  const [formArrivalTime, setFormArrivalTime] = useState<dayjs.Dayjs | null>(() => simulatedDayjs().add(30, 'minute'));
 
   const { data: parkingStatusData } = useQuery({
     queryKey: ['public-parking-status'],
@@ -341,14 +341,26 @@ export const HomeScreen = () => {
                                 
                                 <div>
                                     <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Thời gian đến dự kiến</label>
-                                    <DatePicker 
-                                      showTime 
-                                      format="HH:mm DD/MM/YYYY" 
-                                      value={formArrivalTime}
-                                      onChange={(val) => val && setFormArrivalTime(val)} 
-                                      className="w-full h-[52px] rounded-xl bg-slate-50 border-slate-200 hover:border-cyan-400 focus:border-cyan-400 font-medium" 
-                                      minDate={simulatedDayjs()}
-                                    />
+                                    <div className="hidden md:block">
+                                        <DatePicker 
+                                          showTime 
+                                          format="HH:mm DD/MM/YYYY" 
+                                          value={formArrivalTime}
+                                          onChange={(val) => val && setFormArrivalTime(val)} 
+                                          className="w-full h-[52px] rounded-xl bg-slate-50 border-slate-200 hover:border-cyan-400 focus:border-cyan-400 font-medium text-lg" 
+                                          minDate={simulatedDayjs()}
+                                          inputReadOnly={true}
+                                        />
+                                    </div>
+                                    <div className="block md:hidden">
+                                        <input 
+                                          type="datetime-local"
+                                          className="w-full h-[52px] bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-4 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all font-medium text-base"
+                                          value={formArrivalTime ? formArrivalTime.format('YYYY-MM-DDTHH:mm') : ''}
+                                          min={simulatedDayjs().format('YYYY-MM-DDTHH:mm')}
+                                          onChange={(e) => { if(e.target.value) setFormArrivalTime(dayjs(e.target.value)) }}
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="pt-2">

@@ -297,17 +297,44 @@ public class ReservationService {
         }
     }
 
+    public java.util.List<java.util.Map<String, Object>> getDebugTimers() {
+        java.util.List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+        for (java.util.Map.Entry<Long, java.util.Map<String, ScheduledTaskInfo>> entry : taskRegistry.entrySet()) {
+            Long resId = entry.getKey();
+            Reservation res = reservationRepository.findById(resId).orElse(null);
+            String plateNumber = res != null && res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "";
+            Long vehicleTypeId = res != null && res.getVehicle() != null && res.getVehicle().getVehicleType() != null ? res.getVehicle().getVehicleType().getId() : null;
+
+            for (java.util.Map.Entry<String, ScheduledTaskInfo> taskEntry : entry.getValue().entrySet()) {
+                java.util.Map<String, Object> info = new java.util.HashMap<>();
+                info.put("reservationId", resId);
+                info.put("plateNumber", plateNumber);
+                info.put("vehicleTypeId", vehicleTypeId);
+                info.put("taskType", taskEntry.getKey());
+                info.put("targetTime", taskEntry.getValue().getTargetSimulatedTime().toString());
+                info.put("isTriggered", !now.isBefore(taskEntry.getValue().getTargetSimulatedTime()));
+                result.add(info);
+            }
+        }
+        return result;
+    }
+
     private void registerTask(Long reservationId, String type, LocalDateTime targetTime, Runnable task) {
         LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         taskRegistry.computeIfAbsent(reservationId, k -> new java.util.concurrent.ConcurrentHashMap<>());
         
         if (!now.isBefore(targetTime)) {
             // execute immediately if time has passed
+            taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(null, task, targetTime));
             task.run();
             return;
         }
         
+        // ĐÂY CHÍNH LÀ LÚC KHỞI TẠO BỘ ĐẾM:
+        // Hệ thống sẽ tính độ trễ (delayMillis) từ hiện tại đến thời điểm cần thực thi (targetTime)
         long delayMillis = java.time.Duration.between(now, targetTime).toMillis();
+        // Sau đó gọi taskScheduler để thực sự bắt đầu đếm ngược và sẽ chạy `task` khi hết thời gian chờ
         java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task, java.time.Instant.now().plusMillis(delayMillis));
         
         taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(future, task, targetTime));
@@ -333,14 +360,23 @@ public class ReservationService {
         LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(duration);
 
         // Timer 1: Notification & 50% penalty activation
+        // BỘ ĐẾM 1: Đếm đến trước giờ đặt chỗ (trừ đi số phút quy định)
+        // Mục đích: Cảnh báo nhân viên xe sắp đến, kiểm tra xem bãi có đang đầy không để giải quyết xung đột sớm.
         if (res.getNotifiedEarlyArrival() == null || !res.getNotifiedEarlyArrival()) {
             registerTask(res.getId(), "NOTIFY", notifyTime, () -> notifyStaffTask(res.getId()));
+        } else {
+            taskRegistry.computeIfAbsent(res.getId(), k -> new java.util.concurrent.ConcurrentHashMap<>())
+                        .put("NOTIFY", new ScheduledTaskInfo(null, null, notifyTime));
         }
 
         // Timer 2: Expected Entry (Late Warning / 100% penalty)
+        // BỘ ĐẾM 2: Đếm đến đúng giờ đặt chỗ dự kiến
+        // Mục đích: Cảnh báo khách bắt đầu đến muộn, làm mốc tính phạt hoặc hủy vé.
         registerTask(res.getId(), "ENTRY", entryTime, () -> lateWarningTask(res.getId()));
 
         // Timer 3: End of Booking
+        // BỘ ĐẾM 3: Đếm đến khi hết giờ đỗ xe (Thời gian vào + Thời gian đỗ)
+        // Mục đích: Nếu xe không đến (No-show) -> Hủy & phạt 100%. Nếu xe chưa ra -> Tính thêm phí vãng lai.
         registerTask(res.getId(), "EXPIRE", expireTime, () -> endOfBookingTask(res.getId()));
     }
 
@@ -414,8 +450,11 @@ public class ReservationService {
                 reservationRepository.save(res);
                 saveNoShowPenalty(res, now);
                 
-                messagingTemplate.convertAndSend("/topic/staff/notifications", 
-                    String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Reservation expired.\"}", res.getId()));
+                String resPlate = res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "N/A";
+                String resZone = res.getZone() != null ? res.getZone().getZoneName() : "N/A";
+                messagingTemplate.convertAndSend("/topic/staff/notifications",
+                    String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Reservation expired.\"}",
+                        res.getId(), resPlate, resZone));
             }
         }
     }
@@ -478,6 +517,7 @@ public class ReservationService {
         String actualIn = null;
         String actualOut = null;
         BigDecimal penaltyFee = null;
+        String rfid = null;
         String userEmail = reservation.getVehicle() != null && reservation.getVehicle().getUser() != null ? 
                            reservation.getVehicle().getUser().getEmail() : "N/A";
                            
@@ -488,6 +528,7 @@ public class ReservationService {
             actualIn = ps.getTimeIn() != null ? ps.getTimeIn().format(formatter) : null;
             actualOut = ps.getTimeOut() != null ? ps.getTimeOut().format(formatter) : null;
             penaltyFee = ps.getPenaltyFee();
+            rfid = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : null;
         } else if ("CANCELLED".equals(reservation.getStatus())) {
             BigDecimal resFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
             BigDecimal refundAmt = reservation.getRefundAmount() != null ? reservation.getRefundAmount() : BigDecimal.ZERO;
@@ -500,6 +541,8 @@ public class ReservationService {
                 .id(reservation.getId())
                 .plateNumber(reservation.getVehicle().getPlateNumber())
                 .vehicleType(reservation.getVehicle().getVehicleType().getTypeName())
+                .vehicleTypeId(reservation.getVehicle().getVehicleType().getId())
+                .rfid(rfid)
                 .zoneName(reservation.getZone() != null ? reservation.getZone().getZoneName() : "N/A")
                 .slotName("N/A") // Slots are assigned dynamically by IoT
                 .expectedEntryTime(reservation.getExpectedEntryTime())
@@ -531,8 +574,11 @@ public class ReservationService {
             throw new IllegalStateException("Zone is still full!");
         }
 
-        messagingTemplate.convertAndSend("/topic/staff/notifications", 
-            String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"message\":\"Retry successful.\"}", reservation.getId()));
+        String retryPlate = reservation.getVehicle() != null ? reservation.getVehicle().getPlateNumber() : "N/A";
+        String retryZone = reservation.getZone() != null ? reservation.getZone().getZoneName() : "N/A";
+        messagingTemplate.convertAndSend("/topic/staff/notifications",
+            String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Retry successful.\"}",
+                reservation.getId(), retryPlate, retryZone));
 
         return mapToDTO(reservation);
     }

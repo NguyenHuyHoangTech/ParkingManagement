@@ -8,11 +8,12 @@ import {
 import {
   ScheduleOutlined, SearchOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ClockCircleOutlined, SettingOutlined,
-  RightCircleOutlined, FilterOutlined
+  RightCircleOutlined, FilterOutlined, BugOutlined
 } from '@ant-design/icons';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
+import { ReservationTimersDebug } from '../debug/ReservationTimersDebug';
 
 const { Title, Text } = Typography;
 
@@ -37,6 +38,7 @@ export const PreBookingManagementScreen = () => {
   const [selectedRecord, setSelectedRecord] = useState<PreBooking | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [debugReservationId, setDebugReservationId] = useState<number | null>(null);
 
   const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null]>([
     simulatedDayjs().subtract(7, 'day'),
@@ -152,7 +154,21 @@ export const PreBookingManagementScreen = () => {
   const columns = [
     { title: 'Booking Code', dataIndex: 'id', key: 'id', render: (text: string) => <Text strong>{text}</Text> },
     { title: 'User Email', dataIndex: 'userEmail', key: 'userEmail', render: (text: string) => <Text>{text}</Text> },
-    { title: 'License Plate', dataIndex: 'plateNumber', key: 'plateNumber', render: (text: string) => <Tag color="blue" className="font-bold text-base">{text}</Tag> },
+    { 
+      title: 'License Plate', 
+      dataIndex: 'plateNumber', 
+      key: 'plateNumber', 
+      render: (text: string, record: PreBooking) => (
+        <Tag 
+          color="blue" 
+          className="font-bold text-base cursor-pointer hover:bg-blue-100 transition-colors"
+          onClick={() => setDebugReservationId(Number(record.id))}
+          title="Click to view Debug Timers"
+        >
+          {text} 
+        </Tag>
+      ) 
+    },
     {
       title: 'Expected (In - Duration)',
       key: 'expected',
@@ -445,6 +461,16 @@ export const PreBookingManagementScreen = () => {
           </div>
         )}
       </Drawer>
+      <Modal
+        title={<div><BugOutlined className="mr-2 text-blue-500" /> Debug Reservation #{debugReservationId}</div>}
+        open={!!debugReservationId}
+        onCancel={() => setDebugReservationId(null)}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        {debugReservationId && <ReservationTimersDebug reservationId={debugReservationId} defaultExpanded={true} />}
+      </Modal>
     </div>
   );
 };

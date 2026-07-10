@@ -3,10 +3,12 @@ package com.pbms.modules.finance.service;
 import com.pbms.modules.finance.domain.PricingBlock;
 import com.pbms.modules.finance.domain.PricingPolicy;
 import com.pbms.modules.finance.domain.PricingShift;
+import com.pbms.modules.finance.dto.CalculationResultDTO;
 import com.pbms.modules.finance.repository.PricingPolicyRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -26,38 +28,65 @@ public class PricingCalculatorService {
         PricingPolicy policy = policyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
                 .orElseThrow(() -> new RuntimeException("No active pricing policy for vehicle type: " + vehicleTypeId));
 
-        return calculate(policy, checkInTime, checkOutTime);
+        return calculateWithTrace(policy, checkInTime, checkOutTime).getFee();
     }
 
     public BigDecimal calculate(PricingPolicy policy, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
+        return calculateWithTrace(policy, checkInTime, checkOutTime).getFee();
+    }
+
+    public CalculationResultDTO calculateWithTrace(PricingPolicy policy, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
         if (checkOutTime.isBefore(checkInTime)) {
-            // Prevent exception if OS time goes backwards during testing
             checkOutTime = checkInTime;
         }
 
         long totalMinutes = Duration.between(checkInTime, checkOutTime).toMinutes();
+        List<String> breakdown = new ArrayList<>();
+        DecimalFormat df = new DecimalFormat("#,###");
 
-        // Lá»šP TIá»€N Xá»¬ LÃ: Bá»˜ Lá»ŒC CÆ  Báº¢N TOÃ€N Cáº¢NH (GLOBAL BASE INTERCEPTOR)
-        if (totalMinutes <= policy.getGlobalBaseMins()) {
-            return policy.getGlobalBaseFee();
+        // LỚP TIỀN XỬ LÝ: BỘ LỌC CƠ BẢN TOÀN CẢNH (GLOBAL BASE INTERCEPTOR)
+        if (policy.getGlobalBaseMins() != null && policy.getGlobalBaseMins() > 0) {
+            if (totalMinutes <= policy.getGlobalBaseMins()) {
+                breakdown.add("[Pre-processing] Short parking (" + totalMinutes + "p <= " + policy.getGlobalBaseMins() + "p)");
+                breakdown.add("-> Algorithm end: Calculate base price " + df.format(policy.getGlobalBaseFee()) + " VND");
+                return CalculationResultDTO.builder().fee(policy.getGlobalBaseFee()).breakdown(breakdown).build();
+            } else {
+                breakdown.add("[Pre-processing] Exceeded base price (" + totalMinutes + "p > " + policy.getGlobalBaseMins() + "p) -> Skip base price, move to shift slicer.");
+            }
         }
 
-        // BÆ¯á»šC 1: MÃY Cáº®T THEO CA (Helper_SliceByShift)
+        // BƯỚC 1: MÁY CẮT THEO CA (Helper_SliceByShift)
         List<ShiftSlice> slices = sliceByShift(policy.getShifts(), checkInTime, checkOutTime);
 
-        // BÆ¯á»šC 2: Cá»– MÃY TRÆ¯á»¢T BLOCK (Helper_SlideBlocks)
+        // BƯỚC 2: CỖ MÁY TRƯỢT BLOCK (Helper_SlideBlocks)
         BigDecimal totalFee = BigDecimal.ZERO;
-        for (ShiftSlice slice : slices) {
-            BigDecimal sliceFee = slideBlocks(slice.shift, slice.durationMins);
+        for (int i = 0; i < slices.size(); i++) {
+            ShiftSlice slice = slices.get(i);
+            breakdown.add("--- Slice " + (i + 1) + ": " + slice.shift.getShiftName() + " (Duration " + slice.durationMins + " minutes) ---");
+
+            BigDecimal sliceFee = slideBlocksWithTrace(slice.shift, slice.durationMins, breakdown, df);
             totalFee = totalFee.add(sliceFee);
         }
 
-        // BÆ¯á»šC 3: Tá»”NG Há»¢P VÃ€ ÃP TRáº¦N (Main_CalculateTotalFee)
-        if (totalFee.compareTo(policy.getMaxParkingCap()) > 0) {
-            return policy.getMaxParkingCap();
+        // BƯỚC 3: TỔNG HỢP VÀ ÁP TRẦN (Main_CalculateTotalFee)
+        if (policy.getMaxParkingCap() != null && policy.getMaxParkingCap().compareTo(BigDecimal.ZERO) > 0) {
+            breakdown.add("--- [Post-processing] Ceiling check ---");
+            breakdown.add("Calculated total: " + df.format(totalFee) + " VND | Global cap: " + df.format(policy.getMaxParkingCap()) + " VND");
+
+            if (totalFee.compareTo(policy.getMaxParkingCap()) > 0) {
+                breakdown.add("-> Ceiling exceeded: Adjusting to global cap.");
+                totalFee = policy.getMaxParkingCap();
+            } else {
+                breakdown.add("-> Normal fee: Under global cap.");
+            }
         }
 
-        return totalFee;
+        breakdown.add("FINAL RESULT => TOTAL FEE: " + df.format(totalFee) + " VND");
+
+        return CalculationResultDTO.builder()
+                .fee(totalFee)
+                .breakdown(breakdown)
+                .build();
     }
 
     private List<ShiftSlice> sliceByShift(List<PricingShift> shifts, LocalDateTime checkIn, LocalDateTime checkOut) {
@@ -67,29 +96,27 @@ public class PricingCalculatorService {
         while (current.isBefore(checkOut)) {
             PricingShift currentShift = findShiftForTime(shifts, current.toLocalTime());
             if (currentShift == null) {
-                // Náº¿u khÃ´ng tÃ¬m tháº¥y ca nÃ o (Cáº¥u hÃ¬nh há»•ng), tÃ­nh theo giá» máº·c Ä‘á»‹nh hoáº·c bá» qua
                 current = current.plusMinutes(60);
                 continue;
             }
 
-            // TÃ­nh thá»i Ä‘iá»ƒm káº¿t thÃºc cá»§a Ca nÃ y trong ngÃ y hiá»‡n táº¡i
             LocalDateTime shiftEnd = LocalDateTime.of(current.toLocalDate(), currentShift.getEndTime());
             if (currentShift.getEndTime().isBefore(currentShift.getStartTime())) {
-                // Ca váº¯t qua Ä‘Ãªm (vÃ­ dá»¥: 18:00 - 06:00)
                 if (current.toLocalTime().isBefore(currentShift.getEndTime())) {
-                    // Äang á»Ÿ ráº¡ng sÃ¡ng (sau ná»­a Ä‘Ãªm)
                 } else {
-                    // Äang á»Ÿ buá»•i tá»‘i (trÆ°á»›c ná»­a Ä‘Ãªm), káº¿t thÃºc ca lÃ  sÃ¡ng hÃ´m sau
                     shiftEnd = shiftEnd.plusDays(1);
                 }
             }
 
-            // Thá»i Ä‘iá»ƒm káº¿t thÃºc cá»§a lÃ¡t cáº¯t lÃ  min(thá»i Ä‘iá»ƒm ra, thá»i Ä‘iá»ƒm káº¿t thÃºc ca)
             LocalDateTime sliceEnd = checkOut.isBefore(shiftEnd) ? checkOut : shiftEnd;
 
             long durationMins = Duration.between(current, sliceEnd).toMinutes();
             if (durationMins > 0) {
-                slices.add(new ShiftSlice(currentShift, (int) durationMins));
+                if (!slices.isEmpty() && slices.get(slices.size() - 1).shift.getId() != null && currentShift.getId() != null && slices.get(slices.size() - 1).shift.getId().equals(currentShift.getId())) {
+                    slices.get(slices.size() - 1).durationMins += (int) durationMins;
+                } else {
+                    slices.add(new ShiftSlice(currentShift, (int) durationMins));
+                }
             }
 
             current = sliceEnd;
@@ -106,7 +133,7 @@ public class PricingCalculatorService {
                 if (!time.isBefore(s) && time.isBefore(e)) {
                     return shift;
                 }
-            } else { // Váº¯t qua Ä‘Ãªm
+            } else {
                 if (!time.isBefore(s) || time.isBefore(e)) {
                     return shift;
                 }
@@ -115,7 +142,7 @@ public class PricingCalculatorService {
         return null;
     }
 
-    private BigDecimal slideBlocks(PricingShift shift, int durationMins) {
+    private BigDecimal slideBlocksWithTrace(PricingShift shift, int durationMins, List<String> breakdown, DecimalFormat df) {
         BigDecimal fee = BigDecimal.ZERO;
         int remainingMins = durationMins;
 
@@ -127,15 +154,34 @@ public class PricingCalculatorService {
         int blockIndex = 0;
         while (remainingMins > 0) {
             PricingBlock block;
+            boolean isTail = false;
+            String blockName = "Layer " + (blockIndex + 1);
+
             if (blockIndex < blocks.size()) {
                 block = blocks.get(blockIndex);
+                if (blockIndex == blocks.size() - 1) {
+                    isTail = true;
+                    blockName = "Latch Class";
+                }
                 blockIndex++;
             } else {
-                // Láº·p láº¡i block cuá»‘i cÃ¹ng náº¿u thá»i gian Ä‘á»— vÆ°á»£t quÃ¡ tá»•ng thá»i gian cáº¥u hÃ¬nh cá»§a cÃ¡c block
                 block = blocks.get(blocks.size() - 1);
+                isTail = true;
+                blockName = "Latch Class";
             }
+
             fee = fee.add(block.getFee());
-            remainingMins -= block.getDurationMins();
+
+            int blockDuration = block.getDurationMins();
+
+            if (remainingMins <= blockDuration) {
+                breakdown.add("[Sliding] " + blockName + ": +" + df.format(block.getFee()) + "VND (Consumed " + remainingMins + "p, End of slice)");
+                remainingMins -= blockDuration;
+                break;
+            } else {
+                breakdown.add("[Sliding] " + blockName + ": +" + df.format(block.getFee()) + "VND (Fully consumed " + blockDuration + "p)");
+                remainingMins -= blockDuration;
+            }
         }
 
         return fee;
