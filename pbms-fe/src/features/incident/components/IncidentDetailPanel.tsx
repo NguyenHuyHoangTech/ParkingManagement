@@ -31,6 +31,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const [p1Notes, setP1Notes] = useState('');
   const [p1File, setP1File] = useState<any>(null);
   const [p1FineAmount, setP1FineAmount] = useState<number | undefined>(ticket.fineAmount || 0);
+  const [p1DiscountAmount, setP1DiscountAmount] = useState<number>(0);
 
   // Phase 2 Staff States
   const [p2Notes, setP2Notes] = useState('');
@@ -150,6 +151,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       };
       if (isAutoCheckoutType && p1FineAmount !== undefined) {
         payload.fineAmount = p1FineAmount;
+      }
+      if (ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > 0) {
+        payload.discountAmount = p1DiscountAmount;
       }
       await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, payload);
     },
@@ -294,6 +298,14 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                     <Text type="secondary">Nội dung báo cáo:</Text>
                     <div className="font-medium break-all whitespace-pre-wrap">{ticket.description}</div>
                   </div>
+                  {ticket.type === 'SLOT_OCCUPIED' && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="font-bold text-blue-700 mb-1">Ghi nhận sự cố thành công</div>
+                      <div className="text-blue-800 text-sm leading-relaxed">
+                        Hệ thống đã ghi nhận sự cố của quý khách. Để không làm lỡ thời gian, quý khách có thể chủ động đỗ tại bất kỳ ô trống nào gần nhất, hoặc liên hệ nhân viên bảo vệ để được hỗ trợ đưa xe vào vị trí dự phòng. Chi tiết tiến độ xử lý đã được cập nhật trong mục Quản lý sự cố. Rất mong quý khách thông cảm cho trải nghiệm chưa trọn vẹn này!
+                      </div>
+                    </div>
+                  )}
                   {ticket.fineAmount !== undefined && ticket.fineAmount !== null && (
                     <div className="mb-2">
                       <Text type="secondary">Phí phạt dự kiến:</Text>
@@ -328,23 +340,76 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                     </div>
                   )}
 
-                  {/* STAFF ACTION: Duyệt GĐ1 */}
+                  {/* STAFF/MANAGER ACTION: Duyệt GĐ1 */}
                   {userRole === 'STAFF' && ticket.phase === 1 && ticket.status === 'PENDING' && (
                     <div className="mt-4 pt-4 border-t border-slate-200 bg-white p-4 rounded-lg border">
                       <Title level={5} className="text-blue-700">Thao tác của Nhân viên</Title>
-                      <Form layout="vertical">
-                        <Form.Item label="Ghi chú (gửi cho khách)">
-                          <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
-                        </Form.Item>
-                        <Form.Item label="Tải ảnh lên (Tùy chọn)">
-                          <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture">
-                            <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
-                          </Upload>
-                        </Form.Item>
-                        <Button type="primary" onClick={() => processPhase1Mutation.mutate()} loading={processPhase1Mutation.isPending} className="w-full">
-                          Xác nhận thông tin & Xử lý (Phase 1)
-                        </Button>
-                      </Form>
+                      {ticket.type === 'FEE_DISPUTE' && !isManager ? (
+                        <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
+                          Chỉ Quản lý (Manager) mới có quyền giải quyết giảm phí ở bước này. Nếu báo cáo sai, bạn có thể Hủy (Cancel).
+                        </div>
+                      ) : (
+                        <Form layout="vertical">
+                          {ticket.type === 'FEE_DISPUTE' && isManager && (
+                            <>
+                              {!isFeeVisible ? (
+                                <div className="bg-slate-50 p-6 rounded-lg mb-4 border border-slate-200 text-center">
+                                  <Button size="large" type="primary" onClick={() => { setIsFeeVisible(true); pauseFeeMutation.mutate(); }} loading={pauseFeeMutation.isPending}>
+                                    Tính phí đỗ xe hiện tại
+                                  </Button>
+                                  <div className="text-xs text-amber-600 italic mt-3">
+                                    Ấn để tra cứu mức phí (đây là phí tính tại thời điểm này và có thể thay đổi khi ra bãi).
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-50 p-4 rounded-lg mb-4 border border-slate-200">
+                                  <FeeBreakdown 
+                                    durationMinutes={ticket.durationMinutes || 0}
+                                    customerType={ticket.customerType || 'GUEST'}
+                                    expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
+                                    overtimeMinutes={ticket.overtimeMinutes || 0}
+                                    overtimeFee={ticket.overtimeFee || 0}
+                                    penaltyFee={effectivePenaltyFee}
+                                    discountFee={ticket.discountFee || 0}
+                                    totalFee={calculatedParkingFee + effectivePenaltyFee}
+                                    isLightMode={true}
+                                  />
+                                  <Form.Item label="Số tiền giảm (VND) - Sẽ trừ vào Tổng phí đỗ xe" className="mt-4 mb-0 font-medium">
+                                    <InputNumber 
+                                      className="w-full" 
+                                      size="large" 
+                                      min={0}
+                                      max={calculatedParkingFee}
+                                      value={p1DiscountAmount} 
+                                      onChange={v => setP1DiscountAmount(v || 0)} 
+                                    />
+                                    {p1DiscountAmount > calculatedParkingFee && (
+                                      <div className="text-red-500 text-sm mt-1">Số tiền giảm không được lớn hơn tổng phí hiện tại.</div>
+                                    )}
+                                  </Form.Item>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <Form.Item label="Ghi chú (gửi cho khách)">
+                            <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
+                          </Form.Item>
+                          <Form.Item label="Tải ảnh lên (Tùy chọn)">
+                            <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture">
+                              <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                            </Upload>
+                          </Form.Item>
+                          <Button 
+                            type="primary" 
+                            onClick={() => processPhase1Mutation.mutate()} 
+                            loading={processPhase1Mutation.isPending} 
+                            disabled={ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > calculatedParkingFee}
+                            className="w-full"
+                          >
+                            Xác nhận thông tin & Xử lý (Phase 1)
+                          </Button>
+                        </Form>
+                      )}
                     </div>
                   )}
                 </Card>

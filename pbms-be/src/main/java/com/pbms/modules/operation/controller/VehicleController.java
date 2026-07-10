@@ -25,6 +25,26 @@ public class VehicleController {
         ));
     }
 
+    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "Vehicle", description = "Manual Vehicle Assignment")
+    @PostMapping("/assign")
+    public ResponseEntity<ApiResponse<VehicleDTO>> assignVehicleToUser(@RequestBody Map<String, String> payload) {
+        try {
+            String plate = payload.get("plateNumber");
+            Long vehicleTypeId = payload.get("vehicleTypeId") != null ? Long.parseLong(payload.get("vehicleTypeId")) : null;
+            String rfid = payload.get("rfid");
+            String email = payload.get("email");
+            
+            if (plate == null || plate.isBlank() || vehicleTypeId == null || rfid == null || rfid.isBlank()) {
+                throw new IllegalArgumentException("Biển số, loại xe và mã thẻ không được bỏ trống.");
+            }
+
+            VehicleDTO dto = vehicleService.assignVehicleToUser(plate, vehicleTypeId, rfid, email);
+            return ResponseEntity.ok(ApiResponse.success(dto, "Gán xe thành công."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
     @GetMapping("/check")
     public ResponseEntity<ApiResponse<VehicleDTO>> checkVehicleByPlate(@RequestParam String plate) {
         try {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Layout, Menu, Typography, Space, Tag, Avatar } from 'antd';
 import { 
   AppstoreOutlined, 
@@ -9,7 +9,7 @@ import {
   ApiOutlined
 } from '@ant-design/icons';
 
-const { Header, Sider, Content } = Layout;
+const { Header, Content } = Layout;
 const { Title } = Typography;
 
 interface DashboardLayoutProps {
@@ -25,8 +25,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onMenuSelect,
   connectionStatus
 }) => {
-  const [collapsed, setCollapsed] = useState(false);
-
   const menuItems = [
     { key: 'map', icon: <AppstoreOutlined />, label: 'Sensor Map' },
     { key: 'checkin', icon: <VideoCameraOutlined />, label: 'Gate Check-In' },
@@ -37,61 +35,45 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   return (
     <Layout className="min-h-screen bg-slate-50">
-      <Sider 
-        collapsible 
-        collapsed={collapsed} 
-        onCollapse={setCollapsed}
-        theme="light"
-        className="border-r border-slate-200 shadow-sm"
-        width={250}
-      >
-        <div className="h-16 flex items-center justify-center border-b border-slate-100">
-          <Space>
-            <ApiOutlined className="text-blue-600 text-2xl" />
-            {!collapsed && (
-              <Title level={4} className="!mb-0 !text-slate-800 font-bold">
-                IoT Simulator
-              </Title>
-            )}
-          </Space>
+      <Header className="!bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 h-16 w-full">
+        <Space className="mr-8">
+          <ApiOutlined className="text-blue-600 text-2xl" />
+          <Title level={4} className="!mb-0 !text-slate-800 font-bold">
+            IoT Simulator
+          </Title>
+        </Space>
+        
+        <div className="flex-1 overflow-hidden">
+          <Menu 
+            theme="light"
+            mode="horizontal" 
+            selectedKeys={[activeKey]} 
+            items={menuItems}
+            onSelect={(info) => onMenuSelect(info.key)}
+            className="border-none h-16 leading-[4rem] text-sm font-medium bg-transparent"
+          />
         </div>
-        <div className="p-4 flex justify-center">
+
+        <Space size="large" className="ml-8">
           {connectionStatus === 'connected' ? (
-            <Tag color="success" className="rounded-full w-full text-center">
+            <Tag color="success" className="rounded-full px-3 py-1 text-xs">
               ● Connected
             </Tag>
           ) : (
-            <Tag color="error" className="rounded-full w-full text-center">
+            <Tag color="error" className="rounded-full px-3 py-1 text-xs">
               ● Disconnected
             </Tag>
           )}
-        </div>
-        <Menu 
-          theme="light" 
-          mode="inline" 
-          selectedKeys={[activeKey]} 
-          items={menuItems}
-          onSelect={(info) => onMenuSelect(info.key)}
-          className="border-none"
-        />
-      </Sider>
-      <Layout>
-        <Header className="bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 h-16">
-          <div className="text-slate-500 font-medium">
-            PBMS Hardware Interface Simulator
+          <div className="text-right leading-tight hidden md:block">
+            <div className="text-sm font-semibold text-slate-800">System Admin</div>
+            <div className="text-xs text-slate-500">Local Environment</div>
           </div>
-          <Space size="large">
-            <div className="text-right leading-tight">
-              <div className="text-sm font-semibold text-slate-800">System Admin</div>
-              <div className="text-xs text-slate-500">Local Environment</div>
-            </div>
-            <Avatar className="bg-blue-600">SA</Avatar>
-          </Space>
-        </Header>
-        <Content className="p-6 overflow-auto">
-          {children}
-        </Content>
-      </Layout>
+          <Avatar className="bg-blue-600">SA</Avatar>
+        </Space>
+      </Header>
+      <Content className="p-6 overflow-auto">
+        {children}
+      </Content>
     </Layout>
   );
 };

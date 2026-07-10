@@ -137,24 +137,23 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
   };
 
   const handleZoomZone = (zoneId: number) => {
-    const zone = visibleZones.find((z: any) => z.id === zoneId);
+    const zone = visibleZones.find((z: any) => String(z.id) === String(zoneId));
     if (!zone) return;
 
-    let slotW = 3 * GRID_SIZE;
-    let slotH = 6 * GRID_SIZE;
-    if (zone.vehicleTypeId) {
-      const vType = vehicleTypes.find((vt: any) => vt.id === zone.vehicleTypeId);
-      if (vType) {
-        slotW = (vType.matrixWidth || 3) * GRID_SIZE;
-        slotH = (vType.matrixHeight || 6) * GRID_SIZE;
-      }
-    }
+    const { width: slotW, height: slotH } = getVehicleDimensions(zone.vehicleTypeId, vehicleTypes);
+    
+    const zoneSlots = (zone.slots && zone.slots.length > 0)
+      ? zone.slots
+      : slots.filter((s: any) => String(s.zoneId) === String(zone.id));
 
-    let zoneW = zone.capacity * slotW;
+    const capacity = Math.max(zone.capacity || 0, zoneSlots.length);
+
+    let zoneW = capacity * slotW;
     let zoneH = slotH;
+    
     if (zone.rotation === 90 || zone.rotation === 270) {
       zoneW = slotH;
-      zoneH = zone.capacity * slotW;
+      zoneH = capacity * slotW;
     }
 
     let boxX = zone.layoutX || 0;

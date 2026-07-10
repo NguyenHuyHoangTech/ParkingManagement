@@ -155,7 +155,6 @@ const App = () => {
   const [form] = Form.useForm();
   const [timeForm] = Form.useForm();
   const [lastPayload, setLastPayload] = useState<any>(null);
-  const [debugMinimized, setDebugMinimized] = useState(false);
   const [activeMenu, setActiveMenu] = useState('map');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   
@@ -863,35 +862,6 @@ const App = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
-      {/* FLOATING DEBUG LOG PANEL */}
-      <div className={`fixed top-4 right-4 ${debugMinimized ? 'w-auto' : 'w-96'} max-h-[80vh] bg-black/80 text-green-400 font-mono text-[10px] p-3 overflow-y-auto z-[9999] rounded border border-green-500/50 shadow-2xl flex flex-col gap-2 transition-all`}>
-        <div className="flex justify-between items-center border-b border-gray-600 pb-1 mb-1">
-          <div className="text-white font-bold">⚙️ DEBUG LOGS (Sent)</div>
-          <Button 
-            type="text" 
-            size="small" 
-            className="text-white hover:text-green-400 p-0 h-auto"
-            onClick={() => setDebugMinimized(!debugMinimized)}
-          >
-            {debugMinimized ? '[+] Expand' : '[-] Collapse'}
-          </Button>
-        </div>
-        {!debugMinimized && (
-          <div className="flex flex-col gap-2">
-            {lastPayload ? (
-              <div className="pt-1">
-                <div className="text-yellow-400 font-bold mb-1">RAW JSON PAYLOAD:</div>
-                <pre className="text-[12px] text-blue-300 overflow-x-auto whitespace-pre-wrap">
-                  {JSON.stringify(lastPayload, null, 2)}
-                </pre>
-              </div>
-            ) : (
-              <div className="text-gray-500 italic">No API requests made yet...</div>
-            )}
-          </div>
-        )}
-      </div>
-
       <DashboardLayout 
         activeKey={activeMenu} 
         onMenuSelect={setActiveMenu}

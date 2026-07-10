@@ -128,7 +128,10 @@ public class IncidentTicketController {
             java.math.BigDecimal fineAmount = (requestBody != null && requestBody.get("fineAmount") != null)
                     ? new java.math.BigDecimal(requestBody.get("fineAmount").toString())
                     : null;
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.processPhase1(id, resolutionNotes, resolutionImageUrl, fineAmount);
+            java.math.BigDecimal discountAmount = (requestBody != null && requestBody.get("discountAmount") != null)
+                    ? new java.math.BigDecimal(requestBody.get("discountAmount").toString())
+                    : null;
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.processPhase1(id, resolutionNotes, resolutionImageUrl, fineAmount, discountAmount);
             return ResponseEntity.ok(ApiResponse.success(dto, "Transitioning to the 2nd stage"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

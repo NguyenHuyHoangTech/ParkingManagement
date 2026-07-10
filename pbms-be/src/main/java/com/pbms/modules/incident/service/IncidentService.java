@@ -480,6 +480,9 @@ public class IncidentService {
                 session.setTimeOut(null);
                 session.setTotalFee(null);
             }
+            if ("FEE_DISPUTE".equals(ticket.getIssueType())) {
+                session.setDiscount(null);
+            }
             session.setPenaltyFee(java.math.BigDecimal.ZERO);
             sessionRepository.save(session);
             log.info("ParkingSession #{} restored to ACTIVE (incident cancelled)", session.getId());
@@ -518,7 +521,7 @@ public class IncidentService {
      * Staff duyet giai doan 1: Khoa phien do, chuyen sang cho check-out thu cong (GD2)
      */
     @Transactional
-    public IncidentTicketDTO processPhase1(Long id, String resolutionNotes, String resolutionImageUrl, java.math.BigDecimal fineAmount) {
+    public IncidentTicketDTO processPhase1(Long id, String resolutionNotes, String resolutionImageUrl, java.math.BigDecimal fineAmount, java.math.BigDecimal discountAmount) {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket #" + id + " does not exist"));
 
@@ -544,7 +547,15 @@ public class IncidentService {
                 sessionRepository.save(session);
             }
         }
-        
+
+        if ("FEE_DISPUTE".equals(ticket.getIssueType()) && discountAmount != null) {
+            ParkingSession session = ticket.getSession();
+            if (session != null) {
+                session.setDiscount(discountAmount);
+                sessionRepository.save(session);
+            }
+        }
+
 
         String notes = resolutionNotes != null && !resolutionNotes.isBlank() ? resolutionNotes : "Đã xác minh thông tin.";
         ticket.setResolutionNotes("[Phase 1] " + notes);
@@ -860,7 +871,6 @@ public class IncidentService {
         ParkingSession session = ticket.getSession();
         if (session != null) {
             session.setDiscount(discountAmount);
-            session.setDiscountValidUntil(com.pbms.common.utils.TimeProvider.now().plusMinutes(15));
             sessionRepository.save(session);
         }
 

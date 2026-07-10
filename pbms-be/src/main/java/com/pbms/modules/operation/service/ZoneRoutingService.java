@@ -78,7 +78,6 @@ public class ZoneRoutingService {
         if (effectiveCapacity <= 0) return BigDecimal.valueOf(100); // Fully disabled
 
         long occupiedSlots = slotRepository.countByZoneIdAndStatus(zoneId, "OCCUPIED");
-        long physicalAvailableSlots = Math.max(0, effectiveCapacity - occupiedSlots);
         
         // Only count pending reservations that are active right now
         // Window: [expectedEntryTime - window_minutes, expectedEntryTime + expectedDurationMinutes]
@@ -403,7 +402,6 @@ public class ZoneRoutingService {
             long disabledSlots = slotRepository.countByZoneIdAndStatus(z.getId(), "DISABLED");
             long effectiveCapacity = totalSlots - disabledSlots;
             long occupiedSlots = slotRepository.countByZoneIdAndStatus(z.getId(), "OCCUPIED");
-            long physicalAvailableSlots = Math.max(0, effectiveCapacity - occupiedSlots);
             
             int windowMinutes = 30;
             try { windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue()); } catch (Exception e) {}

@@ -81,8 +81,6 @@ public class ParkingSession {
     @Column(precision = 18, scale = 2)
     private BigDecimal discount;
 
-    @Column(name = "discount_valid_until")
-    private java.time.LocalDateTime discountValidUntil;
 
     @Column(name = "total_fee", precision = 18, scale = 2)
     private BigDecimal totalFee;

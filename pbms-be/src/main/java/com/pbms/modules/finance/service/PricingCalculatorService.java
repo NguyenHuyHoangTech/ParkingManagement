@@ -154,19 +154,16 @@ public class PricingCalculatorService {
         int blockIndex = 0;
         while (remainingMins > 0) {
             PricingBlock block;
-            boolean isTail = false;
             String blockName = "Layer " + (blockIndex + 1);
 
             if (blockIndex < blocks.size()) {
                 block = blocks.get(blockIndex);
                 if (blockIndex == blocks.size() - 1) {
-                    isTail = true;
                     blockName = "Latch Class";
                 }
                 blockIndex++;
             } else {
                 block = blocks.get(blocks.size() - 1);
-                isTail = true;
                 blockName = "Latch Class";
             }
 

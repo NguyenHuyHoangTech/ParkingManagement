@@ -202,6 +202,52 @@ public class VehicleService {
         }
     }
 
+    @Transactional
+    public VehicleDTO assignVehicleToUser(String plate, Long vehicleTypeId, String rfid, String targetEmail) {
+        String plateUpper = plate.trim().toUpperCase();
+        List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository.findByPlateOrderByTimeInDesc(plateUpper);
+        
+        com.pbms.modules.operation.domain.ParkingSession matchedSession = sessions.stream()
+            .filter(s -> s.getVehicleType() != null && s.getVehicleType().getId().equals(vehicleTypeId) &&
+                         s.getRfidCard() != null && s.getRfidCard().getCardCode().equals(rfid.trim()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Thông tin biển số, loại xe và thẻ RFID không khớp với bất kỳ lượt đỗ nào trong hệ thống."));
+
+        com.pbms.modules.identity.domain.User targetUser;
+        if (targetEmail != null && !targetEmail.isBlank()) {
+            targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + targetEmail));
+        } else {
+            targetUser = getCurrentUser();
+            if (targetUser == null) {
+                throw new IllegalStateException("Bạn phải đăng nhập để tự gán xe.");
+            }
+        }
+
+        Vehicle vehicle = vehicleRepository.findByPlateNumber(plateUpper)
+            .orElseGet(() -> {
+                Vehicle v = new Vehicle();
+                v.setPlateNumber(plateUpper);
+                v.setStatus("ACTIVE");
+                v.setIsBlacklisted(false);
+                return v;
+            });
+        
+        vehicle.setVehicleType(matchedSession.getVehicleType());
+        vehicle.setUser(targetUser);
+        vehicleRepository.save(vehicle);
+
+        for (com.pbms.modules.operation.domain.ParkingSession session : sessions) {
+            List<com.pbms.modules.incident.domain.IncidentTicket> tickets = incidentTicketRepository.findBySessionId(session.getId());
+            for (com.pbms.modules.incident.domain.IncidentTicket t : tickets) {
+                t.setUser(targetUser);
+                incidentTicketRepository.save(t);
+            }
+        }
+
+        return mapToDTO(vehicle);
+    }
+
     private VehicleDTO mapToDTO(Vehicle vehicle) {
         return VehicleDTO.builder()
                 .id(vehicle.getId())

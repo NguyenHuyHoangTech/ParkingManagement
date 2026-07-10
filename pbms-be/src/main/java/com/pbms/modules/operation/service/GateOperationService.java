@@ -412,12 +412,8 @@ public class GateOperationService {
                 .filter(java.util.Objects::nonNull)
                 .reduce(java.math.BigDecimal.ZERO, (a, b) -> a.add(b));
 
-        if (session.getDiscount() != null && session.getDiscountValidUntil() != null) {
-            if (now.isBefore(session.getDiscountValidUntil())) {
-                info.setDiscountFee(session.getDiscount());
-            } else {
-                info.setDiscountFee(java.math.BigDecimal.ZERO);
-            }
+        if (session.getDiscount() != null) {
+            info.setDiscountFee(session.getDiscount());
         } else {
             info.setDiscountFee(java.math.BigDecimal.ZERO);
         }
@@ -765,11 +761,7 @@ public class GateOperationService {
             }
         }
 
-        // Apply discount if valid
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-            if (session.getDiscountValidUntil() == null
-                    || !com.pbms.common.utils.TimeProvider.now().isAfter(session.getDiscountValidUntil())) {
-                
                 BigDecimal remainingDiscount = session.getDiscount();
                 
                 // Subtract from fee first
@@ -790,7 +782,6 @@ public class GateOperationService {
                     }
                 }
             }
-        }
         
         BigDecimal totalParkingFee = fee.add(overtimeFee);
 

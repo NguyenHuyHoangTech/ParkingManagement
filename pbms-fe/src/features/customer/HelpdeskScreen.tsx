@@ -68,19 +68,8 @@ export const HelpdeskScreen = () => {
   });
 
   const handleIncidentSuccess = (category: string, plate: string) => {
-    if (category === 'SLOT_OCCUPIED') {
-      Modal.info({
-        title: 'Ghi nhận sự cố thành công',
-        content: 'Hệ thống đã ghi nhận sự cố của quý khách. Để không làm lỡ thời gian, quý khách có thể chủ động đỗ tại bất kỳ ô trống nào gần nhất, hoặc liên hệ nhân viên bảo vệ để được hỗ trợ đưa xe vào vị trí dự phòng. Chi tiết tiến độ xử lý đã được cập nhật trong mục Quản lý sự cố. Rất mong quý khách thông cảm cho trải nghiệm chưa trọn vẹn này!',
-        okText: 'Đã hiểu',
-        onOk: () => {
-          navigateBack();
-        }
-      });
-    } else {
-      message.success('Đã gửi yêu cầu hỗ trợ thành công!');
-      navigateBack();
-    }
+    message.success('Đã gửi yêu cầu hỗ trợ thành công!');
+    navigateBack();
   };
 
   const renderMobileView = () => {
