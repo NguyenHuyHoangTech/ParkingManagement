@@ -380,8 +380,10 @@ public class MapConfigurationService {
 
         for (Gate cg : currentGates) {
             if (!incomingGateIds.contains(cg.getId()) && !"DELETED".equals(cg.getStatus())) {
-                cg.setStatus("DELETED");
-                gateRepository.save(cg);
+                if (!"PATROL".equals(cg.getGateType())) {
+                    cg.setStatus("DELETED");
+                    gateRepository.save(cg);
+                }
             }
         }
 

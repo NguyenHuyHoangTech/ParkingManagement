@@ -49,20 +49,27 @@ public class ReservationService {
     private final org.springframework.scheduling.TaskScheduler taskScheduler;
     private final com.pbms.modules.operation.repository.ParkingSessionRepository parkingSessionRepository;
 
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    private ReservationService self;
+
     @Transactional(readOnly = true)
     public List<ReservationDTO> getAllReservations() {
         org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        boolean isCustomer = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"))
-                && auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_MANAGER") || a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_STAFF"));
+        boolean isCustomer = auth != null
+                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"))
+                && auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_MANAGER")
+                        || a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_STAFF"));
 
         if (isCustomer && currentEmail != null) {
             return reservationRepository.findAllByOrderByCreatedAtDesc().stream()
-                    .filter(r -> r.getVehicle() != null && r.getVehicle().getUser() != null && currentEmail.equals(r.getVehicle().getUser().getEmail()))
+                    .filter(r -> r.getVehicle() != null && r.getVehicle().getUser() != null
+                            && currentEmail.equals(r.getVehicle().getUser().getEmail()))
                     .map(this::mapToDTO)
                     .collect(Collectors.toList());
         }
-        
+
         return reservationRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -81,32 +88,34 @@ public class ReservationService {
             throw new IllegalArgumentException("Biển số xe không được để trống.");
         }
 
-
-
         Vehicle vehicle = vehicleRepository.findByPlateNumber(request.getPlateNumber()).orElse(null);
 
         if (vehicle != null) {
-            if (vehicle.getVehicleType() != null && !vehicle.getVehicleType().getId().equals(request.getVehicleTypeId())) {
-                throw new IllegalStateException("Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+            if (vehicle.getVehicleType() != null
+                    && !vehicle.getVehicleType().getId().equals(request.getVehicleTypeId())) {
+                throw new IllegalStateException(
+                        "Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
             }
             if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
                 throw new IllegalStateException("Cannot make a reservation because the vehicle is in the Blacklist.");
             }
         }
 
-        List<Reservation> existing = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING");
+        List<Reservation> existing = reservationRepository.findByVehicle_PlateNumberAndStatus(request.getPlateNumber(),
+                "PENDING");
         if (!existing.isEmpty()) {
             throw new IllegalStateException("Vehicle already has a pending reservation.");
         }
 
-        List<com.pbms.modules.operation.domain.ParkingSession> activeSessions = parkingSessionRepository.findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").stream().toList();
+        List<com.pbms.modules.operation.domain.ParkingSession> activeSessions = parkingSessionRepository
+                .findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").stream().toList();
         if (!activeSessions.isEmpty()) {
             throw new IllegalStateException("Phương tiện này hiện đang ở trong bãi, không thể đặt chỗ.");
         }
 
         Zone zone = zoneRepository.findById(request.getZoneId())
                 .orElseThrow(() -> new RuntimeException("Zone not found"));
-                
+
         BigDecimal occupancy = zoneRoutingService.calculateZoneOccupancy(zone.getId());
         if (occupancy.compareTo(BigDecimal.valueOf(100)) >= 0) {
             throw new IllegalStateException("Zone is full. Cannot make a reservation.");
@@ -117,7 +126,9 @@ public class ReservationService {
     public ReservationDTO createReservation(CreateReservationRequest request) {
         validateCreateReservation(request);
 
-        String email = SecurityContextHolder.getContext().getAuthentication() != null ? SecurityContextHolder.getContext().getAuthentication().getName() : null;
+        String email = SecurityContextHolder.getContext().getAuthentication() != null
+                ? SecurityContextHolder.getContext().getAuthentication().getName()
+                : null;
         User currentUser = email != null ? userRepository.findByEmail(email).orElse(null) : null;
 
         // 1. Get or Create Vehicle
@@ -139,7 +150,8 @@ public class ReservationService {
         }
 
         // 2. Calculate Price dynamically
-        BigDecimal fee = previewPrice(request.getVehicleTypeId(), request.getExpectedEntryTime(), request.getExpectedDurationMinutes());
+        BigDecimal fee = previewPrice(request.getVehicleTypeId(), request.getExpectedEntryTime(),
+                request.getExpectedDurationMinutes());
 
         // 3. Find Zone
         Zone zone = zoneRepository.findById(request.getZoneId())
@@ -154,7 +166,7 @@ public class ReservationService {
                 .status("PENDING") // PENDING means paid but hasn't entered
                 .reservationFee(fee)
                 .build();
-        
+
         if (reservation.getCreatedAt() == null) {
             reservation.setCreatedAt(com.pbms.common.utils.TimeProvider.now());
         }
@@ -175,7 +187,8 @@ public class ReservationService {
             throw new IllegalStateException("Only pending reservations can be modified");
         }
 
-        LocalDateTime expectedExitTime = reservation.getExpectedEntryTime().plusMinutes(reservation.getExpectedDurationMinutes());
+        LocalDateTime expectedExitTime = reservation.getExpectedEntryTime()
+                .plusMinutes(reservation.getExpectedDurationMinutes());
         if (com.pbms.common.utils.TimeProvider.now().isAfter(expectedExitTime)) {
             throw new IllegalStateException("Reservation has expired and cannot be modified");
         }
@@ -185,15 +198,21 @@ public class ReservationService {
         }
 
         Vehicle oldVehicle = reservation.getVehicle();
-        
+
         Vehicle vehicle = vehicleRepository.findByPlateNumber(newPlate)
                 .orElseGet(() -> {
                     Vehicle newVehicle = Vehicle.builder()
                             .vehicleType(oldVehicle.getVehicleType())
                             .plateNumber(newPlate)
+                            .user(oldVehicle.getUser())
                             .build();
                     return vehicleRepository.save(newVehicle);
                 });
+
+        if (vehicle.getUser() == null && oldVehicle.getUser() != null) {
+            vehicle.setUser(oldVehicle.getUser());
+            vehicle = vehicleRepository.save(vehicle);
+        }
 
         reservation.setVehicle(vehicle);
         reservationRepository.save(reservation);
@@ -223,7 +242,8 @@ public class ReservationService {
             refundPercent = reservationPolicyManager.getRefundLatePercent();
         }
 
-        BigDecimal amountPaid = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
+        BigDecimal amountPaid = reservation.getReservationFee() != null ? reservation.getReservationFee()
+                : BigDecimal.ZERO;
         BigDecimal refundAmount = amountPaid.multiply(refundPercent);
         BigDecimal penaltyFee = amountPaid.subtract(refundAmount);
 
@@ -291,7 +311,8 @@ public class ReservationService {
         java.util.Map<String, ScheduledTaskInfo> tasks = taskRegistry.get(reservationId);
         if (tasks != null) {
             tasks.values().forEach(info -> {
-                if (info.getFuture() != null) info.getFuture().cancel(false);
+                if (info.getFuture() != null)
+                    info.getFuture().cancel(false);
             });
             taskRegistry.remove(reservationId);
         }
@@ -304,7 +325,9 @@ public class ReservationService {
             Long resId = entry.getKey();
             Reservation res = reservationRepository.findById(resId).orElse(null);
             String plateNumber = res != null && res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "";
-            Long vehicleTypeId = res != null && res.getVehicle() != null && res.getVehicle().getVehicleType() != null ? res.getVehicle().getVehicleType().getId() : null;
+            Long vehicleTypeId = res != null && res.getVehicle() != null && res.getVehicle().getVehicleType() != null
+                    ? res.getVehicle().getVehicleType().getId()
+                    : null;
 
             for (java.util.Map.Entry<String, ScheduledTaskInfo> taskEntry : entry.getValue().entrySet()) {
                 java.util.Map<String, Object> info = new java.util.HashMap<>();
@@ -323,20 +346,23 @@ public class ReservationService {
     private void registerTask(Long reservationId, String type, LocalDateTime targetTime, Runnable task) {
         LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         taskRegistry.computeIfAbsent(reservationId, k -> new java.util.concurrent.ConcurrentHashMap<>());
-        
+
         if (!now.isBefore(targetTime)) {
             // execute immediately if time has passed
             taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(null, task, targetTime));
             task.run();
             return;
         }
-        
+
         // ĐÂY CHÍNH LÀ LÚC KHỞI TẠO BỘ ĐẾM:
-        // Hệ thống sẽ tính độ trễ (delayMillis) từ hiện tại đến thời điểm cần thực thi (targetTime)
+        // Hệ thống sẽ tính độ trễ (delayMillis) từ hiện tại đến thời điểm cần thực thi
+        // (targetTime)
         long delayMillis = java.time.Duration.between(now, targetTime).toMillis();
-        // Sau đó gọi taskScheduler để thực sự bắt đầu đếm ngược và sẽ chạy `task` khi hết thời gian chờ
-        java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task, java.time.Instant.now().plusMillis(delayMillis));
-        
+        // Sau đó gọi taskScheduler để thực sự bắt đầu đếm ngược và sẽ chạy `task` khi
+        // hết thời gian chờ
+        java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task,
+                java.time.Instant.now().plusMillis(delayMillis));
+
         taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(future, task, targetTime));
     }
 
@@ -356,34 +382,38 @@ public class ReservationService {
 
         LocalDateTime notifyTime = res.getExpectedEntryTime().minusMinutes(windowMinutes);
         LocalDateTime entryTime = res.getExpectedEntryTime();
-        int duration = res.getExpectedDurationMinutes() != null ? res.getExpectedDurationMinutes() : reservationPolicyManager.getDefaultDurationMins();
+        int duration = res.getExpectedDurationMinutes() != null ? res.getExpectedDurationMinutes()
+                : reservationPolicyManager.getDefaultDurationMins();
         LocalDateTime expireTime = res.getExpectedEntryTime().plusMinutes(duration);
 
         // Timer 1: Notification & 50% penalty activation
         // BỘ ĐẾM 1: Đếm đến trước giờ đặt chỗ (trừ đi số phút quy định)
-        // Mục đích: Cảnh báo nhân viên xe sắp đến, kiểm tra xem bãi có đang đầy không để giải quyết xung đột sớm.
+        // Mục đích: Cảnh báo nhân viên xe sắp đến, kiểm tra xem bãi có đang đầy không
+        // để giải quyết xung đột sớm.
         if (res.getNotifiedEarlyArrival() == null || !res.getNotifiedEarlyArrival()) {
-            registerTask(res.getId(), "NOTIFY", notifyTime, () -> notifyStaffTask(res.getId()));
+            registerTask(res.getId(), "NOTIFY", notifyTime, () -> self.notifyStaffTask(res.getId()));
         } else {
             taskRegistry.computeIfAbsent(res.getId(), k -> new java.util.concurrent.ConcurrentHashMap<>())
-                        .put("NOTIFY", new ScheduledTaskInfo(null, null, notifyTime));
+                    .put("NOTIFY", new ScheduledTaskInfo(null, null, notifyTime));
         }
 
         // Timer 2: Expected Entry (Late Warning / 100% penalty)
         // BỘ ĐẾM 2: Đếm đến đúng giờ đặt chỗ dự kiến
         // Mục đích: Cảnh báo khách bắt đầu đến muộn, làm mốc tính phạt hoặc hủy vé.
-        registerTask(res.getId(), "ENTRY", entryTime, () -> lateWarningTask(res.getId()));
+        registerTask(res.getId(), "ENTRY", entryTime, () -> self.lateWarningTask(res.getId()));
 
         // Timer 3: End of Booking
         // BỘ ĐẾM 3: Đếm đến khi hết giờ đỗ xe (Thời gian vào + Thời gian đỗ)
-        // Mục đích: Nếu xe không đến (No-show) -> Hủy & phạt 100%. Nếu xe chưa ra -> Tính thêm phí vãng lai.
-        registerTask(res.getId(), "EXPIRE", expireTime, () -> endOfBookingTask(res.getId()));
+        // Mục đích: Nếu xe không đến (No-show) -> Hủy & phạt 100%. Nếu xe chưa ra ->
+        // Tính thêm phí vãng lai.
+        registerTask(res.getId(), "EXPIRE", expireTime, () -> self.endOfBookingTask(res.getId()));
     }
 
     @Transactional
     public void notifyStaffTask(Long reservationId) {
         Reservation res = reservationRepository.findById(reservationId).orElse(null);
-        if (res == null || !"PENDING".equals(res.getStatus()) || Boolean.TRUE.equals(res.getNotifiedEarlyArrival())) return;
+        if (res == null || !"PENDING".equals(res.getStatus()) || Boolean.TRUE.equals(res.getNotifiedEarlyArrival()))
+            return;
 
         res.setNotifiedEarlyArrival(true);
         reservationRepository.save(res);
@@ -391,23 +421,30 @@ public class ReservationService {
         if (res.getZone() != null && res.getZone().getFloor() != null) {
             Long floorId = res.getZone().getFloor().getId();
             if (zoneRoutingService.isZonePhysicallyFull(res.getZone().getId())) {
-                String message = String.format("Zone %s is FULL but vehicle %s is arriving soon. Please resolve this conflict.",
+                String message = String.format(
+                        "Zone %s is FULL but vehicle %s is arriving soon. Please resolve this conflict.",
                         res.getZone().getZoneName(), res.getVehicle().getPlateNumber());
                 Object payload = java.util.Map.of(
                         "type", "ZONE_CONFLICT",
                         "reservationId", res.getId(),
                         "plate", res.getVehicle().getPlateNumber(),
-                        "customer", res.getVehicle() != null && res.getVehicle().getUser() != null ? res.getVehicle().getUser().getFullName() : "Guest",
+                        "customer",
+                        res.getVehicle() != null && res.getVehicle().getUser() != null
+                                ? res.getVehicle().getUser().getFullName()
+                                : "Guest",
                         "zoneName", res.getZone().getZoneName(),
                         "vehicleTypeId", res.getVehicle().getVehicleType().getId(),
-                        "message", message
-                );
+                        "message", message);
                 messagingTemplate.convertAndSend("/topic/staff/notifications", payload);
             } else {
                 String message = String.format("Vehicle %s is arriving soon for reservation at Zone %s.",
                         res.getVehicle().getPlateNumber(), res.getZone().getZoneName());
-                Object payload = java.util.Map.of("message", message, "plateNumber", res.getVehicle().getPlateNumber(), "zoneName", res.getZone().getZoneName());
-                messagingTemplate.convertAndSend("/topic/floors/" + floorId + "/notifications", payload);
+                Object payload = java.util.Map.of(
+                        "type", "ZONE_RESERVED",
+                        "message", message,
+                        "plate", res.getVehicle().getPlateNumber(),
+                        "zoneName", res.getZone().getZoneName());
+                messagingTemplate.convertAndSend("/topic/staff/notifications", payload);
             }
         }
     }
@@ -415,19 +452,22 @@ public class ReservationService {
     @Transactional
     public void lateWarningTask(Long reservationId) {
         Reservation res = reservationRepository.findById(reservationId).orElse(null);
-        if (res == null || !"PENDING".equals(res.getStatus())) return;
-        
+        if (res == null || !"PENDING".equals(res.getStatus()))
+            return;
+
         log.info("Reservation {} is now late (reached expected entry time).", res.getId());
     }
 
     @Transactional
     public void endOfBookingTask(Long reservationId) {
         Reservation res = reservationRepository.findById(reservationId).orElse(null);
-        if (res == null) return;
-        
+        if (res == null)
+            return;
+
         LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
-        java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository.findTopByReservationIdOrderByTimeInDesc(reservationId);
-        
+        java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository
+                .findTopByReservationIdOrderByTimeInDesc(reservationId);
+
         if (psOpt.isPresent()) {
             com.pbms.modules.operation.domain.ParkingSession ps = psOpt.get();
             if ("ACTIVE".equals(ps.getStatus())) {
@@ -449,18 +489,20 @@ public class ReservationService {
                 res.setStatus("COMPLETED_UNUSED");
                 reservationRepository.save(res);
                 saveNoShowPenalty(res, now);
-                
+
                 String resPlate = res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "N/A";
                 String resZone = res.getZone() != null ? res.getZone().getZoneName() : "N/A";
                 messagingTemplate.convertAndSend("/topic/staff/notifications",
-                    String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Reservation expired.\"}",
-                        res.getId(), resPlate, resZone));
+                        String.format(
+                                "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Reservation expired.\"}",
+                                res.getId(), resPlate, resZone));
             }
         }
     }
-    
+
     private void saveNoShowPenalty(Reservation reservation, LocalDateTime now) {
-        BigDecimal penaltyFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
+        BigDecimal penaltyFee = reservation.getReservationFee() != null ? reservation.getReservationFee()
+                : BigDecimal.ZERO;
         if (penaltyFee.compareTo(BigDecimal.ZERO) > 0) {
             Transaction penaltyTx = Transaction.builder()
                     .amount(penaltyFee)
@@ -479,24 +521,25 @@ public class ReservationService {
             }
         }
     }
-    
 
     @org.springframework.context.event.EventListener(com.pbms.common.event.TimeFastForwardedEvent.class)
     @Transactional
     public void handleTimeFastForward(com.pbms.common.event.TimeFastForwardedEvent event) {
         LocalDateTime now = event.getNewSimulatedTime();
-        log.info("Handling TimeFastForwardedEvent in ReservationService. Syncing {} tasks for simulated time: {}", taskRegistry.size(), now);
-        
+        log.info("Handling TimeFastForwardedEvent in ReservationService. Syncing {} tasks for simulated time: {}",
+                taskRegistry.size(), now);
+
         int executedCount = 0;
         int rescheduledCount = 0;
 
         for (java.util.Map.Entry<Long, java.util.Map<String, ScheduledTaskInfo>> entry : taskRegistry.entrySet()) {
             java.util.Map<String, ScheduledTaskInfo> tasks = entry.getValue();
-            
+
             for (java.util.Map.Entry<String, ScheduledTaskInfo> taskEntry : tasks.entrySet()) {
                 ScheduledTaskInfo info = taskEntry.getValue();
-                if (info.getFuture() != null) info.getFuture().cancel(false);
-                
+                if (info.getFuture() != null)
+                    info.getFuture().cancel(false);
+
                 if (!now.isBefore(info.getTargetSimulatedTime())) {
                     // Time has passed, execute now synchronously
                     info.getTask().run();
@@ -504,13 +547,15 @@ public class ReservationService {
                 } else {
                     // Reschedule for remaining time
                     long newDelayMillis = java.time.Duration.between(now, info.getTargetSimulatedTime()).toMillis();
-                    java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(), java.time.Instant.now().plusMillis(newDelayMillis));
+                    java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(),
+                            java.time.Instant.now().plusMillis(newDelayMillis));
                     info.setFuture(newFuture);
                     rescheduledCount++;
                 }
             }
         }
-        log.info("Fast-forward sync complete: {} tasks executed instantly, {} tasks rescheduled", executedCount, rescheduledCount);
+        log.info("Fast-forward sync complete: {} tasks executed instantly, {} tasks rescheduled", executedCount,
+                rescheduledCount);
     }
 
     private ReservationDTO mapToDTO(Reservation reservation) {
@@ -518,20 +563,25 @@ public class ReservationService {
         String actualOut = null;
         BigDecimal penaltyFee = null;
         String rfid = null;
-        String userEmail = reservation.getVehicle() != null && reservation.getVehicle().getUser() != null ? 
-                           reservation.getVehicle().getUser().getEmail() : "N/A";
-                           
-        java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository.findTopByReservationIdOrderByTimeInDesc(reservation.getId());
+        String userEmail = reservation.getVehicle() != null && reservation.getVehicle().getUser() != null
+                ? reservation.getVehicle().getUser().getEmail()
+                : "N/A";
+
+        java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository
+                .findTopByReservationIdOrderByTimeInDesc(reservation.getId());
         if (psOpt.isPresent()) {
             com.pbms.modules.operation.domain.ParkingSession ps = psOpt.get();
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                    .ofPattern("HH:mm dd/MM/yyyy");
             actualIn = ps.getTimeIn() != null ? ps.getTimeIn().format(formatter) : null;
             actualOut = ps.getTimeOut() != null ? ps.getTimeOut().format(formatter) : null;
             penaltyFee = ps.getPenaltyFee();
             rfid = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : null;
         } else if ("CANCELLED".equals(reservation.getStatus())) {
-            BigDecimal resFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
-            BigDecimal refundAmt = reservation.getRefundAmount() != null ? reservation.getRefundAmount() : BigDecimal.ZERO;
+            BigDecimal resFee = reservation.getReservationFee() != null ? reservation.getReservationFee()
+                    : BigDecimal.ZERO;
+            BigDecimal refundAmt = reservation.getRefundAmount() != null ? reservation.getRefundAmount()
+                    : BigDecimal.ZERO;
             penaltyFee = resFee.subtract(refundAmt);
         } else if ("COMPLETED_UNUSED".equals(reservation.getStatus())) {
             penaltyFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
@@ -565,7 +615,7 @@ public class ReservationService {
     public ReservationDTO retryZoneAssignment(Long reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
-                
+
         if (!"PENDING".equals(reservation.getStatus())) {
             throw new IllegalStateException("Reservation is not PENDING");
         }
@@ -577,12 +627,13 @@ public class ReservationService {
         String retryPlate = reservation.getVehicle() != null ? reservation.getVehicle().getPlateNumber() : "N/A";
         String retryZone = reservation.getZone() != null ? reservation.getZone().getZoneName() : "N/A";
         messagingTemplate.convertAndSend("/topic/staff/notifications",
-            String.format("{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Retry successful.\"}",
-                reservation.getId(), retryPlate, retryZone));
+                String.format(
+                        "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Retry successful.\"}",
+                        reservation.getId(), retryPlate, retryZone));
 
         return mapToDTO(reservation);
     }
-    
+
     @Transactional
     public void attemptResolveConflict(Long reservationId) {
         Reservation res = reservationRepository.findById(reservationId)
@@ -590,14 +641,14 @@ public class ReservationService {
         if (!"PENDING".equals(res.getStatus())) {
             throw new IllegalStateException("Reservation is not PENDING");
         }
-        
+
         Zone newZone = zoneRoutingService.suggestZone(res.getVehicle().getVehicleType(), "WALK_IN", null);
         if (newZone != null) {
             res.setZone(newZone);
             reservationRepository.save(res);
             return;
         }
-        
+
         throw new IllegalStateException("Could not find an alternative zone");
     }
 }

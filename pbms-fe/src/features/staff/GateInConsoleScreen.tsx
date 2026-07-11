@@ -222,6 +222,10 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           derivedWarnings.push(payload.earlyBookingNotice);
         }
 
+        if (payload.isBlacklisted) {
+          derivedWarnings.push(`⚠️ BLACKLISTED VEHICLE! Reason: ${payload.blacklistReason || 'None provided'}`);
+        }
+
         setScanData({
           plateNumber: payload.plateNumber,
           imageBase64: payload.imageBase64 || '',
@@ -239,11 +243,12 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           discount: 0,
           expectedFee: payload.expectedFee || 0,
           durationMinutes: payload.durationMinutes || 0,
-          isBlacklisted: false,
+          isBlacklisted: payload.isBlacklisted || false,
           warnings: derivedWarnings,
           rfid: payload.rfid || '---',
           customerType: payload.customerType === 'PREBOOKED' ? 'BOOK' : (payload.customerType === 'MONTHLY' ? 'Monthly Pass' : (payload.customerType || 'Haunt')),
           vehicleType: payload.vehicleType || 'CAR',
+          aiVehicleType: payload.vehicleType || 'CAR',
           routing: payload.suggestedZoneName || '',
           suggestedZoneId: payload.suggestedZoneId || null
         });
@@ -283,18 +288,33 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       const suggestedZone = response.data.data.suggestedZoneName || 'Free';
       message.success(`Vehicle entry confirmed! Suggested zone: ${suggestedZone}`);
 
-      // Auto-log LPR_MISMATCH if the staff edited the plate
-      if (scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase()) {
+      const isPlateChanged = scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase();
+      const isTypeChanged = scanData.aiVehicleType && scanData.vehicleType && scanData.aiVehicleType !== scanData.vehicleType;
+
+      if (isPlateChanged || isTypeChanged) {
         try {
+          let issueType = 'DATA_MISMATCH';
+          let description = '[AUTO] ';
+          if (isPlateChanged && isTypeChanged) {
+            issueType = 'MULTIPLE_MISMATCH';
+            description += `License plate and vehicle type mismatch on ENTRY. AI recognized: ${scanData.plateNumber} (${scanData.aiVehicleType}). Staff edited to: ${editablePlate} (${scanData.vehicleType}).`;
+          } else if (isPlateChanged) {
+            issueType = 'LPR_MISMATCH';
+            description += `License plate mismatch on ENTRY. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`;
+          } else if (isTypeChanged) {
+            issueType = 'TYPE_MISMATCH';
+            description += `Vehicle type mismatch on ENTRY. AI recognized: ${scanData.aiVehicleType}. Staff edited to: ${scanData.vehicleType}.`;
+          }
+
           await axiosClient.post('/incident/incidents', {
-            issueType: 'LPR_MISMATCH',
+            issueType,
             sessionId: response.data.data.sessionId,
-            description: `[AUTO] License plate mismatch on ENTRY. AI recognized: ${scanData.plateNumber}. Staff edited to: ${editablePlate}.`,
-            correctPlateNumber: editablePlate,
+            description,
+            correctPlateNumber: isPlateChanged ? editablePlate : undefined,
             priority: 'LOW'
           });
         } catch (e) {
-          console.error("Error automatically creating LPR_MISMATCH incident:", e);
+          console.error("Error automatically creating mismatch incident:", e);
         }
       }
 
@@ -463,7 +483,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   value={scanData.vehicleType}
                   onChange={(val) => setScanData({ ...scanData, vehicleType: val })}
                   className="w-40 font-bold text-base"
-                  options={vehicleTypes ? vehicleTypes.map((v: any) => ({
+                  options={vehicleTypes ? vehicleTypes.filter((v: any) => !activeFloor?.type || activeFloor.type === v.category).map((v: any) => ({
                     value: v.typeName,
                     label: <div className="flex items-center gap-2">{v.iconUrl ? <img src={getImageUrl(v.iconUrl)} style={{ width: 20, height: 20, objectFit: 'contain' }} /> : (v.category === 'FOUR_WHEEL' ? '🚗' : '🏍️')} {v.typeName}</div>
                   })) : []}

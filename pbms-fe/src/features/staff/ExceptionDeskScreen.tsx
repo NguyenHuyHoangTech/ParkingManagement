@@ -8,6 +8,7 @@ import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
 import { IncidentDetailPanel } from '../incident/components/IncidentDetailPanel';
+import { VehicleAssignmentTab } from '../incident/components/VehicleAssignmentTab';
 
 const { Title, Text } = Typography;
 
@@ -26,8 +27,8 @@ export const ExceptionDeskScreen = () => {
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       setSelectedTicket(null);
-      if (window.location.hash !== '#create') {
-         setSelectedCategory(prev => prev === 'CREATE_INCIDENT' ? 'ALL' : prev);
+      if (window.location.hash !== '#create' && window.location.hash !== '#assign') {
+         setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -98,8 +99,21 @@ export const ExceptionDeskScreen = () => {
   });
 
   const blacklistedVehicles = vehiclesData.filter((v: any) => v.isBlacklisted);
+
+  const pendingTickets = useMemo(() => {
+    return ticketsData.filter((t: any) => 
+      t.phase === 1 && 
+      t.status !== 'CANCELLED' && 
+      t.status !== 'REJECTED' && 
+      t.status !== 'RESOLVED' &&
+      (isManager || t.type !== 'OTHER_FEEDBACK')
+    );
+  }, [ticketsData, isManager]);
+
   const filteredTickets = ticketsData.filter((t: any) => {
-    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+    if (!isManager && t.type === 'OTHER_FEEDBACK') return false;
+    const isMismatchType = t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH';
+    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION') || (selectedCategory === 'MISMATCH' && isMismatchType);
     if (!catMatch) return false;
     
     if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
@@ -107,13 +121,13 @@ export const ExceptionDeskScreen = () => {
     if (queueFilter === 'PHASE_3') return t.status === 'RESOLVED';
     if (queueFilter === 'CANCELLED') return t.status === 'CANCELLED' || t.status === 'REJECTED';
     return true;
-  });
+  }).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   const handleIncidentSuccess = (category?: string, plate?: string) => {
-    if (category === 'BLACKLIST_VIOLATION') {
-      navigate('/staff/gate/in');
-    } else {
-      navigateBack();
+    setSelectedCategory('ALL');
+    setSelectedTicket(null);
+    if (window.location.hash === '#create' || window.location.hash === '#assign') {
+      window.history.back();
     }
   };
 
@@ -131,7 +145,7 @@ export const ExceptionDeskScreen = () => {
 
   const renderMobileView = () => {
     const isShowingDetail = selectedTicket !== null;
-    const isShowingForm = selectedCategory === 'CREATE_INCIDENT' && selectedTicket === null;
+    const isShowingForm = (selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE') && selectedTicket === null;
     const isShowingList = !isShowingDetail && !isShowingForm;
 
     return (
@@ -167,17 +181,20 @@ export const ExceptionDeskScreen = () => {
               {/* Horizontal Scroll Categories */}
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                 {[
-                  { id: 'ALL', label: 'Tất cả', count: ticketsData.length },
-                  { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
-                  { id: 'OVERSTAY', label: 'Quá giờ', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
-                  { id: 'LOST_CARD', label: 'Mất thẻ', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
-                  { id: 'DAMAGED_CARD', label: 'Hỏng thẻ', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
-                  { id: 'LPR_MISMATCH', label: 'Sai biển số', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
-                  { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
-                  { id: 'FIND_CAR', label: 'Tìm xe', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
-                  { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
-                  ...(isManager ? [{ id: 'OTHER_FEEDBACK', label: 'Góp ý', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }] : []),
-                  { id: 'BLACKLIST', label: 'Blacklist', count: blacklistedVehicles.length }
+                  { id: 'ALL', label: 'Tất cả', count: pendingTickets.length },
+                  { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố' },
+                  { id: 'ASSIGN_VEHICLE', label: 'Gán Xe' },
+                  { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+                  { id: 'OVERSTAY', label: 'Quá giờ', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
+                  { id: 'LOST_CARD', label: 'Mất thẻ', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
+                  { id: 'DAMAGED_CARD', label: 'Hỏng thẻ', count: pendingTickets.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+                  { id: 'MISMATCH', label: 'Sai thông tin xe', count: pendingTickets.filter((t: any) => t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH').length },
+                  { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ', count: pendingTickets.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+                  { id: 'FIND_CAR', label: 'Tìm xe', count: pendingTickets.filter((t: any) => t.type === 'FIND_CAR').length },
+                  { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', count: pendingTickets.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+                  { id: 'OTHER', label: 'Lỗi khác', count: pendingTickets.filter((t: any) => t.type === 'OTHER').length },
+                  ...(isManager ? [{ id: 'OTHER_FEEDBACK', label: 'Góp ý', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }] : []),
+                  { id: 'BLACKLIST', label: 'Blacklist', count: pendingTickets.filter((t: any) => t.type === 'BLACKLIST_VIOLATION').length }
                 ].map(cat => (
                   <div 
                     key={cat.id} 
@@ -197,9 +214,18 @@ export const ExceptionDeskScreen = () => {
 
               {/* Filters */}
               <Select size="large" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
-                {value: 'ALL', label: 'Tất cả trạng thái'},
-                {value: 'PHASE_1', label: 'Phase 1 (Tiếp nhận)'},
-                {value: 'PHASE_2', label: 'Phase 2 (Xử lý)'},
+                {value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    return catMatch;
+                }).length})`},
+                {value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+                }).length})`},
+                {value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+                }).length})`},
                 {value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)'},
                 {value: 'CANCELLED', label: 'Đã Hủy/Từ chối'},
               ]} />
@@ -247,7 +273,7 @@ export const ExceptionDeskScreen = () => {
           </div>
         )}
 
-        {isShowingForm && (
+        {isShowingForm && selectedCategory === 'CREATE_INCIDENT' && (
           <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
             <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
               <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
@@ -255,6 +281,20 @@ export const ExceptionDeskScreen = () => {
             </div>
             <div className="flex-1 overflow-y-auto pb-24">
               <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="STAFF" isManager={isManager} />
+            </div>
+          </div>
+        )}
+
+        {isShowingForm && selectedCategory === 'ASSIGN_VEHICLE' && (
+          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
+            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
+              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
+              <Title level={4} className="m-0 text-gray-800">Gán xe vào tài khoản</Title>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-24">
+              <div className="p-4">
+                <VehicleAssignmentTab isManager={isManager} />
+              </div>
             </div>
           </div>
         )}
@@ -289,18 +329,20 @@ export const ExceptionDeskScreen = () => {
         </div>
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 pb-3">
           {[
-            { id: 'ALL', label: 'All Incidents', icon: '📋', count: ticketsData.length },
+            { id: 'ALL', label: 'All Incidents', icon: '📋', count: pendingTickets.length },
             { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố (Quầy)', icon: '➕', count: 0 },
-            { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
-            { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
-            { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
-            { id: 'DAMAGED_CARD', label: 'Damaged Card', icon: '💳', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
-            { id: 'LPR_MISMATCH', label: 'LPR Mismatch', icon: '🤖', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
-            { id: 'SLOT_OCCUPIED', label: 'Slot Occupied', icon: '🚗', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
-            { id: 'FIND_CAR', label: 'Find Car', icon: '🔍', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
-            { id: 'FEE_DISPUTE', label: 'Fee Dispute', icon: '💰', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
-            { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length },
-            { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫', count: blacklistedVehicles.length }
+            { id: 'ASSIGN_VEHICLE', label: 'Gán Xe Vào Tài Khoản', icon: '🔑', count: 0 },
+            { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+            { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
+            { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
+            { id: 'DAMAGED_CARD', label: 'Damaged Card', icon: '💳', count: pendingTickets.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+            { id: 'MISMATCH', label: 'Vehicle Mismatches', icon: '🤖', count: pendingTickets.filter((t: any) => t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH').length },
+            { id: 'SLOT_OCCUPIED', label: 'Slot Occupied', icon: '🚗', count: pendingTickets.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+            { id: 'FIND_CAR', label: 'Find Car', icon: '🔍', count: pendingTickets.filter((t: any) => t.type === 'FIND_CAR').length },
+            { id: 'FEE_DISPUTE', label: 'Fee Dispute', icon: '💰', count: pendingTickets.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+            { id: 'OTHER', label: 'Other Penalty', icon: '⚠️', count: pendingTickets.filter((t: any) => t.type === 'OTHER').length },
+            { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length },
+            { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫', count: pendingTickets.filter((t: any) => t.type === 'BLACKLIST_VIOLATION').length }
           ].filter(cat => cat.id !== 'OTHER_FEEDBACK' || isManager).map(cat => (
              <div 
                key={cat.id} 
@@ -394,6 +436,20 @@ export const ExceptionDeskScreen = () => {
             <div className="p-8 flex-1">
               <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                 <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="STAFF" isManager={isManager} />
+              </div>
+            </div>
+          </div>
+        ) : selectedCategory === 'ASSIGN_VEHICLE' && !selectedTicket ? (
+          <div className="flex flex-col h-full overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
+              <div>
+                <Title level={4} className="m-0 text-blue-700">Gán xe vào tài khoản</Title>
+                <Text className="text-sm text-gray-500">Gán quyền sở hữu xe cho khách hàng</Text>
+              </div>
+            </div>
+            <div className="p-8 flex-1">
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <VehicleAssignmentTab isManager={isManager} />
               </div>
             </div>
           </div>

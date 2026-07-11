@@ -108,6 +108,7 @@ public class IncidentTicketDTO {
     private Long durationMinutes;
     private Long overtimeMinutes;
     private BigDecimal expectedFee;
+    private BigDecimal sessionPenaltyFee;
     private BigDecimal overtimeFee;
     private BigDecimal discountFee;
 

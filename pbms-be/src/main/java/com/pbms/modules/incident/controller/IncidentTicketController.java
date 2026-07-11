@@ -225,7 +225,9 @@ public class IncidentTicketController {
             String plate = (String) requestBody.get("plate");
             java.math.BigDecimal liveFee = new java.math.BigDecimal(requestBody.get("liveFee").toString());
             String reason = (String) requestBody.get("reason");
-            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.adjustFeeIncident(plate, liveFee, reason);
+            Object vtIdObj = requestBody.get("vehicleTypeId");
+            Long vehicleTypeId = vtIdObj != null ? Long.valueOf(vtIdObj.toString()) : null;
+            com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.adjustFeeIncident(plate, liveFee, reason, vehicleTypeId);
             return ResponseEntity.ok(ApiResponse.success(dto, "What's the difference?"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Leave a comment:" + e.getMessage()));

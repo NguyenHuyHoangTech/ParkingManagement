@@ -227,7 +227,8 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
     options = [
       ...options,
       { value: 'ZONE_VIOLATION', label: 'Báo cáo Đỗ sai Zone (Nội bộ)', icon: <WarningOutlined className="text-red-600" /> },
-      { value: 'BLACKLIST_VIOLATION', label: 'Thêm vào Blacklist (Nội bộ)', icon: <WarningOutlined className="text-gray-800" /> }
+      { value: 'BLACKLIST_VIOLATION', label: 'Thêm vào Blacklist (Nội bộ)', icon: <WarningOutlined className="text-gray-800" /> },
+      { value: 'OTHER', label: 'Phạt tùy chọn (Lỗi khác)', icon: <WarningOutlined className="text-orange-600" /> }
     ];
   }
 
@@ -295,41 +296,6 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                   )}
                 </div>
               </Form.Item>
-            )}
-
-            {selectedCategory === 'ZONE_VIOLATION' && userRole === 'STAFF' && (
-              <div className="col-span-1 md:col-span-2 bg-white p-4 rounded-lg border border-blue-100">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-3 gap-2">
-                  <Text strong className="text-blue-700">Tra cứu vé tháng (Gợi ý tìm xe)</Text>
-                  <Select 
-                    placeholder="Lọc theo tầng (Tùy chọn)" 
-                    className="w-full sm:w-48"
-                    value={selectedFloor}
-                    onChange={setSelectedFloor}
-                    options={floors.map((f: any) => ({ label: f.name, value: f.id }))}
-                    allowClear
-                  />
-                </div>
-                <Table 
-                  dataSource={filteredMonthlyTickets} 
-                  columns={monthlyTicketColumns} 
-                  rowKey="id" 
-                  size="small"
-                  pagination={{ pageSize: 4 }}
-                  bordered
-                  rowClassName="cursor-pointer hover:bg-blue-50 transition-colors"
-                  onRow={(record: any) => ({
-                    onClick: () => {
-                      form.setFieldsValue({ plate: record.plate });
-                      setIsPlateVerified(false);
-                      message.success(`Đã điền biển số ${record.plate}`);
-                    }
-                  })}
-                />
-                <Text type="secondary" className="text-xs mt-2 block">
-                  Mẹo: Chọn "Loại xe" ở trên để lọc bảng này. Click vào 1 dòng để tự động điền Biển số vào form.
-                </Text>
-              </div>
             )}
 
             {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK' && selectedCategory !== 'ZONE_VIOLATION' && selectedCategory !== 'BLACKLIST_VIOLATION') && (
@@ -443,6 +409,41 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
            'GỬI YÊU CẦU XỬ LÝ'}
         </Button>
       </div>
+
+      {selectedCategory === 'ZONE_VIOLATION' && userRole === 'STAFF' && (
+        <div className="mt-6 bg-white p-4 rounded-lg border border-blue-100 shadow-sm md:static relative z-40 mb-20 md:mb-0">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-3 gap-2">
+            <Text strong className="text-blue-700">Tra cứu vé tháng (Gợi ý tìm xe)</Text>
+            <Select 
+              placeholder="Lọc theo tầng (Tùy chọn)" 
+              className="w-full sm:w-48"
+              value={selectedFloor}
+              onChange={setSelectedFloor}
+              options={floors.map((f: any) => ({ label: f.name, value: f.id }))}
+              allowClear
+            />
+          </div>
+          <Table 
+            dataSource={filteredMonthlyTickets} 
+            columns={monthlyTicketColumns} 
+            rowKey="id" 
+            size="small"
+            pagination={{ pageSize: 4 }}
+            bordered
+            rowClassName="cursor-pointer hover:bg-blue-50 transition-colors"
+            onRow={(record: any) => ({
+              onClick: () => {
+                form.setFieldsValue({ plate: record.plate });
+                setIsPlateVerified(false);
+                message.success(`Đã điền biển số ${record.plate}`);
+              }
+            })}
+          />
+          <Text type="secondary" className="text-xs mt-2 block">
+            Mẹo: Chọn "Loại xe" ở trên để lọc bảng này. Click vào 1 dòng để tự động điền Biển số vào form.
+          </Text>
+        </div>
+      )}
     </Form>
   );
 };

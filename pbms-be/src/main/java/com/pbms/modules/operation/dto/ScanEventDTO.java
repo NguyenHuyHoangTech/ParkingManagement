@@ -80,4 +80,10 @@ public class ScanEventDTO {
     
     /** Notice for early arrivals if they have a pending booking that is not yet active */
     private String earlyBookingNotice;
+
+    /** Cờ báo hiệu xe đang bị đưa vào Blacklist */
+    private Boolean isBlacklisted;
+
+    /** Lý do xe bị đưa vào Blacklist */
+    private String blacklistReason;
 }

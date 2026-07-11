@@ -419,10 +419,7 @@ export const OperationalDashboardScreen = () => {
         }
       >
         <Table 
-          dataSource={gatesData ? gatesData.filter((g: any) => {
-            const isPatrol = g.type === 'PATROL' || g.name?.toLowerCase().includes('patrol') || g.name?.toLowerCase().includes('tuần tra');
-            return !isPatrol;
-          }) : []} 
+          dataSource={gatesData || []} 
           rowKey="id"
           pagination={false}
           bordered
@@ -465,35 +462,7 @@ export const OperationalDashboardScreen = () => {
         </Table>
       </Card>
 
-      {/* ACTIVE PATROL STAFF REPORT */}
-      <Card 
-        className="mt-6 shadow-sm border-slate-200 rounded-xl"
-        title={
-          <div className="flex items-center text-slate-800">
-            <span className="mr-2 text-xl">👮‍♂️</span> 
-            <span className="font-bold tracking-wide">ACTIVE PATROL STAFF</span>
-          </div>
-        }
-      >
-        <Table 
-          dataSource={activePatrolsData} 
-          rowKey="sessionId"
-          pagination={false}
-          bordered
-          size="middle"
-        >
-          <Table.Column title="Session ID" dataIndex="sessionId" width={100} />
-          <Table.Column title="Staff on duty" dataIndex="staffName" render={(val, record: any) => val ? (
-            <div className="flex flex-col">
-              <span className="font-medium text-blue-700">{val}</span>
-              {record.staffEmail && <span className="text-xs text-gray-500">{record.staffEmail}</span>}
-            </div>
-          ) : <span className="text-gray-400 italic">No staff</span>} />
-          <Table.Column title="Role" dataIndex="role" render={() => <Tag color="purple">PATROL</Tag>} />
-          <Table.Column title="Status" dataIndex="status" render={() => <Tag color="green">ACTIVE</Tag>} />
-          <Table.Column title="Login time" dataIndex="loginTime" render={(val) => val ? simulatedDayjs(val).format('HH:mm - DD/MM/YYYY') : '-'} />
-        </Table>
-      </Card>
+
 
       {/* HISTORY TABLE */}
       <Card 

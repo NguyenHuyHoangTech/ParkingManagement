@@ -115,11 +115,15 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     setP1FineAmount(ticket.fineAmount || 0);
   }, [ticket]);
 
-  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION'].includes(ticket.type);
+  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER'].includes(ticket.type);
 
   const effectivePenaltyFee = (ticket.type === 'DAMAGED_CARD') 
     ? (damageCausePhase2 === 'USER' ? getDamagedCardPenalty() : 0)
     : (ticket.fineAmount || 0);
+
+  const baseSessionPenalty = (ticket.sessionPenaltyFee || 0) - (ticket.fineAmount || 0);
+  const totalPenalty = (baseSessionPenalty > 0 ? baseSessionPenalty : 0) + effectivePenaltyFee;
+
 
   useEffect(() => {
     // Reset states when ticket changes
@@ -171,7 +175,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         resolutionNotes: p2Notes,
         resolutionImageUrl: docUrl,
         parkingFee: calculatedParkingFee,
-        penaltyFee: effectivePenaltyFee,
+        penaltyFee: totalPenalty,
         paymentMethod: paymentMethod
       };
       
@@ -212,6 +216,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       setCancelModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       onClose();
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hủy sự cố');
     }
   });
 
@@ -255,7 +262,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     : (ticket.phase === 1 ? 0 : ticket.phase === 2 ? 1 : 2);
 
   const calculatedParkingFee = ticket.expectedFee !== undefined
-    ? ((ticket.expectedFee || 0) + (ticket.overtimeFee || 0) - (ticket.discountFee || 0))
+    ? ((ticket.expectedFee || 0) + (ticket.overtimeFee || 0))
     : (ticket.sessionParkingFee || 0);
 
   return (
@@ -306,10 +313,16 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                       </div>
                     </div>
                   )}
-                  {ticket.fineAmount !== undefined && ticket.fineAmount !== null && (
+                  {ticket.fineAmount !== undefined && ticket.fineAmount !== null && ticket.fineAmount > 0 && !(ticket.phase >= 2 && ticket.discountFee && ticket.discountFee > 0) && (
                     <div className="mb-2">
                       <Text type="secondary">Phí phạt dự kiến:</Text>
                       <div className="font-medium text-red-600 text-lg">{ticket.fineAmount.toLocaleString('vi-VN')} đ</div>
+                    </div>
+                  )}
+                  {ticket.phase >= 2 && ticket.type === 'FEE_DISPUTE' && ticket.discountFee !== undefined && ticket.discountFee !== null && ticket.discountFee > 0 && (
+                    <div className="mb-2">
+                      <Text type="secondary">Số tiền được giảm:</Text>
+                      <div className="font-medium text-green-600 text-lg">- {ticket.discountFee.toLocaleString('vi-VN')} đ</div>
                     </div>
                   )}
                   {ticket.uploadedDocUrl && (
@@ -344,7 +357,11 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                   {userRole === 'STAFF' && ticket.phase === 1 && ticket.status === 'PENDING' && (
                     <div className="mt-4 pt-4 border-t border-slate-200 bg-white p-4 rounded-lg border">
                       <Title level={5} className="text-blue-700">Thao tác của Nhân viên</Title>
-                      {ticket.type === 'FEE_DISPUTE' && !isManager ? (
+                      {ticket.type === 'OTHER' && !isManager ? (
+                        <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
+                          Chỉ Quản lý (Manager) mới có quyền duyệt và định giá mức phạt cho sự cố này. Nếu báo cáo sai, bạn có thể Hủy (Cancel).
+                        </div>
+                      ) : ticket.type === 'FEE_DISPUTE' && !isManager ? (
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
                           Chỉ Quản lý (Manager) mới có quyền giải quyết giảm phí ở bước này. Nếu báo cáo sai, bạn có thể Hủy (Cancel).
                         </div>
@@ -369,9 +386,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
                                     overtimeMinutes={ticket.overtimeMinutes || 0}
                                     overtimeFee={ticket.overtimeFee || 0}
-                                    penaltyFee={effectivePenaltyFee}
-                                    discountFee={ticket.discountFee || 0}
-                                    totalFee={calculatedParkingFee + effectivePenaltyFee}
+                                    penaltyFee={totalPenalty}
+                                    discountFee={p1DiscountAmount || ticket.discountFee || 0}
+                                    totalFee={calculatedParkingFee + totalPenalty - (p1DiscountAmount || 0)}
                                     isLightMode={true}
                                   />
                                   <Form.Item label="Số tiền giảm (VND) - Sẽ trừ vào Tổng phí đỗ xe" className="mt-4 mb-0 font-medium">
@@ -390,6 +407,18 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                 </div>
                               )}
                             </>
+                          )}
+                          {ticket.type === 'OTHER' && (
+                            <Form.Item label="Số tiền phạt (VND) - Bắt buộc nhập" required className="mt-4 font-medium">
+                              <InputNumber 
+                                className="w-full" 
+                                size="large" 
+                                min={0}
+                                value={p1FineAmount} 
+                                onChange={v => setP1FineAmount(v || 0)} 
+                                placeholder="Nhập số tiền phạt (VND)"
+                              />
+                            </Form.Item>
                           )}
                           <Form.Item label="Ghi chú (gửi cho khách)">
                             <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
@@ -452,9 +481,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
                                     overtimeMinutes={ticket.overtimeMinutes || 0}
                                     overtimeFee={ticket.overtimeFee || 0}
-                                    penaltyFee={ticket.fineAmount || 0}
+                                    penaltyFee={totalPenalty}
                                     discountFee={(ticket.discountFee || 0) + (ticket.feeDiscount || 0)}
-                                    totalFee={calculatedParkingFee + (ticket.fineAmount || 0) - (ticket.feeDiscount || 0)}
+                                    totalFee={calculatedParkingFee + totalPenalty - (ticket.feeDiscount || 0)}
                                     isLightMode={true}
                                   />
                                 </div>
@@ -491,9 +520,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
                                     overtimeMinutes={ticket.overtimeMinutes || 0}
                                     overtimeFee={ticket.overtimeFee || 0}
-                                    penaltyFee={ticket.fineAmount || 0}
+                                    penaltyFee={totalPenalty}
                                     discountFee={ticket.discountFee || 0}
-                                    totalFee={(ticket.sessionParkingFee || 0) + (ticket.fineAmount || 0) - (ticket.discountFee || 0)}
+                                    totalFee={(ticket.sessionParkingFee || 0) + totalPenalty - (ticket.discountFee || 0)}
                                     isLightMode={true}
                                   />
                           </div>
@@ -567,9 +596,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     expectedFee={ticket.expectedFee || ticket.sessionParkingFee || 0}
                                     overtimeMinutes={ticket.overtimeMinutes || 0}
                                     overtimeFee={ticket.overtimeFee || 0}
-                                    penaltyFee={effectivePenaltyFee}
-                                    discountFee={(ticket.discountFee || 0) + (feeDiscount || 0)}
-                                    totalFee={calculatedParkingFee + effectivePenaltyFee - (feeDiscount || 0)}
+                                    penaltyFee={totalPenalty}
+                                    discountFee={feeDiscount || ticket.discountFee || 0}
+                                    totalFee={calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)}
                                     isLightMode={true}
                                   />
                                   <div className="text-center mt-3">
@@ -693,18 +722,21 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       </div>
 
       {/* Footer - Hủy */}
-      {(ticket.status === 'PENDING' || ticket.status === 'WAITING_CHECKOUT') && ticket.type !== 'LPR_MISMATCH' && (
-        <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">
-          {userRole === 'STAFF' ? (
-            <Button danger icon={<CloseCircleOutlined />} onClick={() => setCancelModalVisible(true)}>
-              Hủy báo cáo sự cố (Cancel)
-            </Button>
-          ) : (
-            <Button danger onClick={() => setCancelModalVisible(true)}>Hủy yêu cầu</Button>
-          )}
-        </div>
-      )}
-
+      {(() => {
+        const canCancel = (ticket.status === 'PENDING' || (ticket.status === 'WAITING_CHECKOUT' && isManager)) && ticket.type !== 'LPR_MISMATCH';
+        if (!canCancel) return null;
+        return (
+          <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">
+            {userRole === 'STAFF' ? (
+              <Button danger icon={<CloseCircleOutlined />} onClick={() => setCancelModalVisible(true)}>
+                Hủy báo cáo sự cố (Cancel)
+              </Button>
+            ) : (
+              <Button danger onClick={() => setCancelModalVisible(true)}>Hủy yêu cầu</Button>
+            )}
+          </div>
+        );
+      })()}
       <Modal
         title="Hủy / Từ chối sự cố"
         open={cancelModalVisible}

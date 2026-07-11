@@ -133,10 +133,14 @@ export const ShiftManagementScreen = () => {
       const gate = gates.find((g: Gate) => String(g.id) === String(selectedGateId));
       if (gate) {
         sessionStorage.setItem('activeGateId', String(gate.id));
+        if (gate.floorId) {
+          sessionStorage.setItem('activeGateFloorId', String(gate.floorId));
+        }
         sessionStorage.setItem('activeGateName', gate.name);
         sessionStorage.setItem('activeGateType', selectedGateFunction || gate.type);
       } else if (selectedPostType === 'PATROL') {
         sessionStorage.removeItem('activeGateId');
+        sessionStorage.removeItem('activeGateFloorId');
         sessionStorage.setItem('activeGateName', 'Patrol (No Gate)');
         sessionStorage.setItem('activeGateType', 'PATROL');
       }
@@ -168,6 +172,7 @@ export const ShiftManagementScreen = () => {
       message.success('Shift closed and finances handed over successfully!');
       setAuthShiftStatus('CLOSED');
       sessionStorage.removeItem('activeGateId');
+      sessionStorage.removeItem('activeGateFloorId');
       sessionStorage.removeItem('activeGateName');
       sessionStorage.removeItem('activeGateType');
       setIsCloseModalVisible(false);
@@ -414,14 +419,8 @@ export const ShiftManagementScreen = () => {
                 className={`cursor-pointer h-auto p-4 rounded-xl border-2 flex items-center transition-all ${selectedPostType === 'PATROL' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
                 onClick={() => {
                   setSelectedPostType('PATROL');
-                  const patrolGate = gates?.find((g: Gate) => g.type === 'PATROL' || g.name?.toLowerCase().includes('patrol') || g.name?.toLowerCase().includes('tuần tra'));
-                  if (patrolGate) {
-                    setSelectedGateId(patrolGate.id);
-                    setSelectedGateFunction('PATROL');
-                  } else {
-                    setSelectedGateId(0);
-                    setSelectedGateFunction('PATROL');
-                  }
+                  setSelectedGateId(-1);
+                  setSelectedGateFunction('PATROL');
                 }}
               >
                 <div className="flex items-start">

@@ -32,6 +32,8 @@ interface MonthlyPass {
   endDate: string;
   hasBeenUsed?: boolean;
   vehicleTypeId?: number;
+  inParkingLot?: boolean;
+  rfid?: string;
 }
 
 interface HistoryRecord {
@@ -60,14 +62,14 @@ export const MyParkingScreen = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [elapsedTime, setElapsedTime] = useState('');
-  
+
   // URL tab handling
   const queryParams = new URLSearchParams(location.search);
   const tabParam = queryParams.get('tab');
   const [activeTab, setActiveTab] = useState(
-    tabParam === 'booking' ? '2' : 
-    tabParam === 'monthly' ? '3' : 
-    tabParam === 'history' ? '4' : '1'
+    tabParam === 'booking' ? '2' :
+      tabParam === 'monthly' ? '3' :
+        tabParam === 'history' ? '4' : '1'
   );
 
   const PACKAGES = [
@@ -158,11 +160,11 @@ export const MyParkingScreen = () => {
           return fallback;
         }
       };
-      
+
       const earlyMins = await fetchConfig('RESERVATION_EARLY_MINS', 30);
       const refundLate = await fetchConfig('RESERVATION_REFUND_LATE_PERCENT', 0.5);
       const refundEarly = await fetchConfig('RESERVATION_REFUND_EARLY_PERCENT', 1.0);
-      
+
       return { earlyMins, refundLate, refundEarly };
     }
   });
@@ -299,7 +301,7 @@ export const MyParkingScreen = () => {
     const arrTime = simulatedDayjs(booking.expectedEntryTime);
     const diffMins = arrTime.diff(now, 'minute');
     let refundPercent = 0;
-    
+
     if (diffMins >= configs.earlyMins) {
       refundPercent = configs.refundEarly;
     } else if (diffMins > 0 && diffMins < configs.earlyMins) {
@@ -326,7 +328,7 @@ export const MyParkingScreen = () => {
   const [selectedPassToRenew, setSelectedPassToRenew] = useState<MonthlyPass | null>(null);
   const [renewDuration, setRenewDuration] = useState(1);
   const [renewGateway, setRenewGateway] = useState('PAYPAL');
-  
+
   const [isRenewQRModalVisible, setIsRenewQRModalVisible] = useState(false);
   const [renewCountdown, setRenewCountdown] = useState(60);
   const [isRenewSuccess, setIsRenewSuccess] = useState(false);
@@ -343,7 +345,7 @@ export const MyParkingScreen = () => {
         gateway: renewGateway,
         actionType: 'RENEW_MONTHLY_TICKET',
         payload: {
-          id: selectedPassToRenew?.id?.replace('MP-',''),
+          id: selectedPassToRenew?.id?.replace('MP-', ''),
           duration: renewDuration
         }
       });
@@ -412,7 +414,7 @@ export const MyParkingScreen = () => {
                     });
                 }
               })
-              .catch(() => {});
+              .catch(() => { });
           }
         }, 1000);
       } else {
@@ -449,7 +451,7 @@ export const MyParkingScreen = () => {
             <Tag color={isBooking ? 'orange' : 'blue'} className="mt-2 text-sm px-3 py-1">
               {isBooking ? 'RESERVED' : 'PARKING'}
             </Tag>
-            
+
             <div className="mt-8 text-center bg-gray-50 p-6 rounded-2xl w-full">
               <ClockCircleOutlined className="text-2xl text-gray-400 mb-2" />
               <Text className="block text-gray-500 mb-1">{isBooking ? 'Reservation expires in:' : 'Parking duration:'}</Text>
@@ -496,7 +498,7 @@ export const MyParkingScreen = () => {
               />
             ) : (
               <FeeBreakdown
-                durationMinutes={0} 
+                durationMinutes={0}
                 customerType={'GUEST'}
                 expectedFee={session.baseFee || 0}
                 overtimeMinutes={0}
@@ -519,10 +521,10 @@ export const MyParkingScreen = () => {
                         {inc.fineAmount > 0 && <Tag color="red">+{inc.fineAmount.toLocaleString()} ₫</Tag>}
                       </div>
                       <Text className="text-gray-600 text-xs block">{inc.description || 'Penalty applied due to violation.'}</Text>
-                      <Button 
-                        type="link" 
-                        size="small" 
-                        className="p-0 mt-2 text-xs" 
+                      <Button
+                        type="link"
+                        size="small"
+                        className="p-0 mt-2 text-xs"
                         onClick={() => {
                           setSelectedIncident(inc);
                           setIsIncidentModalVisible(true);
@@ -552,10 +554,10 @@ export const MyParkingScreen = () => {
       <Card className="bg-blue-50/50 border-blue-100 mb-6 shadow-sm">
         <Title level={5} className="mb-4 text-blue-800">Look up Guest Vehicle (2FA Security)</Title>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input 
-            size="large" 
-            placeholder="Enter License Plate" 
-            prefix={<CarOutlined className="text-gray-400" />} 
+          <Input
+            size="large"
+            placeholder="Enter License Plate"
+            prefix={<CarOutlined className="text-gray-400" />}
             value={plateNumberInput}
             onChange={(e) => setPlateNumberInput(e.target.value)}
           />
@@ -567,19 +569,19 @@ export const MyParkingScreen = () => {
             onChange={setVehicleTypeIdInput}
             options={vehicleTypes.map((v: any) => ({ label: v.typeName, value: v.id }))}
           />
-          <Input 
-            size="large" 
-            placeholder="Enter RFID Card" 
-            prefix={<IdcardOutlined className="text-gray-400" />} 
+          <Input
+            size="large"
+            placeholder="Enter RFID Card"
+            prefix={<IdcardOutlined className="text-gray-400" />}
             value={rfidInput}
             onChange={(e) => setRfidInput(e.target.value)}
           />
         </div>
         <div className="mt-4 flex justify-end">
-          <Button 
-            type="primary" 
-            icon={<SearchOutlined />} 
-            size="large" 
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
+            size="large"
             className="bg-blue-600"
             disabled={!plateNumberInput.trim() || !rfidInput.trim() || !vehicleTypeIdInput}
             onClick={handleSearchWalkIn}
@@ -588,7 +590,7 @@ export const MyParkingScreen = () => {
           </Button>
         </div>
       </Card>
-      
+
       {hasSearched && renderActiveSession()}
     </div>
   );
@@ -605,105 +607,105 @@ export const MyParkingScreen = () => {
           renderItem={item => {
             const isExpired = item.status === 'PENDING' && dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 120, 'minute').isBefore(simulatedDayjs());
             let displayStatus = isExpired ? 'COMPLETED_UNUSED' : item.status;
-            
+
             if (item.status === 'CANCELLED') {
               if (item.refundStatus === 'PENDING') displayStatus = 'PENDING_REFUND';
               else if (item.refundStatus === 'REFUNDED') displayStatus = 'CANCELLED_REFUNDED';
               else if (item.refundAmount === 0 || !item.refundAmount) displayStatus = 'CANCELLED_NO_REFUND';
             }
-            
+
             return (
-            <List.Item>
-              <Card className={`shadow-lg border-0 rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${displayStatus === 'PENDING' ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-l-4 border-l-blue-500' : 'bg-white'}`}>
-                <div className="flex flex-col sm:flex-row justify-between items-start">
-                  <div className="w-full sm:w-auto">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Tag color={
-                        displayStatus === 'PENDING' ? 'orange' :
-                        displayStatus === 'ACTIVE' ? 'blue' :
-                        displayStatus === 'COMPLETED' ? 'green' :
-                        displayStatus === 'COMPLETED_UNUSED' ? 'default' :
-                        displayStatus === 'PENDING_REFUND' ? 'purple' :
-                        displayStatus === 'CANCELLED_REFUNDED' ? 'default' : 'red'
-                      } className="m-0 font-bold text-[10px] md:text-xs">
-                        {displayStatus === 'PENDING' ? 'PRE-BOOKING' :
-                         displayStatus === 'ACTIVE' ? 'IN-PARKING' :
-                         displayStatus === 'COMPLETED' ? 'COMPLETED' :
-                         displayStatus === 'COMPLETED_UNUSED' ? 'NO SHOW' :
-                         displayStatus === 'PENDING_REFUND' ? 'PENDING REFUND' :
-                         displayStatus === 'CANCELLED_REFUNDED' ? 'CANCELLED & REFUNDED' :
-                         displayStatus === 'CANCELLED_NO_REFUND' ? 'CANCELLED (NO REFUND)' : 'CANCELLED'}
-                      </Tag>
-                      <Text type="secondary" className="text-[10px] md:text-xs">ID: {item.id}</Text>
+              <List.Item>
+                <Card className={`shadow-lg border-0 rounded-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 ${displayStatus === 'PENDING' ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-l-4 border-l-blue-500' : 'bg-white'}`}>
+                  <div className="flex flex-col sm:flex-row justify-between items-start">
+                    <div className="w-full sm:w-auto">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Tag color={
+                          displayStatus === 'PENDING' ? 'orange' :
+                            displayStatus === 'ACTIVE' ? 'blue' :
+                              displayStatus === 'COMPLETED' ? 'green' :
+                                displayStatus === 'COMPLETED_UNUSED' ? 'default' :
+                                  displayStatus === 'PENDING_REFUND' ? 'purple' :
+                                    displayStatus === 'CANCELLED_REFUNDED' ? 'default' : 'red'
+                        } className="m-0 font-bold text-[10px] md:text-xs">
+                          {displayStatus === 'PENDING' ? 'PRE-BOOKING' :
+                            displayStatus === 'ACTIVE' ? 'IN-PARKING' :
+                              displayStatus === 'COMPLETED' ? 'COMPLETED' :
+                                displayStatus === 'COMPLETED_UNUSED' ? 'NO SHOW' :
+                                  displayStatus === 'PENDING_REFUND' ? 'PENDING REFUND' :
+                                    displayStatus === 'CANCELLED_REFUNDED' ? 'CANCELLED & REFUNDED' :
+                                      displayStatus === 'CANCELLED_NO_REFUND' ? 'CANCELLED (NO REFUND)' : 'CANCELLED'}
+                        </Tag>
+                        <Text type="secondary" className="text-[10px] md:text-xs">ID: {item.id}</Text>
+                      </div>
+                      <Title level={4} className={`m-0 tracking-widest ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400 line-through' : ''}`}>
+                        {item.plateNumber} {item.vehicleType ? `- ${item.vehicleType}` : ''}
+                      </Title>
+                      <div className="mt-4 space-y-1">
+                        <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Expected arrival: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text></Text>
+                        <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Reserved location: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{item.zoneName || item.slotName}</Text></Text>
+                      </div>
                     </div>
-                    <Title level={4} className={`m-0 tracking-widest ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400 line-through' : ''}`}>
-                      {item.plateNumber} {item.vehicleType ? `- ${item.vehicleType}` : ''}
-                    </Title>
-                    <div className="mt-4 space-y-1">
-                      <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Expected arrival: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text></Text>
-                      <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Reserved location: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{item.zoneName || item.slotName}</Text></Text>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-start sm:items-end mt-4 sm:mt-0 w-full sm:w-auto">
-                    {displayStatus === 'PENDING' && (
-                      <div className="flex flex-col sm:flex-row gap-2 mb-2 w-full sm:w-auto">
-                        {dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isAfter(simulatedDayjs()) && (
-                          <Button 
-                            type="primary"
-                            className="bg-blue-600 w-full sm:w-auto"
-                            icon={<EditOutlined />}
+                    <div className="flex flex-col items-start sm:items-end mt-4 sm:mt-0 w-full sm:w-auto">
+                      {displayStatus === 'PENDING' && (
+                        <div className="flex flex-col sm:flex-row gap-2 mb-2 w-full sm:w-auto">
+                          {dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isAfter(simulatedDayjs()) && (
+                            <Button
+                              type="primary"
+                              className="bg-blue-600 w-full sm:w-auto"
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setPlateToEdit({ type: 'reservation', id: item.id, currentPlate: item.plateNumber });
+                                setNewPlate(item.plateNumber);
+                                setIsEditPlateVisible(true);
+                              }}
+                            >
+                              Edit Plate
+                            </Button>
+                          )}
+                          <Button
+                            danger
+                            className="w-full sm:w-auto"
+                            icon={<CloseCircleOutlined />}
                             onClick={() => {
-                              setPlateToEdit({ type: 'reservation', id: item.id, currentPlate: item.plateNumber });
-                              setNewPlate(item.plateNumber);
-                              setIsEditPlateVisible(true);
+                              setSelectedBookingToCancel(item);
+                              setCancelDrawerVisible(true);
                             }}
                           >
-                            Edit Plate
+                            Cancel Reservation
                           </Button>
-                        )}
-                        <Button 
-                          danger 
-                          className="w-full sm:w-auto"
-                          icon={<CloseCircleOutlined />}
+                        </div>
+                      )}
+                      {displayStatus === 'ACTIVE' && (
+                        <Button
+                          type="default"
+                          className="w-full sm:w-auto border-blue-400 text-blue-600 hover:bg-blue-50"
+                          icon={<SearchOutlined />}
+                          onClick={() => handleViewParkingStatus(item.plateNumber, item.vehicleTypeId, item.rfid)}
+                        >
+                          Tra cứu
+                        </Button>
+                      )}
+                      {displayStatus !== 'ACTIVE' && displayStatus !== 'PENDING' && (
+                        <Button
+                          type="default"
+                          className="w-full sm:w-auto border-gray-400 text-gray-600 hover:bg-gray-50 mt-2 sm:mt-0"
+                          icon={<HistoryOutlined />}
                           onClick={() => {
-                            setSelectedBookingToCancel(item);
-                            setCancelDrawerVisible(true);
+                            setSelectedHistoryPlate(item.plateNumber);
+                            setIsHistoryDrawerVisible(true);
                           }}
                         >
-                          Cancel Reservation
+                          View History
                         </Button>
-                      </div>
-                    )}
-                    {displayStatus === 'ACTIVE' && (
-                      <Button
-                        type="default"
-                        className="w-full sm:w-auto border-blue-400 text-blue-600 hover:bg-blue-50"
-                        icon={<SearchOutlined />}
-                        onClick={() => handleViewParkingStatus(item.plateNumber, item.vehicleTypeId, item.rfid)}
-                      >
-                        Tra cứu
-                      </Button>
-                    )}
-                    {displayStatus !== 'ACTIVE' && displayStatus !== 'PENDING' && (
-                      <Button
-                        type="default"
-                        className="w-full sm:w-auto border-gray-400 text-gray-600 hover:bg-gray-50 mt-2 sm:mt-0"
-                        icon={<HistoryOutlined />}
-                        onClick={() => {
-                          setSelectedHistoryPlate(item.plateNumber);
-                          setIsHistoryDrawerVisible(true);
-                        }}
-                      >
-                        View History
-                      </Button>
-                    )}
-                    {displayStatus === 'PENDING_REFUND' && (
-                      <Text type="secondary" className="text-sm italic mt-2">Expected processing: 1-2 days</Text>
-                    )}
+                      )}
+                      {displayStatus === 'PENDING_REFUND' && (
+                        <Text type="secondary" className="text-sm italic mt-2">Expected processing: 1-2 days</Text>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            </List.Item>
+                </Card>
+              </List.Item>
             );
           }}
         />
@@ -738,15 +740,18 @@ export const MyParkingScreen = () => {
     );
   };
 
-  const renderMonthlyPassTab = () => (
-    <div className="animate-fade-in">
-      {monthlyPasses.length > 0 ? (
+  const renderMonthlyPassTab = () => {
+    const activePasses = monthlyPasses.filter(p => !p.status.includes('EXPIRED') || p.inParkingLot);
+    const inactivePasses = monthlyPasses.filter(p => p.status === 'EXPIRED' && !p.inParkingLot);
+
+    const renderList = (passes: MonthlyPass[]) => (
+      passes.length > 0 ? (
         <List
           grid={{ gutter: 16, column: 1 }}
-          dataSource={monthlyPasses}
+          dataSource={passes}
           renderItem={item => (
             <List.Item>
-              <Card className="shadow-sm border border-green-200 bg-green-50/30 rounded-xl">
+              <Card className="shadow-sm border border-green-200 bg-green-50/30 rounded-xl relative overflow-hidden">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="flex items-center space-x-4 w-full">
                     <div className="bg-green-100 p-3 md:p-4 rounded-full shrink-0">
@@ -756,6 +761,11 @@ export const MyParkingScreen = () => {
                       <div className="flex items-center space-x-2 mb-1">
                         <Title level={4} className="m-0 tracking-widest">{item.plate}</Title>
                         <Tag color={item.status === 'ACTIVE' ? 'green' : item.status === 'EXPIRING_SOON' ? 'orange' : 'red'} className="m-0 font-bold">{item.status}</Tag>
+                        {item.inParkingLot && (
+                          <Tag color={item.status === 'EXPIRED' ? 'red' : 'orange'} className="m-0 animate-pulse font-bold border">
+                            ĐANG TRONG BÃI
+                          </Tag>
+                        )}
                       </div>
                       <Text type="secondary">Card ID: {item.id} • {item.type}</Text>
                       <div className="mt-1">
@@ -765,7 +775,7 @@ export const MyParkingScreen = () => {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                     {!item.hasBeenUsed && (
-                      <Button 
+                      <Button
                         type="default"
                         className="w-full sm:w-auto"
                         icon={<EditOutlined />}
@@ -778,18 +788,20 @@ export const MyParkingScreen = () => {
                         Edit Plate
                       </Button>
                     )}
+                    {item.inParkingLot && (
+                      <Button
+                        type="default"
+                        className="border-blue-400 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
+                        icon={<SearchOutlined />}
+                        onClick={() => handleViewParkingStatus(item.plate, item.vehicleTypeId, item.rfid)}
+                      >
+                        Tra cứu
+                      </Button>
+                    )}
                     <Button
                       type="default"
-                      className="border-blue-400 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
-                      icon={<SearchOutlined />}
-                      onClick={() => handleViewParkingStatus(item.plate)}
-                    >
-                      Status
-                    </Button>
-                    <Button 
-                      type="default" 
                       className="w-full sm:w-auto"
-                      icon={<HistoryOutlined />} 
+                      icon={<HistoryOutlined />}
                       onClick={() => {
                         setSelectedHistoryPlate(item.plate);
                         setIsHistoryDrawerVisible(true);
@@ -797,7 +809,14 @@ export const MyParkingScreen = () => {
                     >
                       History
                     </Button>
-                    <Button type="primary" className="bg-green-600 w-full sm:w-auto" onClick={() => handleOpenRenew(item)}>Renew</Button>
+                    <Button
+                      type="primary"
+                      className="bg-green-600 w-full sm:w-auto"
+                      onClick={() => handleOpenRenew(item)}
+                      disabled={item.inParkingLot}
+                    >
+                      Renew
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -806,14 +825,34 @@ export const MyParkingScreen = () => {
         />
       ) : (
         <div className="py-16 text-center">
-          <Empty description={<span className="text-gray-500 font-medium text-lg">You have no monthly passes</span>} />
+          <Empty description={<span className="text-gray-500 font-medium text-lg">You have no monthly passes in this tab</span>} />
           <Button type="primary" className="mt-4 bg-blue-600" onClick={() => navigate('/customer/monthly-pass')}>
             Register New Monthly Pass
           </Button>
         </div>
-      )}
-    </div>
-  );
+      )
+    );
+
+    return (
+      <div className="animate-fade-in">
+        <Tabs
+          defaultActiveKey="1"
+          items={[
+            {
+              key: '1',
+              label: `Vé Đang Hoạt Động & Xe Trong Bãi (${activePasses.length})`,
+              children: renderList(activePasses),
+            },
+            {
+              key: '2',
+              label: `Vé Đã Hết Hạn (${inactivePasses.length})`,
+              children: renderList(inactivePasses),
+            }
+          ]}
+        />
+      </div>
+    );
+  };
 
 
 
@@ -823,7 +862,7 @@ export const MyParkingScreen = () => {
       if (payload.type === 'reservation') {
         await axiosClient.put(`/customer/reservations/${payload.id}/plate`, { plate: payload.plate });
       } else {
-        await axiosClient.put(`/operation/monthly-tickets/${payload.id.replace('MP-','')}/plate`, { plate: payload.plate });
+        await axiosClient.put(`/operation/monthly-tickets/${payload.id.replace('MP-', '')}/plate`, { plate: payload.plate });
       }
     },
     onSuccess: (_, variables) => {
@@ -876,364 +915,364 @@ export const MyParkingScreen = () => {
         }
       `}</style>
       <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans">
-      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
-        <div className="mb-8">
-          <Title level={2} className="m-0 text-gray-800">Service Management</Title>
-          <Text type="secondary">Check your card, monthly pass, and reservation info</Text>
-        </div>
+        <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
+          <div className="mb-8">
+            <Title level={2} className="m-0 text-gray-800">Service Management</Title>
+            <Text type="secondary">Check your card, monthly pass, and reservation info</Text>
+          </div>
 
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
-          <Tabs 
-            className="mobile-wrap-tabs"
-            activeKey={activeTab} 
-            onChange={(key) => {
-              setActiveTab(key);
-              navigate(`/customer/my-parking?tab=${key === '2' ? 'booking' : key === '3' ? 'monthly' : 'walkin'}`, { replace: true });
-            }}
-            size="large"
-            items={[
-              {
-                key: '1',
-                label: 'Active Parking (Guest)',
-                children: renderWalkInTab(),
-              },
-              {
-                key: '2',
-                label: 'Reservation Management',
-                children: renderBookingsTab(),
-              },
-              {
-                key: '3',
-                label: 'Monthly Pass Management',
-                children: renderMonthlyPassTab(),
-              }
-            ]}
-          />
-        </div>
-      </div>
-
-      <Drawer
-        title={<span className="text-red-600 font-bold">CANCEL RESERVATION & REFUND</span>}
-        width={450}
-        onClose={() => setCancelDrawerVisible(false)}
-        open={cancelDrawerVisible}
-        extra={
-          <Space>
-            <Button onClick={() => setCancelDrawerVisible(false)}>Keep</Button>
-            <Button 
-              type="primary" 
-              danger 
-              onClick={handleCancelBooking} 
-              disabled={Boolean(selectedBookingToCancel && calculateRefund(selectedBookingToCancel).refund > 0 && (!bankName || !accountNumber || !accountName))}
-            >
-              Confirm Cancel
-            </Button>
-          </Space>
-        }
-      >
-        {selectedBookingToCancel && (() => {
-          const { amount, refund, penalty, percent } = calculateRefund(selectedBookingToCancel);
-          return (
-            <div className="space-y-6">
-              <Alert
-                message={<span className="font-bold text-red-700">Reservation Refund Policy</span>}
-                description={
-                  <ul className="list-disc pl-4 mt-2 text-sm text-red-600">
-                    {(() => {
-                      return (
-                        <>
-                          <li>Cancel {configs.earlyMins}+ mins before: {configs.refundEarly * 100}% Refund</li>
-                          <li>Cancel within {configs.earlyMins} mins before: {configs.refundLate * 100}% Refund</li>
-                          <li>Cancel after arrival time: No Refund (0%)</li>
-                        </>
-                      );
-                    })()}
-                  </ul>
+          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
+            <Tabs
+              className="mobile-wrap-tabs"
+              activeKey={activeTab}
+              onChange={(key) => {
+                setActiveTab(key);
+                navigate(`/customer/my-parking?tab=${key === '2' ? 'booking' : key === '3' ? 'monthly' : 'walkin'}`, { replace: true });
+              }}
+              size="large"
+              items={[
+                {
+                  key: '1',
+                  label: 'Active Parking (Guest)',
+                  children: renderWalkInTab(),
+                },
+                {
+                  key: '2',
+                  label: 'Reservation Management',
+                  children: renderBookingsTab(),
+                },
+                {
+                  key: '3',
+                  label: 'Monthly Pass Management',
+                  children: renderMonthlyPassTab(),
                 }
-                type="error"
-                className="bg-red-50 border border-red-200"
-              />
+              ]}
+            />
+          </div>
+        </div>
 
-              <Card size="small" title="Amount Details" className="bg-slate-50 border-slate-200">
-                <div className="flex justify-between mb-2">
-                  <Text className="text-slate-500">Expected arrival:</Text>
-                  <Text strong>{dayjs(selectedBookingToCancel.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text>
-                </div>
-                <div className="flex justify-between mb-2 border-b border-dashed border-slate-300 pb-2">
-                  <Text className="text-slate-500">Initial deposit:</Text>
-                  <Text strong>{amount.toLocaleString()} ₫</Text>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <Text className="text-red-500">Cancellation fee ({100 - percent}%):</Text>
-                  <Text strong className="text-red-600">- {penalty.toLocaleString()} ₫</Text>
-                </div>
-                <div className="flex justify-between mt-2 pt-2 border-t border-slate-300">
-                  <Text strong className="text-green-600">REFUND AMOUNT:</Text>
-                  <Text strong className="text-xl text-green-600">{refund.toLocaleString()} ₫</Text>
-                </div>
-              </Card>
-
-              {refund > 0 && (
-                <div className="space-y-4">
-                  <Title level={5}>Enter refund information</Title>
-                  <Alert 
-                    message="Important Note" 
-                    description="Please enter exact Bank Account info. Refund processing takes 1-2 working days." 
-                    type="warning" 
-                    showIcon 
-                    className="text-xs"
-                  />
-                  
-                  <Form layout="vertical">
-                    <Form.Item label="Bank" required>
-                      <Select
-                        placeholder="Select Bank"
-                        value={bankName}
-                        onChange={setBankName}
-                        options={[
-                          { value: 'VCB', label: 'Vietcombank' },
-                          { value: 'TCB', label: 'Techcombank' },
-                          { value: 'MB', label: 'MBBank' },
-                          { value: 'VTB', label: 'VietinBank' },
-                          { value: 'ACB', label: 'ACB' }
-                        ]}
-                      />
-                    </Form.Item>
-                    <Form.Item label="Account Number" required>
-                      <Input 
-                        placeholder="Enter account number" 
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
-                      />
-                    </Form.Item>
-                    <Form.Item label="Account Holder Name" required>
-                      <Input 
-                        placeholder="Enter uppercase name without accents" 
-                        value={accountName}
-                        onChange={(e) => setAccountName(e.target.value.toUpperCase())}
-                      />
-                    </Form.Item>
-                  </Form>
-                </div>
-              )}
-              
-              {refund === 0 && (
-                <Alert 
-                  message="Not eligible for refund" 
-                  description="Due to time limit, your deposit is not refundable according to policy." 
-                  type="info" 
-                  showIcon 
+        <Drawer
+          title={<span className="text-red-600 font-bold">CANCEL RESERVATION & REFUND</span>}
+          width={450}
+          onClose={() => setCancelDrawerVisible(false)}
+          open={cancelDrawerVisible}
+          extra={
+            <Space>
+              <Button onClick={() => setCancelDrawerVisible(false)}>Keep</Button>
+              <Button
+                type="primary"
+                danger
+                onClick={handleCancelBooking}
+                disabled={Boolean(selectedBookingToCancel && calculateRefund(selectedBookingToCancel).refund > 0 && (!bankName || !accountNumber || !accountName))}
+              >
+                Confirm Cancel
+              </Button>
+            </Space>
+          }
+        >
+          {selectedBookingToCancel && (() => {
+            const { amount, refund, penalty, percent } = calculateRefund(selectedBookingToCancel);
+            return (
+              <div className="space-y-6">
+                <Alert
+                  message={<span className="font-bold text-red-700">Reservation Refund Policy</span>}
+                  description={
+                    <ul className="list-disc pl-4 mt-2 text-sm text-red-600">
+                      {(() => {
+                        return (
+                          <>
+                            <li>Cancel {configs.earlyMins}+ mins before: {configs.refundEarly * 100}% Refund</li>
+                            <li>Cancel within {configs.earlyMins} mins before: {configs.refundLate * 100}% Refund</li>
+                            <li>Cancel after arrival time: No Refund (0%)</li>
+                          </>
+                        );
+                      })()}
+                    </ul>
+                  }
+                  type="error"
+                  className="bg-red-50 border border-red-200"
                 />
-              )}
-            </div>
-          );
-        })()}
-      </Drawer>
 
-      <Drawer
-        title={<span className="text-blue-600 font-bold"><IdcardOutlined className="mr-2"/>RENEW MONTHLY PASS</span>}
-        width={500}
-        onClose={() => setRenewDrawerVisible(false)}
-        open={renewDrawerVisible}
-        className="bg-slate-50"
-      >
-        {selectedPassToRenew && (() => {
-           const policy = pricingPolicies.find(p => p.vehicleTypeId === selectedPassToRenew.vehicleTypeId);
-           const pricePerMonth = policy ? policy.monthlyRate : 0;
-           const packageConfig = PACKAGES.find(p => p.id === renewDuration);
-           const baseFee = pricePerMonth * renewDuration;
-           const discountAmount = baseFee * (packageConfig?.discount || 0);
-           const totalFee = baseFee - discountAmount;
-           const newExpiry = dayjs(selectedPassToRenew.endDate).add(renewDuration, 'month').format('DD/MM/YYYY');
+                <Card size="small" title="Amount Details" className="bg-slate-50 border-slate-200">
+                  <div className="flex justify-between mb-2">
+                    <Text className="text-slate-500">Expected arrival:</Text>
+                    <Text strong>{dayjs(selectedBookingToCancel.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text>
+                  </div>
+                  <div className="flex justify-between mb-2 border-b border-dashed border-slate-300 pb-2">
+                    <Text className="text-slate-500">Initial deposit:</Text>
+                    <Text strong>{amount.toLocaleString()} ₫</Text>
+                  </div>
+                  <div className="flex justify-between mb-2">
+                    <Text className="text-red-500">Cancellation fee ({100 - percent}%):</Text>
+                    <Text strong className="text-red-600">- {penalty.toLocaleString()} ₫</Text>
+                  </div>
+                  <div className="flex justify-between mt-2 pt-2 border-t border-slate-300">
+                    <Text strong className="text-green-600">REFUND AMOUNT:</Text>
+                    <Text strong className="text-xl text-green-600">{refund.toLocaleString()} ₫</Text>
+                  </div>
+                </Card>
 
-           return (
-             <div className="space-y-6">
-               <Card size="small" className="shadow-sm border-slate-200">
-                 <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
-                   <Text className="text-slate-500">Card ID:</Text>
-                   <Text strong className="text-slate-800">{selectedPassToRenew.id}</Text>
-                 </div>
-                 <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
-                   <Text className="text-slate-500">License Plate:</Text>
-                   <Text strong className="text-slate-800 tracking-widest">{selectedPassToRenew.plate}</Text>
-                 </div>
-                 <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
-                   <Text className="text-slate-500">Vehicle Type:</Text>
-                   <Text strong className="text-slate-800">{selectedPassToRenew.type}</Text>
-                 </div>
-                 <div className="flex justify-between items-center">
-                   <Text className="text-slate-500">Current Expiry:</Text>
-                   <Text strong className={dayjs(selectedPassToRenew.endDate).isBefore(simulatedDayjs().add(7, 'day')) ? 'text-red-500' : 'text-slate-800'}>{dayjs(selectedPassToRenew.endDate).format('DD/MM/YYYY')}</Text>
-                 </div>
-               </Card>
+                {refund > 0 && (
+                  <div className="space-y-4">
+                    <Title level={5}>Enter refund information</Title>
+                    <Alert
+                      message="Important Note"
+                      description="Please enter exact Bank Account info. Refund processing takes 1-2 working days."
+                      type="warning"
+                      showIcon
+                      className="text-xs"
+                    />
 
-               <div>
-                 <Text className="block font-bold mb-3 text-slate-700">Select renewal package:</Text>
-                 <div className="grid grid-cols-2 gap-3">
-                   {PACKAGES.map(p => (
-                     <div
-                       key={p.id}
-                       onClick={() => setRenewDuration(p.id)}
-                       className={`relative cursor-pointer p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${renewDuration === p.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white hover:border-blue-300'}`}
-                     >
-                       {p.discount > 0 && (
-                         <div className="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                           -{p.discount * 100}%
-                         </div>
-                       )}
-                       <span className="font-bold">{p.name}</span>
-                     </div>
-                   ))}
-                 </div>
-               </div>
+                    <Form layout="vertical">
+                      <Form.Item label="Bank" required>
+                        <Select
+                          placeholder="Select Bank"
+                          value={bankName}
+                          onChange={setBankName}
+                          options={[
+                            { value: 'VCB', label: 'Vietcombank' },
+                            { value: 'TCB', label: 'Techcombank' },
+                            { value: 'MB', label: 'MBBank' },
+                            { value: 'VTB', label: 'VietinBank' },
+                            { value: 'ACB', label: 'ACB' }
+                          ]}
+                        />
+                      </Form.Item>
+                      <Form.Item label="Account Number" required>
+                        <Input
+                          placeholder="Enter account number"
+                          value={accountNumber}
+                          onChange={(e) => setAccountNumber(e.target.value)}
+                        />
+                      </Form.Item>
+                      <Form.Item label="Account Holder Name" required>
+                        <Input
+                          placeholder="Enter uppercase name without accents"
+                          value={accountName}
+                          onChange={(e) => setAccountName(e.target.value.toUpperCase())}
+                        />
+                      </Form.Item>
+                    </Form>
+                  </div>
+                )}
 
-               <Card className="shadow-sm border-slate-200 bg-white">
-                 <Space direction="vertical" className="w-full">
-                   <div className="flex justify-between">
-                     <Text className="text-slate-500">New Expiry:</Text>
-                     <Text strong className="text-green-600">{newExpiry}</Text>
-                   </div>
-                   <Divider className="my-2" />
-                   <div className="flex justify-between">
-                     <Text className="text-slate-500">Base Fee:</Text>
-                     <Text strong>{baseFee.toLocaleString()} ₫</Text>
-                   </div>
-                   {discountAmount > 0 && (
-                     <div className="flex justify-between">
-                       <Text className="text-green-500">Discount:</Text>
-                       <Text strong className="text-green-600">- {discountAmount.toLocaleString()} ₫</Text>
-                     </div>
-                   )}
-                   <div className="bg-slate-50 p-3 rounded-lg mt-2 flex justify-between items-center border border-slate-200">
-                     <Text strong className="text-slate-600">TOTAL PAYMENT:</Text>
-                     <Text className="text-xl font-black text-blue-600">{totalFee.toLocaleString()} ₫</Text>
-                   </div>
-                 </Space>
-               </Card>
+                {refund === 0 && (
+                  <Alert
+                    message="Not eligible for refund"
+                    description="Due to time limit, your deposit is not refundable according to policy."
+                    type="info"
+                    showIcon
+                  />
+                )}
+              </div>
+            );
+          })()}
+        </Drawer>
 
-               <div>
-                 <Text className="block font-bold mb-3 text-slate-700">Payment Method:</Text>
-                 <Radio.Group 
-                   onChange={e => setRenewGateway(e.target.value)} 
-                   value={renewGateway}
-                   className="w-full flex flex-col space-y-3"
-                 >
-                   {GATEWAYS.map(gw => (
-                     <Radio.Button 
-                       key={gw.id} 
-                       value={gw.id}
-                       className={`h-14 flex items-center px-4 rounded-xl border-2 transition-all ${renewGateway === gw.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}
-                     >
-                       <div className="flex items-center space-x-3 w-full">
-                         <img src={gw.icon} alt={gw.name} className="h-6 object-contain" />
-                         <span className="font-bold text-slate-700">{gw.name}</span>
-                       </div>
-                     </Radio.Button>
-                   ))}
-                 </Radio.Group>
-               </div>
+        <Drawer
+          title={<span className="text-blue-600 font-bold"><IdcardOutlined className="mr-2" />RENEW MONTHLY PASS</span>}
+          width={500}
+          onClose={() => setRenewDrawerVisible(false)}
+          open={renewDrawerVisible}
+          className="bg-slate-50"
+        >
+          {selectedPassToRenew && (() => {
+            const policy = pricingPolicies.find(p => p.vehicleTypeId === selectedPassToRenew.vehicleTypeId);
+            const pricePerMonth = policy ? policy.monthlyRate : 0;
+            const packageConfig = PACKAGES.find(p => p.id === renewDuration);
+            const baseFee = pricePerMonth * renewDuration;
+            const discountAmount = baseFee * (packageConfig?.discount || 0);
+            const totalFee = baseFee - discountAmount;
+            const newExpiry = dayjs(selectedPassToRenew.endDate).add(renewDuration, 'month').format('DD/MM/YYYY');
 
-               <Button 
-                 type="primary" 
-                 size="large" 
-                 className="w-full h-14 text-lg font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-500 animate-pulse mt-4"
-                 onClick={() => handleConfirmRenew(totalFee)}
-               >
-                 Confirm Renewal
-               </Button>
-             </div>
-           );
-        })()}
-      </Drawer>
+            return (
+              <div className="space-y-6">
+                <Card size="small" className="shadow-sm border-slate-200">
+                  <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+                    <Text className="text-slate-500">Card ID:</Text>
+                    <Text strong className="text-slate-800">{selectedPassToRenew.id}</Text>
+                  </div>
+                  <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+                    <Text className="text-slate-500">License Plate:</Text>
+                    <Text strong className="text-slate-800 tracking-widest">{selectedPassToRenew.plate}</Text>
+                  </div>
+                  <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+                    <Text className="text-slate-500">Vehicle Type:</Text>
+                    <Text strong className="text-slate-800">{selectedPassToRenew.type}</Text>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Text className="text-slate-500">Current Expiry:</Text>
+                    <Text strong className={dayjs(selectedPassToRenew.endDate).isBefore(simulatedDayjs().add(7, 'day')) ? 'text-red-500' : 'text-slate-800'}>{dayjs(selectedPassToRenew.endDate).format('DD/MM/YYYY')}</Text>
+                  </div>
+                </Card>
 
-      <Modal
-        open={isRenewQRModalVisible}
-        footer={null}
-        closable={!isRenewSuccess}
-        onCancel={() => !isRenewSuccess && setIsRenewQRModalVisible(false)}
-        centered
-        maskClosable={false}
-        width={400}
-      >
-        <div className="text-center py-6">
-          {!isRenewSuccess ? (
-            <>
-              <Title level={4} className="mb-2 text-slate-800">Scan QR to pay</Title>
-              <Text className="block mb-6 text-slate-500">Open Banking app or E-wallet</Text>
-              
-              <div className="relative inline-block mb-6">
-                <div className="bg-white p-4 border-2 border-dashed border-slate-300 rounded-2xl shadow-sm relative z-10 flex justify-center items-center h-[240px] w-[240px]">
-                  {renewPaymentUrl ? <QRCode value={renewGateway === 'PAYOS' && renewPaymentQrCode ? renewPaymentQrCode : renewPaymentUrl} size={200} /> : <Spin size="large" />}
+                <div>
+                  <Text className="block font-bold mb-3 text-slate-700">Select renewal package:</Text>
+                  <div className="grid grid-cols-2 gap-3">
+                    {PACKAGES.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => setRenewDuration(p.id)}
+                        className={`relative cursor-pointer p-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${renewDuration === p.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white hover:border-blue-300'}`}
+                      >
+                        {p.discount > 0 && (
+                          <div className="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                            -{p.discount * 100}%
+                          </div>
+                        )}
+                        <span className="font-bold">{p.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <style>
-                  {`
+
+                <Card className="shadow-sm border-slate-200 bg-white">
+                  <Space direction="vertical" className="w-full">
+                    <div className="flex justify-between">
+                      <Text className="text-slate-500">New Expiry:</Text>
+                      <Text strong className="text-green-600">{newExpiry}</Text>
+                    </div>
+                    <Divider className="my-2" />
+                    <div className="flex justify-between">
+                      <Text className="text-slate-500">Base Fee:</Text>
+                      <Text strong>{baseFee.toLocaleString()} ₫</Text>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between">
+                        <Text className="text-green-500">Discount:</Text>
+                        <Text strong className="text-green-600">- {discountAmount.toLocaleString()} ₫</Text>
+                      </div>
+                    )}
+                    <div className="bg-slate-50 p-3 rounded-lg mt-2 flex justify-between items-center border border-slate-200">
+                      <Text strong className="text-slate-600">TOTAL PAYMENT:</Text>
+                      <Text className="text-xl font-black text-blue-600">{totalFee.toLocaleString()} ₫</Text>
+                    </div>
+                  </Space>
+                </Card>
+
+                <div>
+                  <Text className="block font-bold mb-3 text-slate-700">Payment Method:</Text>
+                  <Radio.Group
+                    onChange={e => setRenewGateway(e.target.value)}
+                    value={renewGateway}
+                    className="w-full flex flex-col space-y-3"
+                  >
+                    {GATEWAYS.map(gw => (
+                      <Radio.Button
+                        key={gw.id}
+                        value={gw.id}
+                        className={`h-14 flex items-center px-4 rounded-xl border-2 transition-all ${renewGateway === gw.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                      >
+                        <div className="flex items-center space-x-3 w-full">
+                          <img src={gw.icon} alt={gw.name} className="h-6 object-contain" />
+                          <span className="font-bold text-slate-700">{gw.name}</span>
+                        </div>
+                      </Radio.Button>
+                    ))}
+                  </Radio.Group>
+                </div>
+
+                <Button
+                  type="primary"
+                  size="large"
+                  className="w-full h-14 text-lg font-bold rounded-xl shadow-lg bg-blue-600 hover:bg-blue-500 animate-pulse mt-4"
+                  onClick={() => handleConfirmRenew(totalFee)}
+                >
+                  Confirm Renewal
+                </Button>
+              </div>
+            );
+          })()}
+        </Drawer>
+
+        <Modal
+          open={isRenewQRModalVisible}
+          footer={null}
+          closable={!isRenewSuccess}
+          onCancel={() => !isRenewSuccess && setIsRenewQRModalVisible(false)}
+          centered
+          maskClosable={false}
+          width={400}
+        >
+          <div className="text-center py-6">
+            {!isRenewSuccess ? (
+              <>
+                <Title level={4} className="mb-2 text-slate-800">Scan QR to pay</Title>
+                <Text className="block mb-6 text-slate-500">Open Banking app or E-wallet</Text>
+
+                <div className="relative inline-block mb-6">
+                  <div className="bg-white p-4 border-2 border-dashed border-slate-300 rounded-2xl shadow-sm relative z-10 flex justify-center items-center h-[240px] w-[240px]">
+                    {renewPaymentUrl ? <QRCode value={renewGateway === 'PAYOS' && renewPaymentQrCode ? renewPaymentQrCode : renewPaymentUrl} size={200} /> : <Spin size="large" />}
+                  </div>
+                  <style>
+                    {`
                     @keyframes scan {
                       0% { transform: translateY(0); }
                       50% { transform: translateY(220px); }
                       100% { transform: translateY(0); }
                     }
                   `}
-                </style>
-                {renewPaymentUrl && <div className="absolute top-2 left-2 w-[calc(100%-16px)] h-1 bg-blue-500 shadow-[0_0_15px_#3b82f6] z-20" style={{ animation: 'scan 2s ease-in-out infinite' }}></div>}
-              </div>
-              
-              <Text className="block text-slate-500 mb-6 font-mono bg-slate-100 py-2 rounded-lg break-all px-2 text-xs">
-                {renewGateway === 'PAYOS' ? (
-                  <a href={renewPaymentUrl} target="_blank" rel="noreferrer">Open PayOS Checkout</a>
-                ) : (
-                  <a href={renewPaymentUrl} target="_blank" rel="noreferrer">Open PayPal Checkout</a>
-                )}
-              </Text>
-              
-              <div className="flex items-center justify-center space-x-2 text-slate-600">
-                <Spin size="small" />
-                <Text>Waiting for payment ({renewCountdown}s)...</Text>
-              </div>
-            </>
-          ) : (
-            <div className="animate-fade-in py-8">
-              <CheckCircleOutlined className="text-[80px] text-green-500 mb-6" />
-              <Title level={3} className="text-slate-800">Renewal successful!</Title>
-              <Text className="block text-slate-500 mb-2">Monthly pass expiry date has been updated.</Text>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      <Modal
-        title={<span className="text-red-600 font-bold"><WarningOutlined className="mr-2" /> Incident Details</span>}
-        open={isIncidentModalVisible}
-        onCancel={() => setIsIncidentModalVisible(false)}
-        footer={[
-          <Button key="close" type="primary" onClick={() => setIsIncidentModalVisible(false)}>Close</Button>
-        ]}
-      >
-        {selectedIncident && (
-          <div className="py-4">
-            <Title level={5} className="mb-2 text-red-700">{selectedIncident.type.replace('_', ' ')}</Title>
-            <Text className="block mb-4 text-slate-600">{selectedIncident.description || 'No additional description provided.'}</Text>
-            
-            {selectedIncident.fineAmount > 0 && (
-              <div className="mb-4">
-                <Text strong>Penalty Amount: </Text>
-                <Tag color="red">{selectedIncident.fineAmount.toLocaleString()} ₫</Tag>
-              </div>
-            )}
-
-            {selectedIncident.urls && selectedIncident.urls.length > 0 && (
-              <div>
-                <Text strong className="block mb-2">Evidence Images:</Text>
-                <div className="flex gap-4 overflow-x-auto p-2">
-                  {(selectedIncident.urls || []).map((url: string, uidx: number) => (
-                    <img key={uidx} src={getImageUrl(url)} alt="Incident Evidence" className="h-32 object-cover rounded-md border border-slate-200 shadow-sm" />
-                  ))}
+                  </style>
+                  {renewPaymentUrl && <div className="absolute top-2 left-2 w-[calc(100%-16px)] h-1 bg-blue-500 shadow-[0_0_15px_#3b82f6] z-20" style={{ animation: 'scan 2s ease-in-out infinite' }}></div>}
                 </div>
+
+                <Text className="block text-slate-500 mb-6 font-mono bg-slate-100 py-2 rounded-lg break-all px-2 text-xs">
+                  {renewGateway === 'PAYOS' ? (
+                    <a href={renewPaymentUrl} target="_blank" rel="noreferrer">Open PayOS Checkout</a>
+                  ) : (
+                    <a href={renewPaymentUrl} target="_blank" rel="noreferrer">Open PayPal Checkout</a>
+                  )}
+                </Text>
+
+                <div className="flex items-center justify-center space-x-2 text-slate-600">
+                  <Spin size="small" />
+                  <Text>Waiting for payment ({renewCountdown}s)...</Text>
+                </div>
+              </>
+            ) : (
+              <div className="animate-fade-in py-8">
+                <CheckCircleOutlined className="text-[80px] text-green-500 mb-6" />
+                <Title level={3} className="text-slate-800">Renewal successful!</Title>
+                <Text className="block text-slate-500 mb-2">Monthly pass expiry date has been updated.</Text>
               </div>
             )}
           </div>
-        )}
-      </Modal>
-    </div>
+        </Modal>
+
+        <Modal
+          title={<span className="text-red-600 font-bold"><WarningOutlined className="mr-2" /> Incident Details</span>}
+          open={isIncidentModalVisible}
+          onCancel={() => setIsIncidentModalVisible(false)}
+          footer={[
+            <Button key="close" type="primary" onClick={() => setIsIncidentModalVisible(false)}>Close</Button>
+          ]}
+        >
+          {selectedIncident && (
+            <div className="py-4">
+              <Title level={5} className="mb-2 text-red-700">{selectedIncident.type.replace('_', ' ')}</Title>
+              <Text className="block mb-4 text-slate-600">{selectedIncident.description || 'No additional description provided.'}</Text>
+
+              {selectedIncident.fineAmount > 0 && (
+                <div className="mb-4">
+                  <Text strong>Penalty Amount: </Text>
+                  <Tag color="red">{selectedIncident.fineAmount.toLocaleString()} ₫</Tag>
+                </div>
+              )}
+
+              {selectedIncident.urls && selectedIncident.urls.length > 0 && (
+                <div>
+                  <Text strong className="block mb-2">Evidence Images:</Text>
+                  <div className="flex gap-4 overflow-x-auto p-2">
+                    {(selectedIncident.urls || []).map((url: string, uidx: number) => (
+                      <img key={uidx} src={getImageUrl(url)} alt="Incident Evidence" className="h-32 object-cover rounded-md border border-slate-200 shadow-sm" />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      </div>
 
       <Modal
         title={<span className="text-blue-600 font-bold">Edit License Plate</span>}
@@ -1246,10 +1285,10 @@ export const MyParkingScreen = () => {
       >
         <div className="py-4">
           <Text className="block mb-2 text-slate-600">Please enter the new license plate number:</Text>
-          <Input 
-            size="large" 
-            placeholder="e.g. 29A-123.45" 
-            value={newPlate} 
+          <Input
+            size="large"
+            placeholder="e.g. 29A-123.45"
+            value={newPlate}
             onChange={(e) => setNewPlate(e.target.value.toUpperCase())}
             className="font-bold tracking-widest text-lg"
           />
@@ -1257,7 +1296,7 @@ export const MyParkingScreen = () => {
       </Modal>
 
       <Drawer
-        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2"/>Lịch sử cho xe {selectedHistoryPlate}</span>}
+        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2" />Lịch sử cho xe {selectedHistoryPlate}</span>}
         width={520}
         onClose={() => setIsHistoryDrawerVisible(false)}
         open={isHistoryDrawerVisible}
@@ -1283,15 +1322,14 @@ export const MyParkingScreen = () => {
                   color: dotColor,
                   dot: isReservation ? (
                     record.status === 'COMPLETED_UNUSED' ? <WarningOutlined style={{ color: '#ef4444' }} /> :
-                    record.status === 'CANCELLED' ? <CloseCircleOutlined style={{ color: '#ef4444' }} /> :
-                    <CheckCircleOutlined style={{ color: '#3b82f6' }} />
+                      record.status === 'CANCELLED' ? <CloseCircleOutlined style={{ color: '#ef4444' }} /> :
+                        <CheckCircleOutlined style={{ color: '#3b82f6' }} />
                   ) : <CarOutlined style={{ color: record.fee > 0 ? '#22c55e' : '#94a3b8' }} />,
                   children: isReservation ? (
                     // ---- RESERVATION CARD ----
-                    <div className={`bg-white p-4 rounded-xl border shadow-sm mb-4 ${
-                      (record.status === 'COMPLETED_UNUSED') ? 'border-red-200 bg-red-50' :
-                      record.status === 'CANCELLED' ? 'border-orange-200 bg-orange-50' : 'border-blue-100'
-                    }`}>
+                    <div className={`bg-white p-4 rounded-xl border shadow-sm mb-4 ${(record.status === 'COMPLETED_UNUSED') ? 'border-red-200 bg-red-50' :
+                        record.status === 'CANCELLED' ? 'border-orange-200 bg-orange-50' : 'border-blue-100'
+                      }`}>
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <Title level={5} className="m-0 tracking-widest text-slate-800">{record.plateNumber}</Title>
@@ -1353,11 +1391,11 @@ export const MyParkingScreen = () => {
                       <div className="grid grid-cols-2 gap-4 text-sm mt-2">
                         <div>
                           <Text type="secondary" className="block mb-1">Giờ vào:</Text>
-                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeIn}</Text>
+                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400" /> {record.timeIn}</Text>
                         </div>
                         <div>
                           <Text type="secondary" className="block mb-1">Giờ ra:</Text>
-                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400"/> {record.timeOut}</Text>
+                          <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400" /> {record.timeOut}</Text>
                         </div>
                       </div>
                       {record.incidentDetails && record.incidentDetails.length > 0 && (

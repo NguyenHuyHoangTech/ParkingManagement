@@ -21,5 +21,6 @@ public class MonthlyTicketDTO {
     private String startDate;
     private String endDate;
     private Boolean hasBeenUsed;
+    private Boolean inParkingLot;
+    private String rfid;
 }
-

@@ -66,6 +66,19 @@ public class MonthlyTicketService {
             boolean hasBeenUsed = parkingSessionRepository.existsByPlateAndTimeInGreaterThanEqual(ticket.getPlate(),
                     ticket.getValidFrom());
 
+            boolean inParkingLot = false;
+            List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository
+                    .findByPlateOrderByTimeInDesc(ticket.getPlate());
+            if (!sessions.isEmpty()
+                    && ("ACTIVE".equals(sessions.get(0).getStatus()) || "LOCKED".equals(sessions.get(0).getStatus()))) {
+                inParkingLot = true;
+            }
+
+            String rfidCode = null;
+            if (inParkingLot && !sessions.isEmpty() && sessions.get(0).getRfidCard() != null) {
+                rfidCode = sessions.get(0).getRfidCard().getCardCode();
+            }
+
             return MonthlyTicketDTO.builder()
                     .id("MP-" + ticket.getId())
                     .user(ticket.getUser() != null ? ticket.getUser().getFullName() : "Guest")
@@ -78,6 +91,8 @@ public class MonthlyTicketService {
                     .startDate(ticket.getValidFrom().format(FORMATTER))
                     .endDate(ticket.getValidUntil().format(FORMATTER))
                     .hasBeenUsed(hasBeenUsed)
+                    .inParkingLot(inParkingLot)
+                    .rfid(rfidCode)
                     .build();
         }).collect(Collectors.toList());
     }
@@ -121,8 +136,10 @@ public class MonthlyTicketService {
     }
 
     private boolean isVehicleInside(String plate) {
-        if (plate == null || plate.isBlank()) return false;
-        java.util.List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository.findByPlateOrderByTimeInDesc(plate);
+        if (plate == null || plate.isBlank())
+            return false;
+        java.util.List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository
+                .findByPlateOrderByTimeInDesc(plate);
         for (com.pbms.modules.operation.domain.ParkingSession s : sessions) {
             if ("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) {
                 return true;
@@ -136,7 +153,7 @@ public class MonthlyTicketService {
         if (plate == null || plate.trim().isEmpty()) {
             throw new IllegalArgumentException("Biển số xe không được để trống.");
         }
-        
+
         Long vehicleTypeId = payload.get("vehicleTypeId") != null
                 ? Long.parseLong(payload.get("vehicleTypeId").toString())
                 : null;
@@ -152,10 +169,12 @@ public class MonthlyTicketService {
         com.pbms.modules.operation.domain.Vehicle vehicle = vehicleRepository.findByPlateNumber(plate).orElse(null);
         if (vehicle != null) {
             if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
-                throw new IllegalArgumentException("Cannot register a monthly ticket because the vehicle is in the Blacklist.");
+                throw new IllegalArgumentException(
+                        "Cannot register a monthly ticket because the vehicle is in the Blacklist.");
             }
             if (vehicle.getVehicleType() != null && !vehicle.getVehicleType().getId().equals(vehicleTypeId)) {
-                throw new IllegalArgumentException("Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+                throw new IllegalArgumentException(
+                        "Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
             }
         }
     }
@@ -177,7 +196,6 @@ public class MonthlyTicketService {
         validateCreateTicket(payload);
 
         String plate = (String) payload.get("plateNumber");
-
 
         Long vehicleTypeId = payload.get("vehicleTypeId") != null
                 ? Long.parseLong(payload.get("vehicleTypeId").toString())
@@ -231,7 +249,7 @@ public class MonthlyTicketService {
     @Transactional
     public MonthlyTicketDTO renewTicket(Long id, int durationMonths) {
         validateRenewTicket(id, durationMonths);
-        
+
         MonthlyTicket ticket = monthlyTicketRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
 

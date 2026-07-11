@@ -25,6 +25,7 @@ interface MonthlyPass {
   status: 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'CANCELED' | 'PENDING' | string;
   startDate: string;
   endDate: string;
+  inParkingLot?: boolean;
 }
 
 export const MonthlyPassScreen = () => {
@@ -38,6 +39,7 @@ export const MonthlyPassScreen = () => {
 
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterParking, setFilterParking] = useState('ALL');
   const [searchKeyword, setSearchKeyword] = useState('');
 
   React.useEffect(() => {
@@ -148,9 +150,14 @@ export const MonthlyPassScreen = () => {
           (p.phone && p.phone.toLowerCase().includes(kw))
         );
       }
-      return matchType && matchStatus && matchSearch;
+      
+      let matchParking = true;
+      if (filterParking === 'IN_LOT') matchParking = !!p.inParkingLot;
+      if (filterParking === 'OUT_LOT') matchParking = !p.inParkingLot;
+
+      return matchType && matchStatus && matchSearch && matchParking;
     });
-  }, [passes, filterType, filterStatus, searchKeyword]);
+  }, [passes, filterType, filterStatus, filterParking, searchKeyword]);
 
   const activeCount = passes.filter(p => p.status === 'ACTIVE').length;
   const inactiveCount = passes.filter(p => p.status === 'EXPIRED').length;
@@ -185,8 +192,19 @@ export const MonthlyPassScreen = () => {
       key: 'status',
       render: (status: string) => {
         if (status === 'ACTIVE') return <Tag color="success" icon={<CheckCircleOutlined />}>Active</Tag>;
+        if (status === 'EXPIRING_SOON') return <Tag color="warning" icon={<ExclamationCircleOutlined />}>Expiring Soon</Tag>;
         if (status === 'EXPIRED') return <Tag color="error">Expired</Tag>;
         return <Tag>{status}</Tag>;
+      }
+    },
+    {
+      title: 'In Parking Lot',
+      key: 'inParkingLot',
+      render: (_: any, record: MonthlyPass) => {
+        if (record.inParkingLot) {
+           return <Tag color={record.status === 'EXPIRED' ? 'red' : 'orange'} className="animate-pulse font-bold border">IN LOT</Tag>;
+        }
+        return <Tag color="default" className="font-bold border border-gray-300 text-gray-500">OUT</Tag>;
       }
     },
     {
@@ -239,6 +257,11 @@ export const MonthlyPassScreen = () => {
             { label: 'All Status', value: 'ALL' },
             { label: 'Active', value: 'ACTIVE' },
             { label: 'Expired', value: 'EXPIRED' }
+          ]} />
+          <Select value={filterParking} onChange={setFilterParking} className="w-48" options={[
+            { label: 'All Parking Status', value: 'ALL' },
+            { label: 'In Parking Lot', value: 'IN_LOT' },
+            { label: 'Out of Lot', value: 'OUT_LOT' }
           ]} />
           <Input
             placeholder="Type in Vehicle License Plate, Email, Phone Number"

@@ -44,7 +44,7 @@ public class ParkingSessionController {
     private final com.pbms.modules.operation.repository.ReservationRepository reservationRepository;
 
     /**
-     * GET /api/v1/parking-sessions/my-active
+     * GET /api/v1/operation/parking-sessions/my-active
      * Get active parking session by plate or RFID
      */
     @GetMapping("/my-active")

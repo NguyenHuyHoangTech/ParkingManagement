@@ -21,6 +21,18 @@ public interface IncidentTicketRepository extends JpaRepository<IncidentTicket, 
     boolean existsByReportedPlateAndIssueTypeAndStatusIn(String reportedPlate, String issueType, java.util.List<String> statuses);
     boolean existsBySessionIdAndIssueTypeInAndStatusIn(Long sessionId, java.util.List<String> issueTypes, java.util.List<String> statuses);
 
+    boolean existsBySessionIdAndIssueType(Long sessionId, String issueType);
+    boolean existsByReportedPlateAndIssueType(String reportedPlate, String issueType);
+
+    @org.springframework.data.jpa.repository.Query("SELECT i FROM IncidentTicket i JOIN i.session s WHERE s.plate = :plate AND i.issueType = :issueType AND i.status = :status")
+    List<IncidentTicket> findBySessionPlateAndIssueTypeAndStatus(@org.springframework.data.repository.query.Param("plate") String plate, @org.springframework.data.repository.query.Param("issueType") String issueType, @org.springframework.data.repository.query.Param("status") String status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT i FROM IncidentTicket i JOIN i.session s WHERE s.plate = :plate AND s.vehicleType.id = :vehicleTypeId AND i.status = :status")
+    List<IncidentTicket> findBySessionPlateAndVehicleTypeIdAndStatus(
+            @org.springframework.data.repository.query.Param("plate") String plate,
+            @org.springframework.data.repository.query.Param("vehicleTypeId") Long vehicleTypeId,
+            @org.springframework.data.repository.query.Param("status") String status);
+
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(i) FROM IncidentTicket i JOIN i.session s " +
             "WHERE i.issueType = :issueType AND i.status != :status " +
             "AND s.vehicleType.id = :vehicleTypeId AND s.status IN ('ACTIVE', 'LOCKED')")

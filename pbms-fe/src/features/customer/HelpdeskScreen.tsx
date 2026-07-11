@@ -6,6 +6,7 @@ import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
 import { IncidentDetailPanel } from '../incident/components/IncidentDetailPanel';
+import { VehicleAssignmentTab } from '../incident/components/VehicleAssignmentTab';
 
 const { Title, Text } = Typography;
 
@@ -19,8 +20,8 @@ export const HelpdeskScreen = () => {
     const handlePopState = (event: PopStateEvent) => {
       // Whenever user presses physical back button, we go back to the main list
       setSelectedTicket(null);
-      if (window.location.hash !== '#create') {
-         setSelectedCategory(prev => prev === 'CREATE_INCIDENT' ? 'ALL' : prev);
+      if (window.location.hash !== '#create' && window.location.hash !== '#assign') {
+         setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -57,7 +58,7 @@ export const HelpdeskScreen = () => {
   });
 
   const filteredTickets = ticketsData.filter((t: any) => {
-    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory;
+    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory;
     if (!catMatch) return false;
     
     if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
@@ -69,12 +70,16 @@ export const HelpdeskScreen = () => {
 
   const handleIncidentSuccess = (category: string, plate: string) => {
     message.success('Đã gửi yêu cầu hỗ trợ thành công!');
-    navigateBack();
+    setSelectedCategory('ALL');
+    setSelectedTicket(null);
+    if (window.location.hash === '#create' || window.location.hash === '#assign') {
+      window.history.back();
+    }
   };
 
   const renderMobileView = () => {
     const isShowingDetail = selectedTicket !== null;
-    const isShowingForm = selectedCategory === 'CREATE_INCIDENT' && selectedTicket === null;
+    const isShowingForm = (selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE') && selectedTicket === null;
     const isShowingList = !isShowingDetail && !isShowingForm;
 
     return (
@@ -91,15 +96,18 @@ export const HelpdeskScreen = () => {
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                 {[
                   { id: 'ALL', label: 'Tất cả', count: ticketsData.length },
+                  { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố' },
+                  { id: 'ASSIGN_VEHICLE', label: 'Gán Xe' },
                   { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
                   { id: 'OVERSTAY', label: 'Quá giờ', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
                   { id: 'LOST_CARD', label: 'Mất thẻ', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
                   { id: 'DAMAGED_CARD', label: 'Hỏng thẻ', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
-                  { id: 'LPR_MISMATCH', label: 'Sai biển số', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
+                  { id: 'LPR_MISMATCH', label: 'Biển số', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
                   { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+                  { id: 'BLACKLIST_WARNING', label: 'Cảnh báo vi phạm', count: ticketsData.filter((t: any) => t.type === 'BLACKLIST_WARNING').length },
                   { id: 'FIND_CAR', label: 'Tìm xe', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
-                  { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
-                  { id: 'OTHER_FEEDBACK', label: 'Góp ý', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }
+                  { id: 'FEE_DISPUTE', label: 'Phí', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+                  { id: 'OTHER_FEEDBACK', label: 'Khác', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }
                 ].map(cat => (
                   <div 
                     key={cat.id} 
@@ -166,7 +174,7 @@ export const HelpdeskScreen = () => {
           </div>
         )}
 
-        {isShowingForm && (
+        {isShowingForm && selectedCategory === 'CREATE_INCIDENT' && (
           <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
             <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
               <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
@@ -174,6 +182,20 @@ export const HelpdeskScreen = () => {
             </div>
             <div className="flex-1 overflow-y-auto pb-24">
               <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
+            </div>
+          </div>
+        )}
+
+        {isShowingForm && selectedCategory === 'ASSIGN_VEHICLE' && (
+          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
+            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
+              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
+              <Title level={4} className="m-0 text-gray-800">Gán xe vào tài khoản</Title>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-24">
+              <div className="p-4">
+                <VehicleAssignmentTab isManager={false} />
+              </div>
             </div>
           </div>
         )}
@@ -209,12 +231,14 @@ export const HelpdeskScreen = () => {
           {[
             { id: 'ALL', label: 'Tất cả sự cố', icon: '📋', count: ticketsData.length },
             { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố Mới', icon: '➕', count: 0 },
+            { id: 'ASSIGN_VEHICLE', label: 'Gán Xe Vào Tài Khoản', icon: '🔑', count: 0 },
             { id: 'ZONE_VIOLATION', label: 'Đỗ sai khu vực', icon: '🚨', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
             { id: 'OVERSTAY', label: 'Quá giờ', icon: '🕒', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
             { id: 'LOST_CARD', label: 'Báo mất thẻ', icon: '🔥', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
             { id: 'DAMAGED_CARD', label: 'Báo hỏng thẻ', icon: '💳', count: ticketsData.filter((t: any) => t.type === 'DAMAGED_CARD').length },
             { id: 'LPR_MISMATCH', label: 'Sai biển số', icon: '🤖', count: ticketsData.filter((t: any) => t.type === 'LPR_MISMATCH').length },
             { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ đỗ', icon: '🚗', count: ticketsData.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+            { id: 'BLACKLIST_WARNING', label: 'Cảnh báo vi phạm', icon: '⛔', count: ticketsData.filter((t: any) => t.type === 'BLACKLIST_WARNING').length },
             { id: 'FIND_CAR', label: 'Tìm xe', icon: '🔍', count: ticketsData.filter((t: any) => t.type === 'FIND_CAR').length },
             { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', icon: '💰', count: ticketsData.filter((t: any) => t.type === 'FEE_DISPUTE').length },
             { id: 'OTHER_FEEDBACK', label: 'Góp ý khác', icon: '💬', count: ticketsData.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }
@@ -285,6 +309,20 @@ export const HelpdeskScreen = () => {
             <div className="p-8 flex-1">
               <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                 <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
+              </div>
+            </div>
+          </div>
+        ) : selectedCategory === 'ASSIGN_VEHICLE' && !selectedTicket ? (
+          <div className="flex flex-col h-full overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
+              <div>
+                <Title level={4} className="m-0 text-blue-700">Gán xe vào tài khoản</Title>
+                <Text className="text-sm text-gray-500">Khai báo thông tin xe đang đỗ để theo dõi sự cố</Text>
+              </div>
+            </div>
+            <div className="p-8 flex-1">
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <VehicleAssignmentTab isManager={false} />
               </div>
             </div>
           </div>

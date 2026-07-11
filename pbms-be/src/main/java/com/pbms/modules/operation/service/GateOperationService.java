@@ -191,6 +191,16 @@ public class GateOperationService {
             request.setSuggestedZoneName("Free");
         }
 
+        boolean isBlacklisted = false;
+        String blacklistReason = null;
+        if (request.getPlateNumber() != null) {
+            java.util.Optional<com.pbms.modules.operation.domain.Vehicle> vOpt = vehicleRepository.findByPlateNumber(request.getPlateNumber());
+            if (vOpt.isPresent() && Boolean.TRUE.equals(vOpt.get().getIsBlacklisted())) {
+                isBlacklisted = true;
+                blacklistReason = vOpt.get().getBlacklistReason();
+            }
+        }
+
         ScanEventDTO event = ScanEventDTO.builder()
                 .gateId(gate.getId())
                 .actionType("IN")
@@ -203,6 +213,8 @@ public class GateOperationService {
                 .suggestedZoneName(displayRouting && suggestedZone != null ? suggestedZone.getZoneName() : "Free")
                 .customerType(customerType)
                 .earlyBookingNotice(earlyBookingNotice)
+                .isBlacklisted(isBlacklisted)
+                .blacklistReason(blacklistReason)
                 .build();
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", event);
@@ -317,7 +329,7 @@ public class GateOperationService {
             info.setSuggestedZoneName(session.getSlot().getZone().getZoneName());
         } else if (session.getSuggestedZoneId() != null) {
             if (session.getSuggestedZoneId() == -1L) {
-                info.setSuggestedZoneName("FREE");
+                info.setSuggestedZoneName("Free Zone");
             } else {
                 info.setSuggestedZoneName(zoneRepository.findById(session.getSuggestedZoneId())
                         .map(zone -> zone.getZoneName()).orElse("N/A"));
@@ -325,7 +337,7 @@ public class GateOperationService {
         } else if (session.getReservation() != null && session.getReservation().getZone() != null) {
             info.setSuggestedZoneName(session.getReservation().getZone().getZoneName());
         } else {
-            info.setSuggestedZoneName("N/A");
+            info.setSuggestedZoneName("Free Zone");
         }
 
         java.time.LocalDateTime now = targetTime;
@@ -555,8 +567,11 @@ public class GateOperationService {
                 isBlacklistedRef[0] = true;
                 blacklistReasonRef[0] = v.getBlacklistReason();
 
-                // DO NOT clear blacklist flag here. It should be cleared upon checkout
-                // or if the staff cancels the incident in Phase 2.
+                // Theo yêu cầu: Tự động gỡ cờ blacklist ngay khi check-in vì đã áp phí phạt vào session
+                v.setIsBlacklisted(false);
+                v.setBlacklistReason(null);
+                v.setBlacklistEvidenceUrl(null);
+                vehicleRepository.save(v);
             }
         });
 
@@ -585,25 +600,49 @@ public class GateOperationService {
         session = sessionRepository.save(session);
 
         if (isBlacklistedRef[0]) {
-            java.math.BigDecimal penaltyFee;
-            try {
-                boolean is2W = type != null && "TWO_WHEEL".equals(type.getCategory());
-                String configKey = is2W ? "PENALTY_BLACKLIST_UNPAID_2W" : "PENALTY_BLACKLIST_UNPAID_4W";
-                penaltyFee = new java.math.BigDecimal(systemConfigService.getConfigByKey(configKey).getConfigValue());
-            } catch (Exception e) {
-                penaltyFee = new java.math.BigDecimal("500000");
+            java.util.List<com.pbms.modules.incident.domain.IncidentTicket> oldTickets = incidentTicketRepository
+                .findBySessionPlateAndVehicleTypeIdAndStatus(request.getPlateNumber(), type.getId(), "WAITING_CHECKOUT");
+            
+            java.math.BigDecimal penaltyFeeToAdd = java.math.BigDecimal.ZERO;
+            boolean hasBlacklistViolation = false;
+            
+            for (com.pbms.modules.incident.domain.IncidentTicket oldTicket : oldTickets) {
+                if ("BLACKLIST_VIOLATION".equals(oldTicket.getIssueType())) {
+                    hasBlacklistViolation = true;
+                }
+                oldTicket.setSession(session);
+                incidentTicketRepository.save(oldTicket);
+                penaltyFeeToAdd = penaltyFeeToAdd.add(oldTicket.getFineAmount() != null ? oldTicket.getFineAmount() : java.math.BigDecimal.ZERO);
             }
+            
+            if (!hasBlacklistViolation) {
+                java.math.BigDecimal penaltyFee;
+                try {
+                    boolean is2W = type != null && "TWO_WHEEL".equals(type.getCategory());
+                    String configKey = is2W ? "PENALTY_BLACKLIST_UNPAID_2W" : "PENALTY_BLACKLIST_UNPAID_4W";
+                    penaltyFee = new java.math.BigDecimal(systemConfigService.getConfigByKey(configKey).getConfigValue());
+                } catch (Exception e) {
+                    penaltyFee = new java.math.BigDecimal("500000");
+                }
 
-            com.pbms.modules.incident.domain.IncidentTicket ticket = com.pbms.modules.incident.domain.IncidentTicket
-                    .builder()
-                    .session(session)
-                    .issueType("BLACKLIST_VIOLATION")
-                    .priority("HIGH")
-                    .description("Vehicle is blacklisted: " + blacklistReasonRef[0])
-                    .status("WAITING_CHECKOUT")
-                    .fineAmount(penaltyFee)
-                    .build();
-            incidentTicketRepository.save(ticket);
+                com.pbms.modules.incident.domain.IncidentTicket ticket = com.pbms.modules.incident.domain.IncidentTicket
+                        .builder()
+                        .session(session)
+                        .issueType("BLACKLIST_VIOLATION")
+                        .priority("HIGH")
+                        .description("Vehicle is blacklisted: " + blacklistReasonRef[0])
+                        .status("WAITING_CHECKOUT")
+                        .fineAmount(penaltyFee)
+                        .build();
+                incidentTicketRepository.save(ticket);
+                penaltyFeeToAdd = penaltyFeeToAdd.add(penaltyFee);
+            }
+            
+            if (penaltyFeeToAdd.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                java.math.BigDecimal currentPenalty = session.getPenaltyFee() != null ? session.getPenaltyFee() : java.math.BigDecimal.ZERO;
+                session.setPenaltyFee(currentPenalty.add(penaltyFeeToAdd));
+                sessionRepository.save(session);
+            }
         }
 
         if (activeRes != null) {
@@ -656,16 +695,16 @@ public class GateOperationService {
 
         RfidCard card = session.getRfidCard();
         
-        boolean hasCardIncident = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
+        boolean hasBlockingIncident = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
                 session.getId(),
                 java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
                 java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
                 
-        if (hasCardIncident || (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus())))) {
+        if (hasBlockingIncident || (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus())))) {
             return GateResponseDTO.builder()
                     .sessionId(session.getId())
                     .status("ERROR")
-                    .message("Xe đang có sự cố thẻ chưa được xử lý. Giao dịch bị khóa, Barrier không mở. Vui lòng nộp phí tại quầy!")
+                    .message("Xe đang có sự cố hoặc nợ phí phạt chưa được xử lý. Giao dịch bị khóa, Barrier không mở. Vui lòng nộp phí tại quầy!")
                     .build();
         }
 

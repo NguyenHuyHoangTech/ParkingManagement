@@ -37,9 +37,6 @@ public class WorkSessionService {
         User staff = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Staff do not agree"));
 
-        Gate gate = gateRepository.findById(gateId)
-                .orElseThrow(() -> new IllegalArgumentException("Non-advisors:" + gateId));
-
         // Check if staff already has an active session
         Optional<StaffWorkSession> existing = workSessionRepository
                 .findByStaffIdAndStatus(staff.getId(), "ACTIVE");
@@ -48,19 +45,47 @@ public class WorkSessionService {
                 + existing.get().getGate().getGateName() + ")e I'm happy to see my mother's song");
         }
 
-        // Check if gate is already taken by an active session
-        Optional<StaffWorkSession> gateExisting = workSessionRepository
-                .findByGateIdAndStatus(gate.getId(), "ACTIVE");
-        if (gateExisting.isPresent()) {
-            throw new IllegalStateException("These people are wrong." 
-                + gateExisting.get().getStaff().getFullName() + "I'm afraid that these staff members are not theirs.");
-        }
+        Gate gate;
+        if (gateId != null && gateId == -1L && "PATROL".equals(gateType)) {
+            // Auto-Pooling Logic
+            List<Gate> patrolGates = gateRepository.findByGateType("PATROL");
+            Gate availableGate = null;
+            for (Gate g : patrolGates) {
+                if (workSessionRepository.findByGateIdAndStatus(g.getId(), "ACTIVE").isEmpty()) {
+                    availableGate = g;
+                    break;
+                }
+            }
+            if (availableGate == null) {
+                availableGate = Gate.builder()
+                        .gateName("Đi Tuần - Thiết bị " + (patrolGates.size() + 1))
+                        .gateType("PATROL")
+                        .status("INACTIVE")
+                        .build();
+                availableGate = gateRepository.save(availableGate);
+            } else if ("DELETED".equals(availableGate.getStatus())) {
+                availableGate.setStatus("INACTIVE");
+                availableGate = gateRepository.save(availableGate);
+            }
+            gate = availableGate;
+        } else {
+            gate = gateRepository.findById(gateId)
+                    .orElseThrow(() -> new IllegalArgumentException("Non-advisors:" + gateId));
 
-        // Update physical gate type if requested by staff to temporarily lock it for this shift
-        if (gateType != null && !gateType.trim().isEmpty() && !gateType.equals("PATROL")) {
-            gate.setGateType(gateType);
-            gate.setStatus("ACTIVE");
-            gateRepository.save(gate);
+            // Check if gate is already taken by an active session
+            Optional<StaffWorkSession> gateExisting = workSessionRepository
+                    .findByGateIdAndStatus(gate.getId(), "ACTIVE");
+            if (gateExisting.isPresent()) {
+                throw new IllegalStateException("These people are wrong." 
+                    + gateExisting.get().getStaff().getFullName() + "I'm afraid that these staff members are not theirs.");
+            }
+
+            // Update physical gate type if requested by staff to temporarily lock it for this shift
+            if (gateType != null && !gateType.trim().isEmpty() && !gateType.equals("PATROL")) {
+                gate.setGateType(gateType);
+                gate.setStatus("ACTIVE");
+                gateRepository.save(gate);
+            }
         }
 
         StaffWorkSession session = StaffWorkSession.builder()

@@ -32,12 +32,12 @@ export const StaffLayout = () => {
   const email = useAuthStore((state) => state.email);
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
   const name = useAuthStore((state) => state.name);
+  const role = useAuthStore((state) => state.role);
+  const isManager = role === 'ROLE_MANAGER';
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const systemTime = useSystemTime();
 
   // Conflict state
-  const [pendingConflicts, setPendingConflicts] = useState<any[]>([]);
-
   const [monthlyConflictVisible, setMonthlyConflictVisible] = useState(false);
   const [monthlyConflictData, setMonthlyConflictData] = useState<any>(null);
 
@@ -63,6 +63,19 @@ export const StaffLayout = () => {
       });
   }, [operationalData]);
 
+  const activeGateFloorId = sessionStorage.getItem('activeGateFloorId');
+
+  const { data: mapConfig } = useQuery({
+    queryKey: ['mapConfig'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/infrastructure/map/config');
+      return res.data?.data || {};
+    },
+    refetchInterval: 5000
+  });
+
+
+
   useEffect(() => {
     const client = new Client({
       brokerURL: 'ws://localhost:8080/ws-pbms',
@@ -76,10 +89,6 @@ export const StaffLayout = () => {
         try {
           const data = JSON.parse(message.body);
           if (data.type === 'ZONE_CONFLICT') {
-            setPendingConflicts((prev) => {
-              if (prev.find(p => p.reservationId === data.reservationId)) return prev;
-              return [...prev, data];
-            });
             notification.error({
               message: '🚨 Zone Capacity Conflict!',
               description: data.message + ' (Check the queue to retry)',
@@ -87,7 +96,6 @@ export const StaffLayout = () => {
               duration: 0
             });
           } else if (data.type === 'ZONE_RESERVED') {
-            setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
             const plate = data.plate || '';
             const zoneName = data.zoneName || '';
             const msg = data.message || '';
@@ -97,6 +105,13 @@ export const StaffLayout = () => {
               notification.info({
                 message: '⏰ Đặt chỗ đã hết hạn',
                 description: plate ? `Đặt chỗ cho xe ${plate} (khu ${zoneName}) đã hết giờ. Chỗ đỗ đã được giải phóng.` : 'Một đặt chỗ đã hết giờ và được giải phóng.',
+                placement: window.innerWidth < 768 ? 'top' : 'topRight',
+                duration: 5
+              });
+            } else if (msg.includes('arriving')) {
+              notification.info({
+                message: '⏱️ Xe sắp đến',
+                description: plate ? `Xe ${plate} dự kiến sẽ đến khu ${zoneName} trong ít phút nữa.` : 'Một xe đặt chỗ sắp đến.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
                 duration: 5
               });
@@ -120,13 +135,13 @@ export const StaffLayout = () => {
                 detail: {
                   message: msg.includes('expired')
                     ? `[Hết hạn] Đặt chỗ xe ${plate} khu ${zoneName} đã hết giờ.`
-                    : `[Đặt chỗ] ${plate} tại khu ${zoneName} đã được xác nhận.`,
+                    : msg.includes('arriving') 
+                      ? `[Sắp đến] Xe ${plate} dự kiến sắp đến khu ${zoneName}.` 
+                      : `[Đặt chỗ] ${plate} tại khu ${zoneName} đã được xác nhận.`,
                   type: msg.includes('expired') ? 'warning' : 'success'
                 }
               }));
             }
-          } else if (data.type === 'RESERVATION_ARRIVED') {
-            setPendingConflicts((prev) => prev.filter(p => p.reservationId !== data.reservationId));
           }
         } catch (e) { }
       });
@@ -152,18 +167,6 @@ export const StaffLayout = () => {
     };
   }, []);
 
-  const handleResolveConflict = async (reservationId: number) => {
-    try {
-      await axiosClient.post(`/operation/gates/reservations/${reservationId}/retry-zone`);
-    } catch (err: any) {
-      notification.error({
-        message: 'Resolution Failed',
-        description: err.response?.data?.message || 'Zone is still full.',
-        placement: window.innerWidth < 768 ? 'top' : 'topRight'
-      });
-    }
-  };
-
   const handleLogout = () => {
     if (shiftStatus === 'OPEN') {
       Modal.warning({
@@ -187,24 +190,35 @@ export const StaffLayout = () => {
     ],
   };
 
-  const conflictMenu: any = {
-    items: pendingConflicts.length === 0 ? [{ key: 'empty', label: <span className="text-gray-400 italic px-2">No capacity conflicts</span> }] : pendingConflicts.map(c => ({
-      key: c.reservationId,
-      label: (
-        <div className="flex flex-col gap-1 w-64 py-1 rounded transition-colors border-b border-gray-100 last:border-0">
-          <span className="font-bold text-red-600 flex items-center gap-1"><AlertOutlined /> {c.zoneName} is FULL</span>
-          <span className="text-xs text-gray-600">Plate: <b className="font-mono uppercase">{c.plate}</b> - {c.customer}</span>
-          <Button size="small" type="primary" className="mt-1 bg-blue-500 text-xs w-full" onClick={() => handleResolveConflict(c.reservationId)}>Retry assignment</Button>
-        </div>
-      )
-    }))
-  };
+
+
+  // Fetch incidents for the badge
+  const { data: globalTicketsData = [] } = useQuery({
+    queryKey: ['incidents_global_badge'],
+    queryFn: async () => {
+      if (shiftStatus !== 'OPEN') return [];
+      const res = await axiosClient.get('/incident/incidents');
+      return res.data?.data || [];
+    },
+    refetchInterval: 5000,
+    enabled: shiftStatus === 'OPEN'
+  });
+
+  const pendingIncidentsCount = useMemo(() => {
+    return globalTicketsData.filter((t: any) => 
+      t.phase === 1 && 
+      t.status !== 'CANCELLED' && 
+      t.status !== 'REJECTED' && 
+      t.status !== 'RESOLVED' &&
+      (isManager || t.type !== 'OTHER_FEEDBACK')
+    ).length;
+  }, [globalTicketsData, isManager]);
 
   const activeGateType = sessionStorage.getItem('activeGateType');
 
   return (
     <Layout className="h-screen flex flex-col">
-      <Header className="bg-white px-4 py-2 sm:px-6 flex flex-wrap justify-between items-center gap-y-2 shadow-sm z-10 w-full h-auto min-h-[64px] shrink-0 border-b border-gray-100" style={{ backgroundColor: '#ffffff', lineHeight: 'normal' }}>
+      <Header className="bg-white px-4 py-2 sm:px-6 flex flex-wrap justify-between items-center gap-y-2 shadow-sm relative z-10 w-full h-auto min-h-[64px] shrink-0 border-b border-gray-100" style={{ backgroundColor: '#ffffff', lineHeight: 'normal' }}>
         <div className="flex items-center gap-4 shrink-0">
           <Text strong className="text-xl text-gray-800 tracking-widest cursor-pointer whitespace-nowrap" onClick={() => navigate('/staff/shift-management')}>
             PBMS <span className="text-blue-600">STAFF</span>
@@ -226,16 +240,18 @@ export const StaffLayout = () => {
             >
               Gate Console
             </Button>
-            <Button
-              type="text"
-              icon={<AlertOutlined />}
-              onClick={() => navigate('/staff/exception-desk')}
-              className="text-slate-600 hover:text-red-600 hover:bg-red-50 font-medium px-3"
-              disabled={shiftStatus !== 'OPEN'}
-              title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "Resolve Incident"}
-            >
-              Exception Desk
-            </Button>
+            <Badge count={pendingIncidentsCount} overflowCount={99} offset={[-10, 5]} size="small">
+              <Button
+                type="text"
+                icon={<AlertOutlined />}
+                onClick={() => navigate('/staff/exception-desk')}
+                className={`font-medium px-3 transition-colors ${pendingIncidentsCount > 0 ? 'text-red-600 hover:text-red-700 bg-red-50/50 hover:bg-red-100' : 'text-slate-600 hover:text-red-600 hover:bg-red-50'}`}
+                disabled={shiftStatus !== 'OPEN'}
+                title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "Resolve Incident"}
+              >
+                Exception Desk
+              </Button>
+            </Badge>
           </div>
         </div>
 
@@ -291,23 +307,11 @@ export const StaffLayout = () => {
             </Dropdown>
           )}
 
-          <Dropdown menu={conflictMenu} placement="bottomRight" arrow trigger={['click']}>
-            <div className="flex items-center gap-2 cursor-pointer hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition-colors bg-white">
-              <Badge count={pendingConflicts.length} showZero size="small">
-                <AlertOutlined className="text-red-500 text-lg" />
-              </Badge>
-              <div className="flex flex-col hidden sm:flex">
-                <span className="text-xs font-bold text-red-600 leading-none">Pre-booked Queue</span>
-                <span className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">
-                  {pendingConflicts.length === 0 ? 'No cars in queue' : `${pendingConflicts.length} cars waiting for slot`}
-                </span>
-              </div>
-            </div>
-          </Dropdown>
+
 
           <NotificationDropdown />
 
-          <Dropdown menu={userMenu} placement="bottomRight" arrow>
+          <Dropdown menu={userMenu} placement="bottomRight" arrow trigger={['click']}>
             <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 px-3 py-1 rounded transition-colors border border-gray-200">
               <Avatar icon={<UserOutlined />} className="bg-blue-600" />
               <Text strong className="text-gray-700 hidden sm:block">{name || email || 'Staff'}</Text>
