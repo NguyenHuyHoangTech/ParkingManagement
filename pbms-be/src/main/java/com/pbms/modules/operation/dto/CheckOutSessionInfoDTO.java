@@ -57,6 +57,10 @@ public class CheckOutSessionInfoDTO {
     /** Tiền phạt bổ sung từ các sự cố (Incident) nếu có */
     private java.math.BigDecimal feePenalty;
 
+    // Stateless Token for countdown
+    private String checkoutToken;
+    private Long expiresInSeconds;
+
     /** Số tiền được giảm giá (áp dụng nếu có khuyến mãi hoặc xử lý khiếu nại) */
     private java.math.BigDecimal discountFee;
     

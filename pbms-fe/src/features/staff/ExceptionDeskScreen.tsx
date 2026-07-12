@@ -28,7 +28,7 @@ export const ExceptionDeskScreen = () => {
     const handlePopState = (event: PopStateEvent) => {
       setSelectedTicket(null);
       if (window.location.hash !== '#create' && window.location.hash !== '#assign') {
-         setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
+        setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -63,7 +63,7 @@ export const ExceptionDeskScreen = () => {
   const getPenaltyConfig = (key: string, fallback: number) => {
     const config = configsData.find((c: any) => c.configKey === key);
     if (config && config.configValue) {
-       return parseInt(config.configValue, 10) || fallback;
+      return parseInt(config.configValue, 10) || fallback;
     }
     return fallback;
   };
@@ -101,10 +101,10 @@ export const ExceptionDeskScreen = () => {
   const blacklistedVehicles = vehiclesData.filter((v: any) => v.isBlacklisted);
 
   const pendingTickets = useMemo(() => {
-    return ticketsData.filter((t: any) => 
-      t.phase === 1 && 
-      t.status !== 'CANCELLED' && 
-      t.status !== 'REJECTED' && 
+    return ticketsData.filter((t: any) =>
+      t.phase === 1 &&
+      t.status !== 'CANCELLED' &&
+      t.status !== 'REJECTED' &&
       t.status !== 'RESOLVED' &&
       (isManager || t.type !== 'OTHER_FEEDBACK')
     );
@@ -115,7 +115,7 @@ export const ExceptionDeskScreen = () => {
     const isMismatchType = t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH';
     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION') || (selectedCategory === 'MISMATCH' && isMismatchType);
     if (!catMatch) return false;
-    
+
     if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
     if (queueFilter === 'PHASE_2') return t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
     if (queueFilter === 'PHASE_3') return t.status === 'RESOLVED';
@@ -157,13 +157,13 @@ export const ExceptionDeskScreen = () => {
               <div className="flex justify-between items-center">
                 <Title level={4} className="m-0 text-gray-800">Exception Desk</Title>
               </div>
-              
+
               {selectedCategory === 'OVERSTAY' && (
                 <div className="p-3 border rounded-lg bg-blue-50/50 flex flex-col gap-2">
                   <Text strong className="text-gray-700 text-sm">Overstay Configuration</Text>
                   <div className="flex items-center gap-2">
                     <Text className="text-xs text-gray-600">Threshold (Hours):</Text>
-                    <InputNumber 
+                    <InputNumber
                       size="small"
                       defaultValue={getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
                       min={1}
@@ -196,16 +196,16 @@ export const ExceptionDeskScreen = () => {
                   ...(isManager ? [{ id: 'OTHER_FEEDBACK', label: 'Góp ý', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }] : []),
                   { id: 'BLACKLIST', label: 'Blacklist', count: pendingTickets.filter((t: any) => t.type === 'BLACKLIST_VIOLATION').length }
                 ].map(cat => (
-                  <div 
-                    key={cat.id} 
-                    className={`px-4 py-2 rounded-full cursor-pointer transition-all font-medium flex items-center gap-2 shrink-0 snap-start border ${selectedCategory === cat.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-600 border-gray-200'}`} 
+                  <div
+                    key={cat.id}
+                    className={`px-4 py-2 rounded-full cursor-pointer transition-all font-medium flex items-center gap-2 shrink-0 snap-start border ${selectedCategory === cat.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-600 border-gray-200'}`}
                     onClick={() => setSelectedCategory(cat.id)}
                   >
                     <span className="whitespace-nowrap text-sm">{cat.label}</span>
                     {cat.count > 0 && (
-                      <Badge 
-                        count={cat.count} 
-                        style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#e5e7eb', color: selectedCategory === cat.id ? '#1890ff' : '#4b5563', boxShadow: 'none' }} 
+                      <Badge
+                        count={cat.count}
+                        style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#e5e7eb', color: selectedCategory === cat.id ? '#1890ff' : '#4b5563', boxShadow: 'none' }}
                       />
                     )}
                   </div>
@@ -214,52 +214,58 @@ export const ExceptionDeskScreen = () => {
 
               {/* Filters */}
               <Select size="large" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
-                {value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
+                {
+                  value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch;
-                }).length})`},
-                {value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
+                  }).length})`
+                },
+                {
+                  value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
-                }).length})`},
-                {value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
+                  }).length})`
+                },
+                {
+                  value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
-                }).length})`},
-                {value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)'},
-                {value: 'CANCELLED', label: 'Đã Hủy/Từ chối'},
+                  }).length})`
+                },
+                { value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)' },
+                { value: 'CANCELLED', label: 'Đã Hủy/Từ chối' },
               ]} />
             </div>
 
             {/* Ticket List */}
             <div className="flex-1 overflow-y-auto p-3 pb-24">
               <List dataSource={filteredTickets} renderItem={(item: any) => (
-                  <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
-                    <div className="flex justify-between items-start mb-2">
-                      <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
-                      <Text type="secondary" className="text-xs">{item.time}</Text>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
-                      {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
-                        <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
-                      ) : item.status === 'RESOLVED' ? (
-                        <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
-                      ) : (
-                        <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
-                      )}
-                      {item.sessionVehicleType && (
-                        <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
-                      )}
-                    </div>
+                <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
+                  <div className="flex justify-between items-start mb-2">
+                    <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
+                    <Text type="secondary" className="text-xs">{item.time}</Text>
                   </div>
-                )} />
-                {filteredTickets.length === 0 && (
-                  <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
-                    <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
-                    <Text className="text-slate-500">Không có sự cố nào</Text>
+                  <div className="flex flex-wrap gap-2">
+                    <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
+                    {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
+                      <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
+                    ) : item.status === 'RESOLVED' ? (
+                      <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
+                    ) : (
+                      <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
+                    )}
+                    {item.sessionVehicleType && (
+                      <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
+                    )}
                   </div>
-                )}
+                </div>
+              )} />
+              {filteredTickets.length === 0 && (
+                <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
+                  <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
+                  <Text className="text-slate-500">Không có sự cố nào</Text>
+                </div>
+              )}
             </div>
 
             {/* FAB */}
@@ -307,11 +313,11 @@ export const ExceptionDeskScreen = () => {
               {selectedTicket.status === 'RESOLVED' ? <Tag color="success">Hoàn tất</Tag> : <Tag color="processing">Phase {selectedTicket.phase}</Tag>}
             </div>
             <div className="flex-1 overflow-y-auto">
-              <IncidentDetailPanel 
-                ticket={selectedTicket} 
-                userRole="STAFF" 
-                isManager={isManager} 
-                onClose={navigateBack} 
+              <IncidentDetailPanel
+                ticket={selectedTicket}
+                userRole="STAFF"
+                isManager={isManager}
+                onClose={navigateBack}
               />
             </div>
           </div>
@@ -344,22 +350,22 @@ export const ExceptionDeskScreen = () => {
             { id: 'OTHER_FEEDBACK', label: 'Other Feedback', icon: '💬', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length },
             { id: 'BLACKLIST', label: 'Blacklist', icon: '🚫', count: pendingTickets.filter((t: any) => t.type === 'BLACKLIST_VIOLATION').length }
           ].filter(cat => cat.id !== 'OTHER_FEEDBACK' || isManager).map(cat => (
-             <div 
-               key={cat.id} 
-               className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex justify-between items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`} 
-               onClick={() => { setSelectedCategory(cat.id); setSelectedTicket(null); }}
-             >
-               <div className="flex items-center gap-3">
-                 <span className="text-lg">{cat.icon}</span>
-                 <span className="whitespace-nowrap">{cat.label}</span>
-               </div>
-               {cat.count > 0 && (
-                 <Badge 
-                   count={cat.count} 
-                   style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#1890ff', color: selectedCategory === cat.id ? '#1890ff' : '#fff' }} 
-                 />
-               )}
-             </div>
+            <div
+              key={cat.id}
+              className={`p-3 rounded-xl cursor-pointer transition-all font-medium flex justify-between items-center gap-3 shrink-0 ${selectedCategory === cat.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'}`}
+              onClick={() => { setSelectedCategory(cat.id); setSelectedTicket(null); }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{cat.icon}</span>
+                <span className="whitespace-nowrap">{cat.label}</span>
+              </div>
+              {cat.count > 0 && (
+                <Badge
+                  count={cat.count}
+                  style={{ backgroundColor: selectedCategory === cat.id ? '#fff' : '#1890ff', color: selectedCategory === cat.id ? '#1890ff' : '#fff' }}
+                />
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -371,32 +377,32 @@ export const ExceptionDeskScreen = () => {
             <Text strong className="text-gray-700 text-base">Queue ({filteredTickets.length})</Text>
           </div>
           <Select size="small" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
-            {value: 'ALL', label: 'Tất cả trạng thái'},
-            {value: 'PHASE_1', label: 'Phase 1 (Tiếp nhận)'},
-            {value: 'PHASE_2', label: 'Phase 2 (Xử lý)'},
-            {value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)'},
-            {value: 'CANCELLED', label: 'Đã Hủy/Từ chối'},
+            { value: 'ALL', label: 'Tất cả trạng thái' },
+            { value: 'PHASE_1', label: 'Phase 1 (Tiếp nhận)' },
+            { value: 'PHASE_2', label: 'Phase 2 (Xử lý)' },
+            { value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)' },
+            { value: 'CANCELLED', label: 'Đã Hủy/Từ chối' },
           ]} />
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           <List dataSource={filteredTickets} renderItem={(item: any) => (
-              <div className={`p-3 mb-2 rounded-xl cursor-pointer border transition-all ${selectedTicket?.id === item.id ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-gray-200 hover:border-blue-300'}`} onClick={() => setSelectedTicket(item)}>
-                <div className="flex justify-between items-start mb-1"><Text strong className="text-gray-800 tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text><Text type="secondary" className="text-xs">{item.time}</Text></div>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 text-[10px] sm:text-xs">{item.type}</Tag>
-                  {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
-                    <Tag color="default" className="m-0 border-0 text-[10px] sm:text-xs">Đã hủy</Tag>
-                  ) : item.status === 'RESOLVED' ? (
-                    <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Hoàn tất (P3)</Tag>
-                  ) : (
-                    <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 text-[10px] sm:text-xs">Phase {item.phase}</Tag>
-                  )}
-                  {item.sessionVehicleType && (
-                    <Tag color="purple" className="m-0 border-0 text-[10px] sm:text-xs">{item.sessionVehicleType}</Tag>
-                  )}
-                </div>
+            <div className={`p-3 mb-2 rounded-xl cursor-pointer border transition-all ${selectedTicket?.id === item.id ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-gray-200 hover:border-blue-300'}`} onClick={() => setSelectedTicket(item)}>
+              <div className="flex justify-between items-start mb-1"><Text strong className="text-gray-800 tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text><Text type="secondary" className="text-xs">{item.time}</Text></div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 text-[10px] sm:text-xs">{item.type}</Tag>
+                {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
+                  <Tag color="default" className="m-0 border-0 text-[10px] sm:text-xs">Đã hủy</Tag>
+                ) : item.status === 'RESOLVED' ? (
+                  <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Hoàn tất (P3)</Tag>
+                ) : (
+                  <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 text-[10px] sm:text-xs">Phase {item.phase}</Tag>
+                )}
+                {item.sessionVehicleType && (
+                  <Tag color="purple" className="m-0 border-0 text-[10px] sm:text-xs">{item.sessionVehicleType}</Tag>
+                )}
               </div>
-            )} />
+            </div>
+          )} />
         </div>
       </div>
 
@@ -410,7 +416,7 @@ export const ExceptionDeskScreen = () => {
             </div>
             <div className="flex items-center gap-2">
               <Text className="text-sm text-gray-600">Threshold (Hours):</Text>
-              <InputNumber 
+              <InputNumber
                 style={{ width: 100 }}
                 defaultValue={getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
                 min={1}
@@ -424,7 +430,7 @@ export const ExceptionDeskScreen = () => {
             </div>
           </div>
         )}
-        
+
         {selectedCategory === 'CREATE_INCIDENT' && !selectedTicket ? (
           <div className="flex flex-col h-full overflow-y-auto">
             <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -456,11 +462,11 @@ export const ExceptionDeskScreen = () => {
         ) : selectedTicket ? (
           <div className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-hidden p-4">
-              <IncidentDetailPanel 
-                ticket={selectedTicket} 
-                userRole="STAFF" 
-                isManager={isManager} 
-                onClose={() => setSelectedTicket(null)} 
+              <IncidentDetailPanel
+                ticket={selectedTicket}
+                userRole="STAFF"
+                isManager={isManager}
+                onClose={() => setSelectedTicket(null)}
               />
             </div>
           </div>

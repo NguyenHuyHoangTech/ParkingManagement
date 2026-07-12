@@ -67,13 +67,38 @@ public class JwtProvider {
                 .get("role", String.class);
     }
 
-    public boolean validateToken(String authToken) {
+    public boolean validateToken(String token) {
         try {
-            Jwts.parser().verifyWith(getSigningKey()).clock(getSimulatedClock()).build().parseSignedClaims(authToken);
+            Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .clock(getSimulatedClock())
+                    .build()
+                    .parseSignedClaims(token);
             return true;
         } catch (Exception e) {
             return false;
         }
     }
-}
 
+    public String generateCheckoutToken(String sessionId, double expectedFee) {
+        Date now = java.util.Date.from(com.pbms.common.utils.TimeProvider.now().atZone(java.time.ZoneId.systemDefault()).toInstant());
+        return Jwts.builder()
+                .subject("checkout")
+                .claim("sessionId", sessionId)
+                .claim("expectedFee", expectedFee)
+                .issuedAt(now)
+                // 5 minutes expiration
+                .expiration(new Date(now.getTime() + 5 * 60 * 1000))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public io.jsonwebtoken.Claims getCheckoutClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .clock(getSimulatedClock())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+}

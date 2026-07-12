@@ -12,6 +12,10 @@ import java.util.UUID;
 
 import com.pbms.modules.finance.strategy.PayPalStrategy;
 import com.pbms.modules.finance.strategy.PayOsStrategy;
+import com.pbms.modules.finance.service.PaymentValidatorService;
+import com.pbms.modules.finance.repository.PaymentOrderRepository;
+import com.pbms.modules.finance.dto.PaymentActionRequest;
+import com.pbms.modules.finance.dto.PaymentExecutionResponse;
 
 @RestController
 @RequestMapping("/api/v1/finance/payments")
@@ -20,8 +24,8 @@ public class PaymentController {
 
     private final PayPalStrategy payPalStrategy;
     private final PayOsStrategy payOsStrategy;
-    private final com.pbms.modules.finance.service.PaymentValidatorService paymentValidatorService;
-    private final com.pbms.modules.finance.repository.PaymentOrderRepository paymentOrderRepository;
+    private final PaymentValidatorService paymentValidatorService;
+    private final PaymentOrderRepository paymentOrderRepository;
 
     /**
      * POST /api/v1/payments/initialize
@@ -29,7 +33,7 @@ public class PaymentController {
      */
     @PostMapping("/initialize")
     public ResponseEntity<ApiResponse<Map<String, Object>>> initializePayment(
-            @RequestBody com.pbms.modules.finance.dto.PaymentActionRequest request) {
+            @RequestBody PaymentActionRequest request) {
         try {
             String currentUserEmail = null;
             org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
@@ -37,8 +41,19 @@ public class PaymentController {
                 currentUserEmail = auth.getName();
             }
 
-            Double amount = request.getAmount() != null ? request.getAmount() : 0.0;
-            String gateway = request.getGateway(); // VNPAY, PAYOS, PAYPAL
+            Double requestedAmount = request.getAmount() != null ? request.getAmount() : 0.0;
+            Double amount = paymentValidatorService.calculateRequiredAmount(request);
+            
+            if (amount <= 0) {
+                return ResponseEntity.badRequest().body(ApiResponse.error(400, "Số tiền thanh toán phải lớn hơn 0 để sử dụng cổng thanh toán."));
+            }
+            
+            if (Math.abs(amount - requestedAmount) > 1.0) {
+                return ResponseEntity.badRequest().body(ApiResponse.error(400, "Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", amount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất."));
+            }
+            
+            request.setAmount(amount);
+            String gateway = request.getGateway(); // PAYOS, PAYPAL
             String orderId = UUID.randomUUID().toString();
             String paymentUrl = "";
             String qrCode = null;
@@ -55,7 +70,7 @@ public class PaymentController {
                     orderId = paymentUrl.substring(paymentUrl.indexOf("token=") + 6);
                 }
             } else {
-                paymentUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_TxnRef=" + orderId;
+                throw new IllegalArgumentException("Unsupported payment gateway: " + gateway);
             }
 
             // Save Pre-validated Order
@@ -134,12 +149,12 @@ public class PaymentController {
      * Finalize transaction and run business logic
      */
     @PostMapping("/execute-action")
-    public ResponseEntity<ApiResponse<com.pbms.modules.finance.dto.PaymentExecutionResponse>> executeAction(@RequestBody Map<String, String> requestBody) {
+    public ResponseEntity<ApiResponse<PaymentExecutionResponse>> executeAction(@RequestBody Map<String, String> requestBody) {
         try {
             String token = requestBody.get("token");
             if (token == null || token.isEmpty()) return ResponseEntity.badRequest().body(ApiResponse.error(400, "Token required"));
             
-            com.pbms.modules.finance.dto.PaymentExecutionResponse executionResponse = paymentValidatorService.executeAction(token);
+            PaymentExecutionResponse executionResponse = paymentValidatorService.executeAction(token);
             
             if (executionResponse.isSuccess()) {
                 return ResponseEntity.ok(ApiResponse.success(executionResponse, "Action executed successfully"));
@@ -164,7 +179,7 @@ public class PaymentController {
                     if (auth != null && auth.getName() != null && !auth.getName().equals("anonymousUser")) {
                         currentUserEmail = auth.getName();
                     }
-                    com.pbms.modules.finance.dto.PaymentExecutionResponse refundResponse = paymentValidatorService.processRefundForFailedAction(token, errorMessage, currentUserEmail);
+                    PaymentExecutionResponse refundResponse = paymentValidatorService.processRefundForFailedAction(token, errorMessage, currentUserEmail);
                     return ResponseEntity.badRequest().body(ApiResponse.error(400, refundResponse.getMessage()));
                 } catch (Exception refundEx) {
                     return ResponseEntity.badRequest().body(ApiResponse.error(500, "Execution Failed & Refund Failed: " + refundEx.getMessage()));

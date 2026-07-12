@@ -375,6 +375,8 @@ public class IncidentService {
             throw new IllegalStateException("Ticket is already resolved or in a different status");
         }
 
+        ParkingSession session = ticket.getSession();
+
         ticket.setStatus("RESOLVED");
         
         String newNotes = resolutionNotes != null ? resolutionNotes : "[RESOLVED] Đã xử lý hoàn tất.";
@@ -400,8 +402,38 @@ public class IncidentService {
             ticket.setFineAmount(penaltyFee);
         }
 
-        // Update ParkingSession to COMPLETED with fee and picOut
-        ParkingSession session = ticket.getSession();
+        // 2-Layer Validation Check
+        if (session != null) {
+            com.pbms.modules.operation.service.GateOperationService gateOperationService = applicationContext.getBean(com.pbms.modules.operation.service.GateOperationService.class);
+            
+            if (parkingFee != null) {
+                com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = gateOperationService.getCheckOutSessionInfo(session, com.pbms.common.utils.TimeProvider.now());
+                
+                java.math.BigDecimal expectedParkingFee = (info.getExpectedFee() != null ? info.getExpectedFee() : java.math.BigDecimal.ZERO)
+                        .add(info.getOvertimeFee() != null ? info.getOvertimeFee() : java.math.BigDecimal.ZERO);
+                
+                if (expectedParkingFee.subtract(parkingFee).abs().compareTo(java.math.BigDecimal.ONE) > 0) {
+                    throw new IllegalArgumentException("Phí đỗ xe không khớp với hệ thống (Thực tế: " + String.format("%,d", expectedParkingFee.longValue()) + " VNĐ). Vui lòng ấn 'Cập nhật lại phí hiện tại' trước khi xác nhận.");
+                }
+            }
+
+            if (penaltyFee != null) {
+                if ("LOST_CARD".equals(ticket.getIssueType()) || "ZONE_VIOLATION".equals(ticket.getIssueType()) || "BLACKLIST_VIOLATION".equals(ticket.getIssueType())) {
+                    if (ticket.getFineAmount() != null && penaltyFee.compareTo(ticket.getFineAmount()) != 0) {
+                        throw new IllegalArgumentException("Phí phạt không khớp với hệ thống. Bắt buộc: " + String.format("%,d", ticket.getFineAmount().longValue()) + " VNĐ");
+                    }
+                } else if ("DAMAGED_CARD".equals(ticket.getIssueType())) {
+                    java.math.BigDecimal systemDamagedFee = new java.math.BigDecimal("50000");
+                    try {
+                        systemDamagedFee = new java.math.BigDecimal(systemConfigService.getConfigByKey("PENALTY_DAMAGED_CARD").getConfigValue());
+                    } catch (Exception e) {}
+                    
+                    if (penaltyFee.compareTo(java.math.BigDecimal.ZERO) != 0 && penaltyFee.compareTo(systemDamagedFee) != 0) {
+                        throw new IllegalArgumentException("Phí phạt đền thẻ không hợp lệ. Chỉ được phép 0 VNĐ (Hao mòn) hoặc " + String.format("%,d", systemDamagedFee.longValue()) + " VNĐ (Lỗi người dùng)");
+                    }
+                }
+            }
+        }
         if (session != null && ("ACTIVE".equals(session.getStatus()) || "LOCKED".equals(session.getStatus()))) {
             session.setStatus("COMPLETED");
             if (session.getTimeOut() == null) {

@@ -68,18 +68,7 @@ public class PricingCalculatorService {
             totalFee = totalFee.add(sliceFee);
         }
 
-        // BƯỚC 3: TỔNG HỢP VÀ ÁP TRẦN (Main_CalculateTotalFee)
-        if (policy.getMaxParkingCap() != null && policy.getMaxParkingCap().compareTo(BigDecimal.ZERO) > 0) {
-            breakdown.add("--- [Post-processing] Ceiling check ---");
-            breakdown.add("Calculated total: " + df.format(totalFee) + " VND | Global cap: " + df.format(policy.getMaxParkingCap()) + " VND");
 
-            if (totalFee.compareTo(policy.getMaxParkingCap()) > 0) {
-                breakdown.add("-> Ceiling exceeded: Adjusting to global cap.");
-                totalFee = policy.getMaxParkingCap();
-            } else {
-                breakdown.add("-> Normal fee: Under global cap.");
-            }
-        }
 
         breakdown.add("FINAL RESULT => TOTAL FEE: " + df.format(totalFee) + " VND");
 

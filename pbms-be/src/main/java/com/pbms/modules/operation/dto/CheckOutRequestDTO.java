@@ -33,7 +33,11 @@ public class CheckOutRequestDTO {
     private String paymentMethod;
 
     /** Tổng số tiền phí cuối cùng khách hàng cần thanh toán. Đơn vị: VNĐ */
+    /** Phí thanh toán thực tế (đã tính qua token hoặc UI) */
     private java.math.BigDecimal totalFee;
+
+    /** Stateless token to verify price and time */
+    private String checkoutToken;
 
     /**
      * Phân loại khách hàng khi ra cổng.

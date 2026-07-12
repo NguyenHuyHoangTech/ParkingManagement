@@ -216,9 +216,7 @@ export const HomeScreen = () => {
                     <ul className="space-y-4 text-sm text-slate-600 font-medium mt-4">
                         <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Thanh toán linh hoạt tại cổng ra</li>
                         <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Nhận diện biển số LPR chính xác 99%</li>
-                        {policy.maxParkingCap > 0 && (
-                          <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Giá trần tối đa: <strong className="text-slate-800">{policy.maxParkingCap.toLocaleString()}đ/lượt</strong></li>
-                        )}
+
                         
                         {/* Chi tiết ca đỗ */}
                         {policy.shifts && policy.shifts.length > 0 && (
@@ -406,7 +404,7 @@ export const HomeScreen = () => {
         <section className="relative">
             <div className="text-center mb-8 md:mb-16 max-w-3xl mx-auto">
                 <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight mb-4">Gói dịch vụ linh hoạt</h2>
-                <p className="text-slate-500 font-medium text-sm md:text-base">Thanh toán tự động không tiền mặt qua cổng điện tử hoặc ví VNPay. Bảng giá minh bạch, không phụ phí ẩn, tích hợp nhận diện biển số.</p>
+                <p className="text-slate-500 font-medium text-sm md:text-base">Thanh toán tự động không tiền mặt qua cổng điện tử. Bảng giá minh bạch, không phụ phí ẩn, tích hợp nhận diện biển số.</p>
             </div>
 
             {renderPricingCards()}

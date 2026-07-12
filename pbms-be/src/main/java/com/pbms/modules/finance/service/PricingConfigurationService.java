@@ -55,7 +55,7 @@ public class PricingConfigurationService {
         policy.setVehicleType(vt);
         policy.setGlobalBaseMins(dto.getGlobalBaseMins());
         policy.setGlobalBaseFee(dto.getGlobalBaseFee());
-        policy.setMaxParkingCap(dto.getMaxParkingCap());
+
         policy.setMonthlyRate(dto.getMonthlyRate() != null ? dto.getMonthlyRate() : java.math.BigDecimal.ZERO);
         policy.setStatus(dto.getStatus());
 
@@ -96,7 +96,7 @@ public class PricingConfigurationService {
                 .vehicleTypeId(policy.getVehicleType() != null ? policy.getVehicleType().getId() : null)
                 .globalBaseMins(policy.getGlobalBaseMins())
                 .globalBaseFee(policy.getGlobalBaseFee())
-                .maxParkingCap(policy.getMaxParkingCap())
+
                 .monthlyRate(policy.getMonthlyRate())
                 .status(policy.getStatus())
                 .build();
@@ -139,7 +139,7 @@ public class PricingConfigurationService {
         PricingPolicy policy = new PricingPolicy();
         policy.setGlobalBaseMins(dto.getGlobalBaseMins());
         policy.setGlobalBaseFee(dto.getGlobalBaseFee());
-        policy.setMaxParkingCap(dto.getMaxParkingCap());
+
 
         if (dto.getShifts() != null) {
             for (PricingShiftDTO sDTO : dto.getShifts()) {

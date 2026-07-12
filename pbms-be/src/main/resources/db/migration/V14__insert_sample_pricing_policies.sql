@@ -6,14 +6,13 @@ DELETE FROM dbo.pricing_policies WHERE global_base_mins IS NULL OR global_base_f
 
 -- Insert Policy cho FOUR_WHEEL (Ô tô)
 INSERT INTO dbo.pricing_policies (
-    policy_name, vehicle_type_id, global_base_mins, global_base_fee, max_parking_cap, status, created_at
+    policy_name, vehicle_type_id, global_base_mins, global_base_fee, status, created_at
 )
 SELECT 
     'Bảng giá Ô tô tiêu chuẩn', 
     MIN(id), 
     60,      -- 1 block = 60 phút
     25000,   -- 25.000 VNĐ / block
-    200000,  -- Max 200.000 VNĐ / ngày
     'ACTIVE', 
     CURRENT_TIMESTAMP
 FROM dbo.vehicle_types WHERE category = 'FOUR_WHEEL'
@@ -26,14 +25,13 @@ HAVING MIN(id) IS NOT NULL;
 
 -- Insert Policy cho TWO_WHEEL (Xe máy)
 INSERT INTO dbo.pricing_policies (
-    policy_name, vehicle_type_id, global_base_mins, global_base_fee, max_parking_cap, status, created_at
+    policy_name, vehicle_type_id, global_base_mins, global_base_fee, status, created_at
 )
 SELECT 
     'Bảng giá Xe máy tiêu chuẩn', 
     MIN(id), 
     60,      -- 1 block = 60 phút
     5000,    -- 5.000 VNĐ / block
-    50000,   -- Max 50.000 VNĐ / ngày
     'ACTIVE', 
     CURRENT_TIMESTAMP
 FROM dbo.vehicle_types WHERE category = 'TWO_WHEEL'

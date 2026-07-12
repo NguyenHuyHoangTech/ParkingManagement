@@ -34,8 +34,6 @@ public class PricingPolicy {
     @Column(name = "global_base_fee", nullable = false, precision = 18, scale = 2)
     private BigDecimal globalBaseFee;
 
-    @Column(name = "max_parking_cap", nullable = false, precision = 18, scale = 2)
-    private BigDecimal maxParkingCap;
 
     @Column(nullable = false, length = 50)
     @Builder.Default

@@ -419,7 +419,7 @@ public class ReservationService {
         reservationRepository.save(res);
 
         if (res.getZone() != null && res.getZone().getFloor() != null) {
-            Long floorId = res.getZone().getFloor().getId();
+
             if (zoneRoutingService.isZonePhysicallyFull(res.getZone().getId())) {
                 String message = String.format(
                         "Zone %s is FULL but vehicle %s is arriving soon. Please resolve this conflict.",

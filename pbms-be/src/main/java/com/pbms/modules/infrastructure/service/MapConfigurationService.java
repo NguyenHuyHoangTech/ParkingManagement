@@ -106,7 +106,7 @@ public class MapConfigurationService {
                             .build())
                     .collect(Collectors.toList());
 
-            VehicleType vt = vehicleTypes.get(z.getVehicleType().getId());
+            VehicleType vt = z.getVehicleType() != null ? vehicleTypes.get(z.getVehicleType().getId()) : null;
 
             // Calculate active reservations for the zone
             java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
@@ -134,12 +134,12 @@ public class MapConfigurationService {
 
             return ZoneConfigDTO.builder()
                     .id(z.getId())
-                    .floorId(z.getFloor().getId())
+                    .floorId(z.getFloor() != null ? z.getFloor().getId() : null)
                     .name(z.getZoneName())
                     .capacity(slotDTOs.size())
-                    .vehicleTypeId(vt.getId())
-                    .vehicleTypeName(vt.getTypeName())
-                    .vehicleCategory(vt.getCategory())
+                    .vehicleTypeId(vt != null ? vt.getId() : null)
+                    .vehicleTypeName(vt != null ? vt.getTypeName() : null)
+                    .vehicleCategory(vt != null ? vt.getCategory() : null)
                     .functionType(z.getFunctionType())
                     .layoutX(z.getLayoutX())
                     .layoutY(z.getLayoutY())
@@ -153,7 +153,7 @@ public class MapConfigurationService {
 
         List<GateConfigDTO> gateDTOs = gates.stream().map(g -> GateConfigDTO.builder()
                 .id(g.getId())
-                .floorId(g.getFloor().getId())
+                .floorId(g.getFloor() != null ? g.getFloor().getId() : null)
                 .name(g.getGateName())
                 .type(g.getGateType())
                 .status(g.getStatus())

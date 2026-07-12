@@ -65,7 +65,7 @@ public class VehicleTypeService {
         policyDTO.setVehicleTypeId(vt.getId());
         policyDTO.setGlobalBaseMins(0);
         policyDTO.setGlobalBaseFee(new BigDecimal("5000"));
-        policyDTO.setMaxParkingCap(new BigDecimal("50000"));
+
         policyDTO.setMonthlyRate(new BigDecimal("200000"));
         policyDTO.setStatus("ACTIVE");
         

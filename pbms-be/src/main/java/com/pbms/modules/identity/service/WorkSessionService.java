@@ -237,15 +237,19 @@ public class WorkSessionService {
 
             for (ParkingSession ps : checkOuts) {
                 BigDecimal fee = ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO;
-                totalRevenue = totalRevenue.add(fee);
+                BigDecimal overtime = ps.getOvertimeFee() != null ? ps.getOvertimeFee() : BigDecimal.ZERO;
+                BigDecimal penalty = ps.getPenaltyFee() != null ? ps.getPenaltyFee() : BigDecimal.ZERO;
+                BigDecimal actualTotal = fee.add(overtime).add(penalty);
+                
+                totalRevenue = totalRevenue.add(actualTotal);
                 if (otherRevenueMap.containsKey(ps.getId())) {
                     BigDecimal otherAmt = otherRevenueMap.get(ps.getId());
                     otherRevenue = otherRevenue.add(otherAmt);
-                    if (fee.compareTo(otherAmt) > 0) {
-                        cashRevenue = cashRevenue.add(fee.subtract(otherAmt));
+                    if (actualTotal.compareTo(otherAmt) > 0) {
+                        cashRevenue = cashRevenue.add(actualTotal.subtract(otherAmt));
                     }
                 } else {
-                    cashRevenue = cashRevenue.add(fee);
+                    cashRevenue = cashRevenue.add(actualTotal);
                 }
             }
             

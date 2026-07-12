@@ -19,7 +19,7 @@ public class PricingPolicyDTO {
     private Long vehicleTypeId;
     private Integer globalBaseMins;
     private BigDecimal globalBaseFee;
-    private BigDecimal maxParkingCap;
+
     private BigDecimal monthlyRate;
     private String status;
     @Builder.Default

@@ -38,6 +38,8 @@ export const CustomerMonthlyPassScreen = () => {
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
   const [paymentUrl, setPaymentUrl] = useState<string>('');
   const [paymentQrCode, setPaymentQrCode] = useState<string>('');
   const [paymentOrderId, setPaymentOrderId] = useState<string>('');
@@ -171,6 +173,52 @@ export const CustomerMonthlyPassScreen = () => {
     setPaymentOrderId('');
     setCountdown(60);
     generateLinkMutation.mutate();
+  };
+
+  useEffect(() => {
+    let timer: any;
+    if (verifyCooldown > 0) {
+      timer = setTimeout(() => setVerifyCooldown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [verifyCooldown]);
+
+  const handleManualVerify = () => {
+    if (!paymentOrderId || verifyCooldown > 0) return;
+    setIsVerifying(true);
+    const captureUrl = selectedGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
+    
+    axiosClient.post(captureUrl, { token: paymentOrderId })
+      .then(res => {
+        if (res.data?.data?.status === 'COMPLETED') {
+          axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
+            .then(execRes => {
+               message.success('Monthly Pass registered successfully!');
+               setIsPaymentSuccess(true);
+               setIsQRModalVisible(false);
+               setTimeout(() => {
+                 navigate('/customer/my-parking?tab=monthly');
+               }, 2000);
+            })
+            .catch(execErr => {
+               message.error(execErr.response?.data?.message || 'System failed to process ticket. Your payment has been queued for a refund.');
+               setIsQRModalVisible(false);
+            });
+        } else {
+           message.warning('Payment not yet completed on the gateway.');
+        }
+      })
+      .catch(err => {
+         if (err.response?.status === 400) {
+           message.warning('Payment not yet received. Please try again later.');
+         } else {
+           message.error('System is busy or unable to verify.');
+         }
+      })
+      .finally(() => {
+         setIsVerifying(false);
+         setVerifyCooldown(10);
+      });
   };
 
   useEffect(() => {
@@ -472,10 +520,24 @@ export const CustomerMonthlyPassScreen = () => {
                 )}
               </Text>
               
-              <div className="flex items-center justify-center space-x-2 text-slate-600">
+              <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
                 <Spin size="small" />
                 <Text>Awaiting payment ({countdown}s)...</Text>
               </div>
+
+              {paymentUrl && paymentOrderId && (
+                  <div className="mb-4 text-center">
+                    <Button 
+                      type="link" 
+                      onClick={handleManualVerify} 
+                      loading={isVerifying}
+                      disabled={verifyCooldown > 0}
+                      className={`font-semibold ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
+                    >
+                      {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'I have paid but the screen hasn\'t updated. Verify now!'}
+                    </Button>
+                  </div>
+              )}
             </>
           ) : (
             <div className="animate-fade-in py-8">

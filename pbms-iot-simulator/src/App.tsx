@@ -849,7 +849,25 @@ const App = () => {
 
       <Form form={timeForm} layout="vertical" onFinish={values => timeTravelMutation.mutate(values)}>
         <Form.Item name="targetTime" label={<span className="text-gray-600 text-base">Select Fast-Forward Target</span>} rules={[{ required: true, message: 'Please select target time' }]}>
-          <DatePicker showTime className="w-full" size="large" format="YYYY-MM-DD HH:mm:ss" />
+          <DatePicker 
+            showTime 
+            className="w-full" 
+            size="large" 
+            format="YYYY-MM-DD HH:mm:ss" 
+            showNow={false}
+            renderExtraFooter={() => (
+              <Button 
+                type="link" 
+                onClick={() => {
+                  if (syncData?.currentTime) {
+                    timeForm.setFieldsValue({ targetTime: dayjs(syncData.currentTime) });
+                  }
+                }}
+              >
+                Now (System Time)
+              </Button>
+            )}
+          />
         </Form.Item>
         <div className="mt-8">
           <Button type="primary" htmlType="submit" size="large" icon={<FastForwardOutlined />} className="w-full bg-purple-600 hover:bg-purple-500 border-none font-bold text-lg h-12" loading={timeTravelMutation.isPending}>

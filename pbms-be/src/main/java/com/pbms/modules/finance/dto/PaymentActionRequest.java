@@ -16,5 +16,6 @@ public class PaymentActionRequest {
     private Double amount;
     private String gateway; // VNPAY, PAYOS, PAYPAL
     private Long sessionId; // optional
+    private String checkoutToken;
     private Map<String, Object> payload; // the actual JSON payload required for the action
 }

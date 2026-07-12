@@ -1092,7 +1092,7 @@ API được làm phẳng (Flattened) và giấu hoàn toàn mảng floors/zones
       `"endTime": "06:00",`  
       `"flatRate": "50000 VNĐ trọn gói ca đêm"`  
     `},`  
-    `"maxParkingCap": "3000000 VNĐ / tháng"`  
+
   `},`  
   `"availability": [`  
     `{`  

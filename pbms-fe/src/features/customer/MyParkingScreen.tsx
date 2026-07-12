@@ -332,6 +332,8 @@ export const MyParkingScreen = () => {
   const [isRenewQRModalVisible, setIsRenewQRModalVisible] = useState(false);
   const [renewCountdown, setRenewCountdown] = useState(60);
   const [isRenewSuccess, setIsRenewSuccess] = useState(false);
+  const [isRenewVerifying, setIsRenewVerifying] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
   const [renewPaymentUrl, setRenewPaymentUrl] = useState('');
   const [renewPaymentQrCode, setRenewPaymentQrCode] = useState('');
   const [renewPaymentToken, setRenewPaymentToken] = useState('');
@@ -383,6 +385,55 @@ export const MyParkingScreen = () => {
     setRenewPaymentUrl('');
     setRenewPaymentToken('');
     generateRenewLinkMutation.mutate(totalFee);
+  };
+
+  useEffect(() => {
+    let timer: any;
+    if (verifyCooldown > 0) {
+      timer = setTimeout(() => setVerifyCooldown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [verifyCooldown]);
+
+  const handleManualVerifyRenew = () => {
+    if (!renewPaymentToken || verifyCooldown > 0) return;
+    setIsRenewVerifying(true);
+    const captureUrl = renewGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
+    
+    axiosClient.post(captureUrl, { token: renewPaymentToken })
+      .then(res => {
+        if (res.data?.data?.status === 'COMPLETED') {
+          axiosClient.post('/finance/payments/execute-action', { token: renewPaymentToken })
+            .then(execRes => {
+              setIsRenewSuccess(true);
+              message.success('Monthly pass renewed successfully!');
+              queryClient.invalidateQueries({ queryKey: ['my-passes'] });
+              setTimeout(() => {
+                setIsRenewQRModalVisible(false);
+                setRenewDrawerVisible(false);
+              }, 2000);
+            })
+            .catch(err => {
+              message.error(err.response?.data?.message || 'System Error: Payment refunded.');
+              setIsRenewSuccess(true); // Stop polling
+              setIsRenewQRModalVisible(false);
+              setRenewDrawerVisible(false);
+            });
+        } else {
+           message.warning('Payment not yet completed on the gateway.');
+        }
+      })
+      .catch(err => {
+         if (err.response?.status === 400) {
+           message.warning('Payment not yet received. Please try again later.');
+         } else {
+           message.error('System is busy or unable to verify.');
+         }
+      })
+      .finally(() => {
+         setIsRenewVerifying(false);
+         setVerifyCooldown(10);
+      });
   };
 
   useEffect(() => {
@@ -1224,10 +1275,24 @@ export const MyParkingScreen = () => {
                   )}
                 </Text>
 
-                <div className="flex items-center justify-center space-x-2 text-slate-600">
+                <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
                   <Spin size="small" />
                   <Text>Waiting for payment ({renewCountdown}s)...</Text>
                 </div>
+
+                {renewPaymentUrl && renewPaymentToken && (
+                    <div className="mb-4 text-center">
+                      <Button 
+                        type="link" 
+                        onClick={handleManualVerifyRenew} 
+                        loading={isRenewVerifying}
+                        disabled={verifyCooldown > 0}
+                        className={`font-semibold ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
+                      >
+                        {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'I have paid but the screen hasn\'t updated. Verify now!'}
+                      </Button>
+                    </div>
+                )}
               </>
             ) : (
               <div className="animate-fade-in py-8">

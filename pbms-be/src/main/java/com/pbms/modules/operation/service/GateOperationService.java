@@ -58,13 +58,15 @@ public class GateOperationService {
 
     private final SimpMessagingTemplate messagingTemplate;
 
+    private final com.pbms.common.security.JwtProvider jwtProvider;
+
+    private final com.pbms.modules.incident.repository.IncidentTicketRepository incidentTicketRepository;
+
     private final TransactionRepository transactionRepository;
 
     private final SystemConfigService systemConfigService;
 
     private final com.pbms.common.service.FileStorageService fileStorageService;
-
-    private final com.pbms.modules.incident.repository.IncidentTicketRepository incidentTicketRepository;
 
     private List<Reservation> getValidPendingReservations(String plate) {
         List<Reservation> pending = reservationRepository.findByVehicle_PlateNumberAndStatus(plate, "PENDING");
@@ -432,8 +434,27 @@ public class GateOperationService {
         
         info.setFeePenalty(penaltyFee);
 
+        java.math.BigDecimal totalAmountForToken = calculateTotalAmount(info);
+        String token = jwtProvider.generateCheckoutToken(String.valueOf(session.getId()), totalAmountForToken.doubleValue());
+        info.setCheckoutToken(token);
+        info.setExpiresInSeconds(300L); // 5 minutes
+
         return info;
     }
+
+    public java.math.BigDecimal calculateTotalAmount(com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info) {
+        java.math.BigDecimal parkingFee = info.getExpectedFee() != null ? info.getExpectedFee() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal overtimeFee = info.getOvertimeFee() != null ? info.getOvertimeFee() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal penaltyFee = info.getFeePenalty() != null ? info.getFeePenalty() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal discount = info.getDiscountFee() != null ? info.getDiscountFee() : java.math.BigDecimal.ZERO;
+        
+        java.math.BigDecimal finalAmount = parkingFee.add(overtimeFee).add(penaltyFee).subtract(discount);
+        if (finalAmount.compareTo(java.math.BigDecimal.ZERO) < 0) {
+            finalAmount = java.math.BigDecimal.ZERO;
+        }
+        return finalAmount;
+    }
+
 
     @Transactional
     public GateResponseDTO processCheckIn(CheckInRequestDTO request) {
@@ -719,7 +740,27 @@ public class GateOperationService {
         }
 
         session.setGateOut(gate);
-        session.setTimeOut(com.pbms.common.utils.TimeProvider.now());
+        java.time.LocalDateTime checkOutTime = com.pbms.common.utils.TimeProvider.now();
+        if (request.getCheckoutToken() != null && !request.getCheckoutToken().isEmpty()) {
+            try {
+                io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(request.getCheckoutToken());
+                if (!String.valueOf(session.getId()).equals(claims.get("sessionId", String.class))) {
+                    throw new IllegalArgumentException("Token không khớp với phiên đỗ xe hiện tại.");
+                }
+                java.util.Date iat = claims.getIssuedAt();
+                checkOutTime = java.time.LocalDateTime.ofInstant(iat.toInstant(), java.time.ZoneId.systemDefault());
+            } catch (io.jsonwebtoken.ExpiredJwtException e) {
+                if (!"CASH".equalsIgnoreCase(request.getPaymentMethod())) {
+                    io.jsonwebtoken.Claims claims = e.getClaims();
+                    checkOutTime = java.time.LocalDateTime.ofInstant(claims.getIssuedAt().toInstant(), java.time.ZoneId.systemDefault());
+                } else {
+                    throw new IllegalArgumentException("Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+            }
+        }
+        session.setTimeOut(checkOutTime);
         session.setPlateOut(request.getPlateNumber());
         session.setPicOutPanorama(fileStorageService.storeBase64File(request.getImageBase64()));
         session.setPicOutFace(fileStorageService.storeBase64File(request.getLprImageBase64()));
@@ -839,6 +880,24 @@ public class GateOperationService {
         sessionRepository.save(session);
 
         BigDecimal totalAmount = totalParkingFee.add(penaltyFee);
+        
+        if (request.getCheckoutToken() != null && !request.getCheckoutToken().isEmpty()) {
+            if ("CASH".equalsIgnoreCase(request.getPaymentMethod())) {
+                try {
+                    io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(request.getCheckoutToken());
+                    Double expectedFeeDouble = claims.get("expectedFee", Double.class);
+                    if (expectedFeeDouble != null && totalAmount.subtract(BigDecimal.valueOf(expectedFeeDouble)).abs().compareTo(BigDecimal.ONE) > 0) {
+                        throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                    }
+                } catch (Exception e) {
+                     // Already caught above
+                }
+            }
+        } else if (request.getTotalFee() != null) {
+            if ("CASH".equalsIgnoreCase(request.getPaymentMethod()) && totalAmount.subtract(request.getTotalFee()).abs().compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+            }
+        }
         if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             String payMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "CASH";
             Transaction transaction = Transaction.builder()

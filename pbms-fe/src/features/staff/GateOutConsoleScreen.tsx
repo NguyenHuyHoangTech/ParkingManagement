@@ -61,10 +61,28 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const [paymentQrCode, setPaymentQrCode] = useState<string>('');
   const [paymentOrderId, setPaymentOrderId] = useState<string>('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number>(0);
+  const [isExpired, setIsExpired] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setCountdown(0);
+      setIsExpired(false);
+      return;
+    }
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setCountdown(remaining);
+      setIsExpired(remaining <= 0);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
 
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
-
-
 
   useEffect(() => {
     if (activeGate && stompClient && connected) {
@@ -135,8 +153,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 bookedTimeIn: info.bookedTimeIn ? simulatedDayjs(info.bookedTimeIn).format('DD/MM/YYYY HH:mm:ss') : null,
                 bookedTimeOut: info.bookedTimeOut ? simulatedDayjs(info.bookedTimeOut).format('DD/MM/YYYY HH:mm:ss') : null,
                 overtimeMinutes: info.overtimeMinutes || 0,
-                status: info.status || 'ACTIVE'
+                status: info.status || 'ACTIVE',
+                checkoutToken: info.checkoutToken || null,
+                expiresInSeconds: info.expiresInSeconds || 0
             });
+            if (info.expiresInSeconds && info.checkoutToken) {
+               setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
+            } else {
+               setExpiresAt(null);
+            }
         }).catch(err => {
             message.warning(err.response?.data?.message || 'No corresponding input vehicle data found!');
             setScanData({
@@ -233,7 +258,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         imageBase64: scanData.imageOutBase64,
         lprImageBase64: scanData.lprImageOutBase64,
         paymentMethod: paymentMethod,
-        totalFee: scanData.parkingFee || 0
+        totalFee: scanData.parkingFee || 0,
+        checkoutToken: scanData.checkoutToken
       };
       const response = await axiosClient.post('/operation/gates/check-out', payload);
       
@@ -292,12 +318,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             lprImageBase64: scanData.lprImageOutBase64,
             paymentMethod: paymentMethod,
             totalFee: amount,
-            sessionId: scanData.sessionId
+            sessionId: scanData.sessionId,
+            checkoutToken: scanData.checkoutToken
         };
         axiosClient.post('/finance/payments/initialize', { 
             actionType: 'CHECKOUT',
             gateway: paymentMethod, 
             amount: amount,
+            checkoutToken: scanData.checkoutToken,
             payload: payload
         })
           .then(res => {
@@ -327,6 +355,37 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       setPaymentOrderId('');
     }
   }, [paymentMethod, scanData]);
+
+  const handleRefreshPrice = () => {
+      if (!scanData?.rfid && !scanData?.plateNumber) return;
+      setIsLoading(true);
+      axiosClient.get('/operation/gates/checkout-session-info', {
+        params: { rfid: scanData?.rfid, plate: scanData?.plateNumber }
+      }).then(res => {
+          const info = res.data.data;
+          setScanData((prev: any) => ({
+              ...prev,
+              feeBase: info.expectedFee || 0,
+              feePenalty: info.feePenalty || 0,
+              discount: info.discountFee || 0,
+              overtimeFee: info.overtimeFee || 0,
+              expectedFee: info.expectedFee || 0,
+              parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
+              checkoutToken: info.checkoutToken || null,
+              expiresInSeconds: info.expiresInSeconds || 0
+          }));
+          if (info.expiresInSeconds && info.checkoutToken) {
+             setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
+          } else {
+             setExpiresAt(null);
+          }
+          message.success("Báo giá đã được làm mới!");
+      }).catch(err => {
+          message.error(err.response?.data?.message || 'Failed to refresh price');
+      }).finally(() => {
+          setIsLoading(false);
+      });
+  };
 
   // Poll for payment status
   useEffect(() => {
@@ -366,6 +425,56 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       return () => clearInterval(intervalId);
     }
   }, [paymentMethod, paymentUrl, paymentOrderId, paymentConfirmed]);
+
+  // Polling for cooldown
+  useEffect(() => {
+    let timer: any;
+    if (verifyCooldown > 0) {
+      timer = setTimeout(() => setVerifyCooldown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [verifyCooldown]);
+
+  const handleManualVerify = () => {
+    if (!paymentOrderId || verifyCooldown > 0) return;
+    setIsVerifying(true);
+    const captureUrl = paymentMethod === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
+    
+    axiosClient.post(captureUrl, { token: paymentOrderId })
+      .then(res => {
+        if (res.data?.data?.status === 'COMPLETED') {
+          axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
+            .then(execRes => {
+                message.success(`Payment via ${paymentMethod} verified and successful!`);
+                setScanData(null);
+                setEditablePlate('');
+                setPaymentMethod('CASH');
+                setPaymentConfirmed(false);
+                setPaymentUrl(null);
+                setPaymentQrCode('');
+                setPaymentOrderId('');
+                isProcessingRef.current = false;
+            })
+            .catch(execErr => {
+                message.error(execErr.response?.data?.message || 'System failed to checkout. Refund queued.');
+                setPaymentConfirmed(true);
+            });
+        } else {
+           message.warning('Payment not yet completed on the gateway.');
+        }
+      })
+      .catch(err => {
+         if (err.response?.status === 400) {
+           message.warning('Payment not yet received. Please try again later.');
+         } else {
+           message.error('System is busy or unable to verify.');
+         }
+      })
+      .finally(() => {
+         setIsVerifying(false);
+         setVerifyCooldown(10);
+      });
+  };
 
   // Auto-submit checkout when CASH payment is confirmed
   useEffect(() => {
@@ -513,7 +622,22 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 </div>
 
                 {/* Internal Right: Billing & Payment */}
-                <div className="w-full xl:w-1/2 flex flex-col bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4">
+                <div className="w-full xl:w-1/2 flex flex-col bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4 relative overflow-hidden">
+                  
+                  {/* EXPIRATION OVERLAY */}
+                  {isExpired && scanData && (
+                    <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                      <ClockCircleOutlined className="text-5xl text-red-500 mb-4 animate-pulse" />
+                      <Title level={3} className="!text-red-400 !m-0">Báo giá đã hết hạn</Title>
+                      <Text className="text-slate-300 mt-2 mb-6 block">Thời gian giữ giá 5 phút đã kết thúc. Vui lòng làm mới để hệ thống cập nhật biểu giá mới nhất.</Text>
+                      <Button type="primary" size="large" danger className="w-full max-w-xs font-bold uppercase tracking-widest h-12" onClick={handleRefreshPrice} loading={isLoading}>
+                        Làm mới giá (Refresh)
+                      </Button>
+                    </div>
+                  )}
+
+
+
                   {/* LOCKED SESSION BANNER */}
                   {scanData?.status === 'LOCKED' && (
                     <div className="mb-3 bg-red-600/20 border-2 border-red-500 rounded-xl p-3 flex items-center gap-3 animate-pulse">
@@ -537,6 +661,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       isPaid={scanData.customerType === 'BOOK' && totalFee === 0}
                       isLightMode={false}
                     />
+                    {expiresAt && !isExpired && (
+                      <div className="mt-1.5 flex justify-end items-center gap-1.5">
+                        <ClockCircleOutlined className={`text-[11px] ${countdown < 60 ? 'text-red-400 animate-pulse' : 'text-slate-400'}`} />
+                        <Text className="text-slate-400 text-[11px]">Thời gian giữ giá:</Text>
+                        <span className={`font-mono text-[11px] font-bold ${countdown < 60 ? 'text-red-400 animate-pulse' : 'text-slate-300'}`}>
+                          {Math.floor(countdown / 60).toString().padStart(2, '0')}:{(countdown % 60).toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Payment Radio */}
@@ -573,6 +706,18 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                               >
                                 Open Payment Link
                               </Button>
+                            )}
+                            {paymentUrl && (
+                                <Button 
+                                  type="link" 
+                                  size="small"
+                                  onClick={handleManualVerify} 
+                                  loading={isVerifying}
+                                  disabled={verifyCooldown > 0}
+                                  className={`mt-1 w-full font-bold text-[10px] ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
+                                >
+                                  {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'Verify Status'}
+                                </Button>
                             )}
                           </>
                         ) : (
