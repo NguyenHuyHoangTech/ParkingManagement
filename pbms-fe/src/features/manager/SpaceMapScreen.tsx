@@ -1088,9 +1088,9 @@ export const SpaceMapScreen = () => {
                 <div>
                   <Text className="text-xs text-gray-500 block mb-1">Matrix size (Cell):</Text>
                   <div className="flex items-center space-x-2">
-                    <InputNumber size="small" value={mapCols} onChange={v => v && handleUpdateMapSize(v, mapRows)} className="w-20" />
+                    <InputNumber size="small" min={1} max={55} value={mapCols} onChange={v => v && handleUpdateMapSize(v, mapRows)} className="w-20" />
                     <Text type="secondary">x</Text>
-                    <InputNumber size="small" value={mapRows} onChange={v => v && handleUpdateMapSize(mapCols, v)} className="w-20" />
+                    <InputNumber size="small" min={1} max={40} value={mapRows} onChange={v => v && handleUpdateMapSize(mapCols, v)} className="w-20" />
                   </div>
                 </div>
               </div>
