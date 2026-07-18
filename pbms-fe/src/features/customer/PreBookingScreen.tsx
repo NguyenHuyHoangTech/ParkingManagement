@@ -399,26 +399,8 @@ export const PreBookingScreen = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30 flex flex-col relative pb-12 font-sans">
 
-      {/* System Time Debugger */}
-      <div className="block fixed bottom-4 left-4 z-50 bg-slate-900/90 text-green-400 font-mono p-3 rounded-lg shadow-lg border border-green-500/30 backdrop-blur-md pointer-events-auto max-h-[50vh] overflow-y-auto w-80">
-        <div className="text-[10px] text-green-500/70 mb-1 font-bold uppercase tracking-wider">⏱ System Time (Debug)</div>
-        <div className="text-base font-bold mb-3 pb-2 border-b border-green-500/30">{currentSystemTime.format('DD/MM/YYYY HH:mm:ss')}</div>
+      {/* System Time Debugger (Hidden by user request) */}
 
-        <div className="text-[10px] text-blue-400/70 mb-1 font-bold uppercase tracking-wider">📝 Booking Logs</div>
-        {debugLogs.length === 0 ? (
-          <div className="text-xs text-slate-500 italic">None log...</div>
-        ) : (
-          <div className="space-y-2">
-            {debugLogs.map((log, idx) => (
-              <div key={idx} className="bg-black/40 p-2 rounded text-[10px] break-words">
-                <span className="text-slate-400">[{log.time}]</span>{' '}
-                <span className={log.type === 'ERROR' ? 'text-red-400' : log.type === 'SUCCESS' ? 'text-green-400' : 'text-blue-400'}>{log.type}</span>:
-                <pre className="mt-1 text-slate-300 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(log.data, null, 2)}</pre>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       <div className="p-4 md:p-6 bg-white/80 backdrop-blur-md shadow-sm sticky top-16 z-10 border-b border-white/50">
         <Title level={3} className="m-0 text-slate-800 text-2xl md:text-3xl font-black">Pre-Booking</Title>
