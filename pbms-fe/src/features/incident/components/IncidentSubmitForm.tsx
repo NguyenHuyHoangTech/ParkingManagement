@@ -5,7 +5,7 @@ import {
   LockOutlined, WarningOutlined, SearchOutlined, 
   ClockCircleOutlined, MessageOutlined, SafetyCertificateOutlined 
 } from '@ant-design/icons';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
 import { normalizePlateNumber } from '../../../core/utils/licensePlateUtils';
 
@@ -13,20 +13,21 @@ const { TextArea } = Input;
 const { Text } = Typography;
 
 interface IncidentSubmitFormProps {
-  onSuccess: (category: string, plate: string) => void;
+  onSuccess: (category?: string, plate?: string, newTicket?: any) => void;
   userRole: 'CUSTOMER' | 'STAFF';
   isManager?: boolean;
 }
 
 export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSuccess, userRole, isManager }) => {
   const [form] = Form.useForm();
+  const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isPlateVerified, setIsPlateVerified] = useState<boolean>(false);
   const [isCheckingPlate, setIsCheckingPlate] = useState<boolean>(false);
   
   const [uploadedFile, setUploadedFile] = useState<any>(null);
   const [uploadedFile2, setUploadedFile2] = useState<any>(null);
-  const [damageCause, setDamageCause] = useState<'NATURAL' | 'USER'>('NATURAL');
+
 
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [selectedVType, setSelectedVType] = useState<number | null>(null);
@@ -120,13 +121,14 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
       }
       return res.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
       form.resetFields();
       setUploadedFile(null);
       setUploadedFile2(null);
       setIsPlateVerified(false);
       setSelectedCategory('');
-      onSuccess(variables.issueType, variables.plate);
+      onSuccess(variables.issueType, variables.plate, data?.data);
     },
     onError: (err: any) => {
       message.error(err.response?.data?.message || 'Lỗi khi gửi yêu cầu hỗ trợ');
@@ -207,7 +209,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
         description: `BKS: ${values.plate || 'N/A'} - ${values.description || ''}`,
         priority: values.category === 'LOST_CARD' || values.category === 'BLACKLIST_VIOLATION' ? 'HIGH' : 'MEDIUM',
         uploadedDocUrl: mockUrl,
-        damageCause: values.category === 'DAMAGED_CARD' ? damageCause : undefined
+
       });
       
     } catch (error) {
@@ -365,18 +367,6 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
               </Form.Item>
             )}
 
-            {selectedCategory === 'DAMAGED_CARD' && (
-              <Form.Item label="Nguyên nhân hỏng thẻ" className="mb-0 col-span-1 md:col-span-2 mt-2">
-                <Radio.Group 
-                  value={damageCause} 
-                  onChange={(e) => setDamageCause(e.target.value)}
-                  className="flex flex-col gap-2"
-                >
-                  <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên / Lỗi kỹ thuật (Miễn phí đổi thẻ)</span></Radio>
-                  <Radio value="USER"><span className="text-base text-red-600 font-medium">Do người dùng làm gãy, vỡ, cong (Áp dụng phí phạt: {getDamagedCardPenalty().toLocaleString()}đ)</span></Radio>
-                </Radio.Group>
-              </Form.Item>
-            )}
 
             <Form.Item 
               name="description" 

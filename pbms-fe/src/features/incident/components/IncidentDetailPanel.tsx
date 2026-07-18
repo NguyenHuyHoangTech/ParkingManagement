@@ -16,9 +16,10 @@ interface IncidentDetailPanelProps {
   userRole: 'CUSTOMER' | 'STAFF';
   isManager?: boolean;
   onClose: () => void;
+  onActionComplete?: () => void;
 }
 
-export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket, userRole, isManager, onClose }) => {
+export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket, userRole, isManager, onClose, onActionComplete }) => {
   const queryClient = useQueryClient();
 
   // Common States
@@ -180,7 +181,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     onSuccess: () => {
       message.success('Đã xác nhận Giai đoạn 1');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      onClose();
+      if (onActionComplete) onActionComplete(); else onClose();
     }
   });
 
@@ -204,7 +205,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     onSuccess: () => {
       message.success('Đã hoàn tất xử lý sự cố');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      onClose();
+      if (onActionComplete) onActionComplete(); else onClose();
     }
   });
 
@@ -267,9 +268,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     if (ticket && ticket.status === 'RESOLVED' && !paymentConfirmed && (paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS')) {
       message.success(`Thanh toán ${paymentMethod} thành công! Hệ thống đã tự động xử lý sự cố.`);
       setPaymentConfirmed(true);
-      onClose();
+      if (onActionComplete) onActionComplete(); else onClose();
     }
-  }, [ticket, paymentConfirmed, paymentMethod, onClose]);
+  }, [ticket, paymentConfirmed, paymentMethod, onClose, onActionComplete]);
 
   // Polling for cooldown
   useEffect(() => {
@@ -292,7 +293,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
             .then(execRes => {
                 message.success(`Xác nhận thanh toán ${paymentMethod} thành công!`);
                 queryClient.invalidateQueries({ queryKey: ['incidents'] });
-                onClose();
+                if (onActionComplete) onActionComplete(); else onClose();
             })
             .catch(execErr => {
                 message.error(execErr.response?.data?.message || 'Lỗi khi ghi nhận xử lý sự cố. Đã chuyển sang hoàn tiền.');
@@ -338,7 +339,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       message.success('Đã hủy sự cố thành công');
       setCancelModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      onClose();
+      if (onActionComplete) onActionComplete(); else onClose();
     },
     onError: (error: any) => {
       message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hủy sự cố');
@@ -794,6 +795,15 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                             <div className="mt-2 text-center text-sm font-semibold text-slate-600">
                                               Yêu cầu khách quét QR để thanh toán. Cửa sổ sẽ tự đóng khi thanh toán thành công.
                                             </div>
+                                            {paymentUrl && (
+                                              <Button 
+                                                type="primary" 
+                                                className="mt-2 bg-blue-600 hover:bg-blue-500 text-white font-bold w-full max-w-[200px]" 
+                                                onClick={() => window.open(paymentUrl, '_blank')}
+                                              >
+                                                Mở Link Thanh Toán
+                                              </Button>
+                                            )}
                                             <Button type="link" onClick={handleManualVerify} loading={isVerifying} disabled={verifyCooldown > 0} className={`mt-2 ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}>
                                               {verifyCooldown > 0 ? `Chờ ${verifyCooldown}s để kiểm tra lại` : 'Kiểm tra trạng thái thanh toán'}
                                             </Button>

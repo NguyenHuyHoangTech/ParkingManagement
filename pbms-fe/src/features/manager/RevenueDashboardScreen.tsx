@@ -37,6 +37,7 @@ const RevenueDashboardScreen: React.FC = () => {
   
   const [shiftPage, setShiftPage] = useState(1);
   const [shiftSize, setShiftSize] = useState(10);
+  const [shiftGateType, setShiftGateType] = useState<string>('');
 
   /**
    * [1] Fetch Master Dataset for Charts & KPIs
@@ -67,9 +68,13 @@ const RevenueDashboardScreen: React.FC = () => {
    * Lists expected vs actual revenue collected by staff per shift.
    */
   const { data: shiftHistoryData, isLoading: isShiftLoading } = useQuery({
-    queryKey: ['shift-revenue-history', appliedDateRange, shiftPage, shiftSize],
+    queryKey: ['shift-revenue-history', appliedDateRange, shiftPage, shiftSize, shiftGateType],
     queryFn: async () => {
-      const res = await axiosClient.get(`/identity/work-sessions/history?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${shiftPage - 1}&size=${shiftSize}`);
+      let url = `/identity/work-sessions/history?startDate=${appliedDateRange[0]}&endDate=${appliedDateRange[1]}&page=${shiftPage - 1}&size=${shiftSize}`;
+      if (shiftGateType) {
+        url += `&gateType=${shiftGateType}`;
+      }
+      const res = await axiosClient.get(url);
       return res.data.data;
     }
   });
@@ -353,6 +358,25 @@ const RevenueDashboardScreen: React.FC = () => {
       <Card 
         className="shadow-sm border-slate-200 rounded-xl mb-6"
         title={<span><SafetyCertificateOutlined className="mr-2 text-blue-600" /> Shift Reconciliation</span>}
+        extra={
+          <Space>
+            <Text type="secondary">Gate Status:</Text>
+            <select 
+              className="border border-gray-300 rounded px-2 py-1 outline-none text-sm"
+              value={shiftGateType}
+              onChange={(e) => {
+                setShiftGateType(e.target.value);
+                setShiftPage(1);
+              }}
+            >
+              <option value="">All</option>
+              <option value="ENTRY">ENTRY</option>
+              <option value="EXIT">EXIT</option>
+              <option value="ENTRY_EXIT">ENTRY_EXIT</option>
+              <option value="PATROL">PATROL</option>
+            </select>
+          </Space>
+        }
       >
         <Table
             dataSource={shiftHistoryData?.content || []}
@@ -375,6 +399,16 @@ const RevenueDashboardScreen: React.FC = () => {
             <Table.Column title="Shift ID" dataIndex="id" width={80} />
             <Table.Column title="Staff" dataIndex="staffName" width={180} render={(val) => <strong className="text-blue-700">{val}</strong>} />
             <Table.Column title="Gate" dataIndex="gateName" width={150} />
+            <Table.Column 
+              title="Gate Status" 
+              dataIndex="gateType" 
+              width={120} 
+              render={(val) => {
+                if (val === 'ENTRY') return <span className="text-blue-600 font-medium">ENTRY</span>;
+                if (val === 'EXIT') return <span className="text-green-600 font-medium">EXIT</span>;
+                return <span className="text-gray-600 font-medium">{val}</span>;
+              }} 
+            />
             <Table.Column 
               title="Working time" 
               key="time" 

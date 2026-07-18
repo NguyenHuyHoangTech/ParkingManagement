@@ -188,19 +188,6 @@ public class IncidentService {
                     rfidCardRepository.save(session.getRfidCard());
                 }
                 
-                if ("USER".equals(request.getDamageCause())) {
-                    BigDecimal fineToApply = new BigDecimal("50000");
-                    try {
-                        fineToApply = new BigDecimal(systemConfigService.getConfigByKey("PENALTY_DAMAGED_CARD").getConfigValue());
-                    } catch (Exception e) {
-                        log.warn("Could not find PENALTY_DAMAGED_CARD config, using default");
-                    }
-                    session.setPenaltyFee(fineToApply);
-                    ticket.setFineAmount(fineToApply);
-                    ticket.setDescription("[Lỗi người dùng] " + (ticket.getDescription() != null ? ticket.getDescription() : ""));
-                } else {
-                    ticket.setDescription("[Hao mòn tự nhiên] " + (ticket.getDescription() != null ? ticket.getDescription() : ""));
-                }
             }
         }
 
@@ -419,6 +406,13 @@ public class IncidentService {
         ticket.setStatus("RESOLVED");
         
         String newNotes = resolutionNotes != null ? resolutionNotes : "[RESOLVED] Đã xử lý hoàn tất.";
+        String methodStr = paymentMethod != null ? paymentMethod : "CASH";
+        String methodDisplay = methodStr.equals("CASH") ? "Tiền mặt" : methodStr;
+        
+        if (penaltyFee != null || parkingFee != null) {
+            newNotes += "\n💳 Hình thức thanh toán: " + methodDisplay;
+        }
+
         if (ticket.getResolutionNotes() != null && !ticket.getResolutionNotes().isBlank()) {
             ticket.setResolutionNotes(ticket.getResolutionNotes() + "\n[Phase 2] " + newNotes);
         } else {
@@ -848,6 +842,11 @@ public class IncidentService {
         
         if (session == null) {
             throw new IllegalArgumentException("Khong tim thay phien do xe ACTIVE cho bien so: " + plate);
+        }
+
+        boolean exists = incidentTicketRepository.existsBySessionIdAndIssueTypeAndStatusIn(session.getId(), "LOST_CARD", java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+        if (exists) {
+            throw new IllegalArgumentException("Đã tồn tại một sự cố loại LOST_CARD đang chờ xử lý cho xe này trong phiên đỗ hiện tại!");
         }
         if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
              throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");

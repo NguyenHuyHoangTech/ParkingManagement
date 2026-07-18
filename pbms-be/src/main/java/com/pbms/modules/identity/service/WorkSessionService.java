@@ -253,7 +253,7 @@ public class WorkSessionService {
         return preview;
     }
 
-    public Page<Map<String, Object>> getWorkSessionHistory(String startDateStr, String endDateStr, Pageable pageable) {
+    public Page<Map<String, Object>> getWorkSessionHistory(String startDateStr, String endDateStr, String gateType, Pageable pageable) {
         LocalDateTime startDate = null;
         LocalDateTime endDate = null;
         if (startDateStr != null && !startDateStr.isEmpty()) {
@@ -265,9 +265,17 @@ public class WorkSessionService {
 
         Page<StaffWorkSession> sessions;
         if (startDate != null && endDate != null) {
-            sessions = workSessionRepository.findByStatusAndLogoutTimeBetween("COMPLETED", startDate, endDate, pageable);
+            if (gateType != null && !gateType.isEmpty()) {
+                sessions = workSessionRepository.findByStatusAndLogoutTimeBetweenAndGateGateType("COMPLETED", startDate, endDate, gateType, pageable);
+            } else {
+                sessions = workSessionRepository.findByStatusAndLogoutTimeBetween("COMPLETED", startDate, endDate, pageable);
+            }
         } else {
-            sessions = workSessionRepository.findByStatus("COMPLETED", pageable);
+            if (gateType != null && !gateType.isEmpty()) {
+                sessions = workSessionRepository.findByStatusAndGateGateType("COMPLETED", gateType, pageable);
+            } else {
+                sessions = workSessionRepository.findByStatus("COMPLETED", pageable);
+            }
         }
 
         return sessions.map(session -> {

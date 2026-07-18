@@ -64,6 +64,8 @@ public class GateOperationService {
 
     private final TransactionRepository transactionRepository;
 
+    private final com.pbms.modules.operation.repository.StaffWorkSessionRepository staffWorkSessionRepository;
+
     private final SystemConfigService systemConfigService;
 
     private final com.pbms.common.service.FileStorageService fileStorageService;
@@ -900,8 +902,12 @@ public class GateOperationService {
         }
         if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             String payMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "CASH";
+            
+            com.pbms.modules.identity.domain.StaffWorkSession activeWorkSession = staffWorkSessionRepository.findByGateIdAndStatus(request.getGateId(), "ACTIVE").orElse(null);
+
             Transaction transaction = Transaction.builder()
                     .parkingSession(session)
+                    .workSession(activeWorkSession)
                     .amount(totalAmount)
                     .paymentMethod(payMethod)
                     .status("SUCCESS")
@@ -925,6 +931,7 @@ public class GateOperationService {
                 .sessionId(session.getId())
                 .plateNumber(session.getPlateOut())
                 .status("SUCCESS")
+                .checkoutFee(totalAmount)
                 .message("Checkout successful")
                 .build();
         messagingTemplate.convertAndSend("/topic/gates/" + request.getGateId() + "/out", response);

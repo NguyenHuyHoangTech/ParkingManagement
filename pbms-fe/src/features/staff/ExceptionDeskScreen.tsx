@@ -3,7 +3,7 @@ import { Typography, Button, Badge, List, Tag, Modal, InputNumber, Card, Select,
 import { WarningOutlined, PlusOutlined, CreditCardOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
@@ -80,7 +80,7 @@ export const ExceptionDeskScreen = () => {
   });
 
   // Incidents
-  const { data: ticketsData = [] } = useQuery({
+  const { data: ticketsData = [], isLoading: isLoadingTickets } = useQuery({
     queryKey: ['incidents'],
     queryFn: async () => {
       const res = await axiosClient.get('/incident/incidents');
@@ -88,6 +88,15 @@ export const ExceptionDeskScreen = () => {
     },
     refetchInterval: 3000
   });
+
+  useEffect(() => {
+    if (selectedTicket) {
+      const updated = ticketsData.find((t: any) => t.id === selectedTicket.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedTicket)) {
+        setSelectedTicket(updated);
+      }
+    }
+  }, [ticketsData]);
 
   const { data: vehiclesData = [] } = useQuery({
     queryKey: ['vehicles_blacklist'],
@@ -123,12 +132,35 @@ export const ExceptionDeskScreen = () => {
     return true;
   }).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const handleIncidentSuccess = (category?: string, plate?: string) => {
+  const isFetchingTickets = useIsFetching({ queryKey: ['incidents'] }) > 0;
+  const [shouldSelectFirstTicket, setShouldSelectFirstTicket] = useState(false);
+
+  useEffect(() => {
+    if (shouldSelectFirstTicket && !isFetchingTickets && !isLoadingTickets) {
+      if (filteredTickets.length > 0) {
+        setSelectedTicket(filteredTickets[0]);
+      } else {
+        setSelectedTicket(null);
+      }
+      setShouldSelectFirstTicket(false);
+    }
+  }, [filteredTickets, isFetchingTickets, isLoadingTickets, shouldSelectFirstTicket]);
+
+  const handleIncidentSuccess = (category?: string, plate?: string, newTicket?: any) => {
+    queryClient.invalidateQueries({ queryKey: ['incidents'] });
     setSelectedCategory('ALL');
-    setSelectedTicket(null);
+    setQueueFilter('ALL');
+    setShouldSelectFirstTicket(true);
     if (window.location.hash === '#create' || window.location.hash === '#assign') {
       window.history.back();
     }
+  };
+
+  const handleActionComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    setSelectedCategory('ALL');
+    setQueueFilter('ALL');
+    setShouldSelectFirstTicket(true);
   };
 
   if (!isManager && shiftStatus !== 'OPEN') {
@@ -238,32 +270,41 @@ export const ExceptionDeskScreen = () => {
 
             {/* Ticket List */}
             <div className="flex-1 overflow-y-auto p-3 pb-24">
-              <List dataSource={filteredTickets} renderItem={(item: any) => (
-                <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
-                  <div className="flex justify-between items-start mb-2">
-                    <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
-                    <Text type="secondary" className="text-xs">{item.time}</Text>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
-                    {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
-                      <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
-                    ) : item.status === 'RESOLVED' ? (
-                      <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
-                    ) : (
-                      <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
-                    )}
-                    {item.sessionVehicleType && (
-                      <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
-                    )}
-                  </div>
+              {isLoadingTickets ? (
+                <div className="flex flex-col items-center justify-center p-12 opacity-50">
+                  <div className="animate-spin text-4xl mb-4">⏳</div>
+                  <Text type="secondary">Đang tải dữ liệu...</Text>
                 </div>
-              )} />
-              {filteredTickets.length === 0 && (
-                <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
-                  <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
-                  <Text className="text-slate-500">Không có sự cố nào</Text>
-                </div>
+              ) : (
+                <>
+                  <List dataSource={filteredTickets} renderItem={(item: any) => (
+                    <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
+                      <div className="flex justify-between items-start mb-2">
+                        <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
+                        <Text type="secondary" className="text-xs">{item.time}</Text>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
+                        {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
+                          <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
+                        ) : item.status === 'RESOLVED' ? (
+                          <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
+                        ) : (
+                          <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
+                        )}
+                        {item.sessionVehicleType && (
+                          <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
+                        )}
+                      </div>
+                    </div>
+                  )} />
+                  {filteredTickets.length === 0 && (
+                    <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
+                      <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
+                      <Text className="text-slate-500">Không có sự cố nào</Text>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -435,8 +476,8 @@ export const ExceptionDeskScreen = () => {
               </div>
             </div>
             <div className="p-8 flex-1">
-              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <VehicleAssignmentTab isManager={isManager} />
+              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-slate-500 font-medium">
+                Tính năng đang được phát triển...
               </div>
             </div>
           </div>
@@ -448,6 +489,7 @@ export const ExceptionDeskScreen = () => {
                 userRole="STAFF"
                 isManager={isManager}
                 onClose={() => setSelectedTicket(null)}
+                onActionComplete={handleActionComplete}
               />
             </div>
           </div>

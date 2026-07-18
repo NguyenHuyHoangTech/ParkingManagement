@@ -114,11 +114,12 @@ public class WorkSessionController {
     public ResponseEntity<ApiResponse<Object>> getHistory(
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String gateType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
             Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "logoutTime"));
-            Object history = workSessionService.getWorkSessionHistory(startDate, endDate, pageable);
+            Object history = workSessionService.getWorkSessionHistory(startDate, endDate, gateType, pageable);
             return ResponseEntity.ok(ApiResponse.success(history, "Leave a comment"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

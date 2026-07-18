@@ -192,6 +192,7 @@ public class IotHardwareController {
                     if (s.getRfidCard() != null) {
                         Map<String, Object> rfidMap = new HashMap<>();
                         rfidMap.put("cardCode", s.getRfidCard().getCardCode());
+                        rfidMap.put("cardId", s.getRfidCard().getCardId());
                         map.put("rfidCard", rfidMap);
                     }
                     if (s.getSlot() != null) {

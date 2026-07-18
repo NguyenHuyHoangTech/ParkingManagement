@@ -151,6 +151,16 @@ const generateMockLprImage = (plateNumber: string) => {
   return canvas.toDataURL('image/jpeg', 0.9);
 };
 
+const getBaseApiUrl = () => {
+  if (import.meta.env.VITE_IOT_API_URL) return import.meta.env.VITE_IOT_API_URL;
+  return `http://${window.location.hostname}:8080/api/v1`;
+};
+
+const getWsUrl = () => {
+  if (import.meta.env.VITE_IOT_API_URL) return import.meta.env.VITE_IOT_API_URL.replace('http', 'ws').replace('/api/v1', '/ws-pbms');
+  return `ws://${window.location.hostname}:8080/ws-pbms`;
+};
+
 const App = () => {
   const [form] = Form.useForm();
   const [timeForm] = Form.useForm();
@@ -160,7 +170,7 @@ const App = () => {
   
   React.useEffect(() => {
     const stompClient = new Client({
-      brokerURL: import.meta.env.VITE_IOT_API_URL ? import.meta.env.VITE_IOT_API_URL.replace('http', 'ws').replace('/api/v1', '/ws-pbms') : 'ws://localhost:8080/ws-pbms',
+      brokerURL: getWsUrl(),
       onConnect: () => {
         setConnectionStatus('connected');
         stompClient.subscribe('/topic/time-sync', (message) => {
@@ -190,7 +200,7 @@ const App = () => {
   const { data: syncData, refetch: refetchSync } = useQuery({
     queryKey: ['iot-data-sync'],
     queryFn: async () => {
-      const res = await axios.get(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/data-sync`);
+      const res = await axios.get(`${getBaseApiUrl()}/operation/iot/hardware/data-sync`);
       return res.data.data;
     },
     refetchInterval: 2000
@@ -199,7 +209,7 @@ const App = () => {
   const slots = syncData?.slots || MOCK_SLOTS;
   const gates = syncData?.gates || [];
   const vehicleTypes = syncData?.vehicleTypes || [];
-  const activeSessions = syncData?.activeSessions || [];
+  const activeSessions = (syncData?.activeSessions || []).slice().sort((a: any, b: any) => new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime());
   const reservations = (syncData?.reservations || []).filter((r: any) => {
     if (r.status !== 'ACTIVE' && r.status !== 'PENDING') return false;
     if (r.expectedEntryTime) {
@@ -357,14 +367,14 @@ const App = () => {
                       <div className="flex flex-col sm:flex-row gap-2 h-full">
                         <div className="flex-1 relative h-32 sm:h-auto">
                           {selectedSession.picInPanorama ? (
-                            <img src={selectedSession.picInPanorama.startsWith('/') ? `${(import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1').replace('/api/v1', '')}${selectedSession.picInPanorama}` : selectedSession.picInPanorama} alt="IN" className="w-full h-full object-cover rounded opacity-80" />
+                            <img src={selectedSession.picInPanorama.startsWith('/') ? `${getBaseApiUrl().replace('/api/v1', '')}${selectedSession.picInPanorama}` : selectedSession.picInPanorama} alt="IN" className="w-full h-full object-cover rounded opacity-80" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                           )}
                         </div>
                         <div className="w-full sm:w-1/3 relative bg-gray-200 rounded flex items-center justify-center p-1 h-20 sm:h-auto mt-2 sm:mt-0">
                           {selectedSession.picInFace ? (
-                            <img src={selectedSession.picInFace.startsWith('/') ? `${(import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1').replace('/api/v1', '')}${selectedSession.picInFace}` : selectedSession.picInFace} alt="LPR IN" className="w-full h-auto rounded border border-gray-400" />
+                            <img src={selectedSession.picInFace.startsWith('/') ? `${getBaseApiUrl().replace('/api/v1', '')}${selectedSession.picInFace}` : selectedSession.picInFace} alt="LPR IN" className="w-full h-auto rounded border border-gray-400" />
                           ) : (
                             <div className="text-[10px] text-gray-400">No plate</div>
                           )}
@@ -475,7 +485,7 @@ const App = () => {
     mutationFn: async (values: any) => {
       const gate = gates.find((g: any) => g.id === values.gateId);
       const isOut = gate?.gateType === 'OUT' || gate?.gateType === 'EXIT' || (gate?.gateType === 'IN_OUT' && values.actionType === 'OUT');
-      const baseUrl = import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1';
+      const baseUrl = getBaseApiUrl();
       const url = isOut ? `${baseUrl}/operation/iot/hardware/gates/checkout` : `${baseUrl}/operation/iot/hardware/gates/checkin`;
       
       const base64Img = generateMockLicensePlateImage(values.plate, values.actionType, values.vehicleType);
@@ -508,7 +518,7 @@ const App = () => {
 
   const triggerSensorMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number, status: string }) => {
-      return axios.post(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/sensors/update`, {
+      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/sensors/update`, {
         sensorId: id,
         status: status
       }).then(res => res.data);
@@ -525,7 +535,7 @@ const App = () => {
   const timeTravelMutation = useMutation({
     mutationFn: async (values: any) => {
       const targetTimeStr = values.targetTime.format('YYYY-MM-DDTHH:mm:ss');
-      return axios.post(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/time/fast-forward`, {
+      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/time/fast-forward`, {
         targetTime: targetTimeStr
       }).then(res => res.data);
     },
@@ -555,7 +565,18 @@ const App = () => {
   // Table Columns
   const activeSessionsColumns = [
     { title: 'Biển số', dataIndex: 'plate', key: 'plate', render: (text: string) => <Tag color="blue">{text}</Tag> },
-    { title: 'Slot', dataIndex: ['slot', 'slotName'], key: 'slotName', render: (text: string) => text || 'Không rõ' },
+    { title: 'Mã Thẻ', dataIndex: ['rfidCard', 'cardId'], key: 'cardId', render: (text: string) => text ? <Tag color="cyan">{text}</Tag> : <span className="text-gray-400">N/A</span> },
+    { title: 'Zone Suggest', key: 'suggestedZone', render: (_: any, record: any) => {
+        let targetZoneId = record.suggestedZoneId;
+        if (!targetZoneId && record.slot?.id) {
+            const slotInfo = slots?.find((s: any) => s.id === record.slot.id);
+            if (slotInfo) targetZoneId = slotInfo.zoneId;
+        }
+        if (!targetZoneId) return <span className="text-gray-400">Không có</span>;
+        const zone = zones?.find((z: any) => z.id === targetZoneId);
+        return zone ? <b className="text-purple-600">{zone.zoneName}</b> : <span className="text-gray-600">ID: {targetZoneId}</span>;
+      } 
+    },
     { title: 'Time in', dataIndex: 'timeIn', key: 'timeIn', render: (text: string) => text ? dayjs(text).format('DD/MM/YYYY HH:mm:ss') : '' },
     { title: 'Loại xe', dataIndex: ['vehicleType', 'typeName'], key: 'vehicleType' },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (text: string) => <Tag color="green">{text}</Tag> },

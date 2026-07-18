@@ -12,6 +12,6 @@ echo Hay copy duong dan do de dan vao cau hinh Webhook cua PayOS/PayPal.
 
 echo.
 
-npx ngrok http 8080
+call npx ngrok http 8080 --authtoken 3GdUVulz4bzsF2SSJRZzdCNywrE_5UWmraD9ABK31B5Kobsvb
 
 pause

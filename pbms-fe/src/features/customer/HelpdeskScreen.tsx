@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Button, Badge, List, Tag, Select, FloatButton, Modal, message } from 'antd';
 import { PlusOutlined, CreditCardOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
@@ -14,6 +14,7 @@ export const HelpdeskScreen = () => {
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [queueFilter, setQueueFilter] = useState<string>('ALL');
+  const queryClient = useQueryClient();
 
   // Handle mobile hardware back button using History API
   useEffect(() => {
@@ -44,7 +45,7 @@ export const HelpdeskScreen = () => {
   };
 
   // Fetch incidents for the current user
-  const { data: ticketsData = [] } = useQuery({
+  const { data: ticketsData = [], isLoading: isLoadingTickets } = useQuery({
     queryKey: ['incidents'],
     queryFn: async () => {
       try {
@@ -57,6 +58,15 @@ export const HelpdeskScreen = () => {
     refetchInterval: 5000
   });
 
+  useEffect(() => {
+    if (selectedTicket) {
+      const updated = ticketsData.find((t: any) => t.id === selectedTicket.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedTicket)) {
+        setSelectedTicket(updated);
+      }
+    }
+  }, [ticketsData]);
+
   const filteredTickets = ticketsData.filter((t: any) => {
     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory;
     if (!catMatch) return false;
@@ -68,10 +78,15 @@ export const HelpdeskScreen = () => {
     return true;
   });
 
-  const handleIncidentSuccess = (category: string, plate: string) => {
-    message.success('Đã gửi yêu cầu hỗ trợ thành công!');
-    setSelectedCategory('ALL');
-    setSelectedTicket(null);
+  const handleIncidentSuccess = (category?: string, plate?: string, newTicket?: any) => {
+    queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    if (newTicket) {
+      setSelectedTicket(newTicket);
+      setSelectedCategory('');
+    } else {
+      setSelectedCategory('ALL');
+      setSelectedTicket(null);
+    }
     if (window.location.hash === '#create' || window.location.hash === '#assign') {
       window.history.back();
     }
@@ -193,8 +208,8 @@ export const HelpdeskScreen = () => {
               <Title level={4} className="m-0 text-gray-800">Gán xe vào tài khoản</Title>
             </div>
             <div className="flex-1 overflow-y-auto pb-24">
-              <div className="p-4">
-                <VehicleAssignmentTab isManager={false} />
+              <div className="p-4 text-center text-slate-500 font-medium">
+                Tính năng đang được phát triển...
               </div>
             </div>
           </div>
