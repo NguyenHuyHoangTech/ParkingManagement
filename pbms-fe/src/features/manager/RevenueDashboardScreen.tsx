@@ -477,18 +477,20 @@ const RevenueDashboardScreen: React.FC = () => {
           bordered
           size="middle"
         >
-          <Table.Column title="Date" dataIndex="date" render={(_, r: any) => <strong>{dayjs(r.date).format('DD/MM/YYYY')}</strong>} />
-          <Table.Column title="Vehicle Type" dataIndex="vehicleType" />
-          <Table.Column title="Gate" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
-          <Table.Column title="Revenue Source" dataIndex="revenueSource" />
-          <Table.Column title="Method" dataIndex="paymentMethod" />
+          <Table.Column title="Ngày giờ ra" dataIndex="checkoutTime" render={(val) => <strong>{dayjs(val).format('DD/MM/YYYY HH:mm')}</strong>} />
+          <Table.Column title="Biển số" dataIndex="plate" render={(val) => <span className="font-semibold text-slate-800">{val || 'N/A'}</span>} />
+          <Table.Column title="Loại xe" dataIndex="vehicleType" />
+          <Table.Column title="Cổng ra" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
+          <Table.Column title="Tiền vé" dataIndex="baseFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Tiền lố giờ" dataIndex="overtimeFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Tiền phạt" dataIndex="penaltyFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
           <Table.Column 
-            title="Total Revenue" 
-            dataIndex="totalRevenue" 
+            title="Tổng thu" 
+            dataIndex="totalFee" 
             align="right"
             render={(val) => <span className="font-bold text-blue-600">{val?.toLocaleString()} ₫</span>}
           />
-          <Table.Column title="Total Transactions" dataIndex="totalTransactions" align="center" />
+          <Table.Column title="Thanh toán" dataIndex="paymentMethod" align="center" />
         </Table>
           </Card>
     </div>

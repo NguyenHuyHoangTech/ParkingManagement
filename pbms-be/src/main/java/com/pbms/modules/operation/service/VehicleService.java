@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @Slf4j
 @Service
@@ -23,6 +24,7 @@ public class VehicleService {
     private final RfidCardRepository rfidCardRepository;
     private final com.pbms.common.service.FileStorageService fileStorageService;
     private final com.pbms.modules.identity.repository.UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private com.pbms.modules.identity.domain.User getCurrentUser() {
         org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
@@ -30,6 +32,16 @@ public class VehicleService {
             return userRepository.findByEmail(auth.getName()).orElse(null);
         }
         return null;
+    }
+
+    private com.pbms.modules.incident.domain.IncidentTicket saveAndBroadcast(com.pbms.modules.incident.domain.IncidentTicket ticket) {
+        com.pbms.modules.incident.domain.IncidentTicket saved = incidentTicketRepository.save(ticket);
+        try {
+            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+        } catch (Exception e) {
+            log.error("Failed to broadcast incident update", e);
+        }
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -115,7 +127,7 @@ public class VehicleService {
                         t.setResolutionNotes("Unblacklisted and returned to ACTIVE");
                         t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
                         t.setStaff(getCurrentUser());
-                        incidentTicketRepository.save(t);
+                        saveAndBroadcast(t);
                     });
             });
 
@@ -144,7 +156,7 @@ public class VehicleService {
                 t.setStatus("RESOLVED");
                 t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
                 t.setStaff(getCurrentUser());
-                incidentTicketRepository.save(t);
+                saveAndBroadcast(t);
             });
         }
         
@@ -197,7 +209,7 @@ public class VehicleService {
                 ticket.setUploadedDocUrl(existingUrl != null && !existingUrl.isBlank() && storedUrl != null ? existingUrl + "|" + storedUrl : storedUrl);
                 ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
                 ticket.setStatus("RESOLVED");
-                incidentTicketRepository.save(ticket);
+                saveAndBroadcast(ticket);
             });
         }
     }
@@ -241,7 +253,7 @@ public class VehicleService {
             List<com.pbms.modules.incident.domain.IncidentTicket> tickets = incidentTicketRepository.findBySessionId(session.getId());
             for (com.pbms.modules.incident.domain.IncidentTicket t : tickets) {
                 t.setUser(targetUser);
-                incidentTicketRepository.save(t);
+                saveAndBroadcast(t);
             }
         }
 

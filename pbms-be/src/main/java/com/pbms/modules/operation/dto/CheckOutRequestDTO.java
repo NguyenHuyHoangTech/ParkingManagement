@@ -47,4 +47,8 @@ public class CheckOutRequestDTO {
      * - "MONTHLY": Khách sử dụng vé tháng
      */
     private String customerType;
+
+    public void setPlateNumber(String plateNumber) {
+        this.plateNumber = com.pbms.modules.infrastructure.utils.LicensePlateUtils.normalize(plateNumber);
+    }
 }

@@ -16,11 +16,13 @@ import {
   NodeIndexOutlined,
   ScheduleOutlined,
   SettingOutlined,
-  WarningOutlined
+  WarningOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { UserProfileSettingsModal } from '../shared/components/UserProfileSettingsModal';
+import { BuildingRulesModal } from '../shared/components/BuildingRulesModal';
 import { SystemClock } from '../shared/components/SystemClock';
 import { NotificationDropdown } from '../shared/components/NotificationDropdown';
 
@@ -35,6 +37,7 @@ export const ManagerLayout = () => {
   const email = useAuthStore((state) => state.email);
   const name = useAuthStore((state) => state.name);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -95,6 +98,7 @@ export const ManagerLayout = () => {
   const userMenu: any = {
     items: [
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Nội Quy', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],
@@ -164,6 +168,10 @@ export const ManagerLayout = () => {
       <UserProfileSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+      <BuildingRulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
       />
     </Layout>
   );

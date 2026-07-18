@@ -26,5 +26,9 @@ public class RefundRequestDTO {
     private String rejectReason;
     private String referenceType;
     private String proofUrl;
+
+    public void setPlateNumber(String plateNumber) {
+        this.plateNumber = com.pbms.modules.infrastructure.utils.LicensePlateUtils.normalize(plateNumber);
+    }
 }
 

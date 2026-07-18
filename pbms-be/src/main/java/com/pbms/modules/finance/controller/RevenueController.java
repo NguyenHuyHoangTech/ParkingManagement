@@ -38,13 +38,13 @@ public class RevenueController {
     }
 
     @GetMapping("/table")
-    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<RevenueRecordDTO>>> getRevenueTable(
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<com.pbms.modules.finance.dto.RevenueTransactionDTO>>> getRevenueTable(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         
-        org.springframework.data.domain.Page<RevenueRecordDTO> data = revenueService.getRevenueTableData(startDate, endDate, page, size);
+        org.springframework.data.domain.Page<com.pbms.modules.finance.dto.RevenueTransactionDTO> data = revenueService.getRevenueTableData(startDate, endDate, page, size);
         return ResponseEntity.ok(ApiResponse.success(data, "Paginated revenue data retrieved successfully."));
     }
 

@@ -20,12 +20,14 @@ public class SystemConfigService {
         return repository.findAll();
     }
 
+    @org.springframework.cache.annotation.Cacheable(value = "configs", key = "#key")
     public SystemConfig getConfigByKey(String key) {
         return repository.findByConfigKey(key)
                 .orElseThrow(() -> new IllegalArgumentException("Config not found with key: " + key));
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "configs", key = "#key")
     public SystemConfig saveOrUpdateConfigValue(String key, String value) {
         SystemConfig config = repository.findByConfigKey(key).orElse(null);
         if (config == null) {
@@ -42,6 +44,7 @@ public class SystemConfigService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "configs", key = "#config.configKey")
     public SystemConfig createConfig(SystemConfig config) {
         if (repository.findByConfigKey(config.getConfigKey()).isPresent()) {
             throw new IllegalArgumentException("Config key already exists: " + config.getConfigKey());
@@ -50,6 +53,7 @@ public class SystemConfigService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "configs", key = "#configDetails.configKey", allEntries = true)
     public SystemConfig updateConfig(Long id, SystemConfig configDetails) {
         SystemConfig config = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Config not found with id: " + id));
@@ -237,6 +241,41 @@ public class SystemConfigService {
             throw new IllegalArgumentException("Gemini Connection failed: Invalid API Key");
         } catch (Exception e) {
             throw new IllegalArgumentException("Gemini Connection failed: " + e.getMessage());
+        }
+    }
+
+    public String testSingleGeminiModel(String apiKey, String modelName) {
+        org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String url = "https://generativelanguage.googleapis.com/v1beta/" + modelName + ":generateContent?key=" + apiKey;
+            
+            com.fasterxml.jackson.databind.node.ObjectNode payload = mapper.createObjectNode();
+            com.fasterxml.jackson.databind.node.ArrayNode contents = payload.putArray("contents");
+            com.fasterxml.jackson.databind.node.ObjectNode content = contents.addObject();
+            content.put("role", "user");
+            com.fasterxml.jackson.databind.node.ArrayNode parts = content.putArray("parts");
+            com.fasterxml.jackson.databind.node.ObjectNode part = parts.addObject();
+            part.put("text", "Hi");
+            
+            com.fasterxml.jackson.databind.node.ObjectNode generationConfig = payload.putObject("generationConfig");
+            generationConfig.put("maxOutputTokens", 5);
+            
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(mapper.writeValueAsString(payload), headers);
+            
+            org.springframework.http.ResponseEntity<String> genResponse = restTemplate.postForEntity(url, entity, String.class);
+            if (genResponse.getStatusCode().is2xxSuccessful()) {
+                com.fasterxml.jackson.databind.JsonNode genRoot = mapper.readTree(genResponse.getBody());
+                return genRoot.get("candidates").get(0).get("content").get("parts").get(0).get("text").asText();
+            } else {
+                throw new IllegalArgumentException("Model test failed with status " + genResponse.getStatusCode());
+            }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+             throw new IllegalArgumentException("Gemini Connection failed: " + e.getMessage());
+        } catch (Exception e) {
+             throw new IllegalArgumentException("Gemini Connection failed: " + e.getMessage());
         }
     }
 }

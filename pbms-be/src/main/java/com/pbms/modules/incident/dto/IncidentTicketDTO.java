@@ -90,6 +90,9 @@ public class IncidentTicketDTO {
     /** ID của phiên đỗ xe */
     private Long sessionId;
     
+    /** ID của loại phương tiện (dùng cho filter Frontend) */
+    private Long vehicleTypeId;
+    
     // --- Các trường bổ sung mới cho UI Giai đoạn 2 ---
     /** Thời điểm phí đỗ xe bị đóng băng/tạm dừng tính phí do sự cố kéo dài */
     private LocalDateTime feePausedAt;
@@ -123,4 +126,8 @@ public class IncidentTicketDTO {
 
     /** Email của người tạo sự cố (khách hàng hoặc nhân viên) */
     private String creatorEmail;
+
+    public void setPlateNumber(String plateNumber) {
+        this.plateNumber = com.pbms.modules.infrastructure.utils.LicensePlateUtils.normalize(plateNumber);
+    }
 }

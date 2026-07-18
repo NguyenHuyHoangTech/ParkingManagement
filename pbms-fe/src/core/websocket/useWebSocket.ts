@@ -11,7 +11,7 @@ export const useWebSocket = () => {
     if (!token) return;
 
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws-pbms',
+      brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
       connectHeaders: {
         Authorization: `Bearer ${token}`,
       },

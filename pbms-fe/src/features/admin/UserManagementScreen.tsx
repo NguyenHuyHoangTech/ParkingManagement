@@ -50,7 +50,7 @@ export const UserManagementScreen = () => {
   // ── WebSocket real-time sync ─────────────────────────────────────────────
   useEffect(() => {
     const stomp = new Client({
-      brokerURL: 'ws://localhost:8080/ws-pbms',
+      brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
       connectHeaders: { Authorization: `Bearer ${token}` },
       onConnect: () => {
         stomp.subscribe('/topic/identity/users', () => {

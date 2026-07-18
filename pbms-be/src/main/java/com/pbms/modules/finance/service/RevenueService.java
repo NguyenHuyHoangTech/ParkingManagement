@@ -80,6 +80,27 @@ public class RevenueService {
             t.payment_method
         """;
 
+    private static final String TABLE_SQL = """
+        SELECT 
+            CONVERT(VARCHAR(19), ps.time_out, 120) AS checkoutTime, 
+            ps.plate,
+            COALESCE(vt.type_name, 'Unclear') AS vehicleType,
+            COALESCE(g.gate_name, 'N/A') AS gateName, 
+            COALESCE(ps.total_fee, 0) AS baseFee,
+            COALESCE(ps.overtime_fee, 0) AS overtimeFee,
+            COALESCE(ps.penalty_fee, 0) AS penaltyFee,
+            (COALESCE(ps.total_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) AS totalFee,
+            COALESCE(t.payment_method, 'CASH') AS paymentMethod
+        FROM parking_sessions ps 
+        LEFT JOIN vehicle_types vt ON ps.vehicle_type_id = vt.id 
+        LEFT JOIN gates g ON ps.gate_out_id = g.id 
+        LEFT JOIN transactions t ON ps.id = t.parking_session_id AND t.status = 'SUCCESS' 
+        WHERE ps.status = 'COMPLETED' 
+          AND (COALESCE(ps.total_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) > 0
+          AND CAST(ps.time_out AS DATE) >= :startDate 
+          AND CAST(ps.time_out AS DATE) <= :endDate 
+        """;
+
     /**
      * [1] Fetch Dashboard Aggregated Data
      * Retrieves all revenue grouped by date, vehicle type, gate, and payment method for the given date range.
@@ -110,16 +131,16 @@ public class RevenueService {
      * @return Page object containing the data slice and total count
      */
     @Transactional(readOnly = true)
-    public Page<RevenueRecordDTO> getRevenueTableData(LocalDate startDate, LocalDate endDate, int page, int size) {
+    public Page<com.pbms.modules.finance.dto.RevenueTransactionDTO> getRevenueTableData(LocalDate startDate, LocalDate endDate, int page, int size) {
         // 1. Get count
-        String countSql = "SELECT COUNT(*) FROM (" + BASE_SQL + ") AS raw_data";
+        String countSql = "SELECT COUNT(*) FROM (" + TABLE_SQL + ") AS raw_data";
         Query countQuery = entityManager.createNativeQuery(countSql);
         countQuery.setParameter("startDate", startDate.toString());
         countQuery.setParameter("endDate", endDate.toString());
         long totalElements = ((Number) countQuery.getSingleResult()).longValue();
 
         // 2. Get paginated data
-        String paginatedSql = "SELECT * FROM (" + BASE_SQL + ") AS raw_data ORDER BY date_str DESC OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
+        String paginatedSql = "SELECT * FROM (" + TABLE_SQL + ") AS raw_data ORDER BY checkoutTime DESC OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY";
         Query query = entityManager.createNativeQuery(paginatedSql);
         query.setParameter("startDate", startDate.toString());
         query.setParameter("endDate", endDate.toString());
@@ -128,7 +149,7 @@ public class RevenueService {
 
         @SuppressWarnings("unchecked")
         List<Object[]> rawList = query.getResultList();
-        List<RevenueRecordDTO> dtoList = mapToDTOList(rawList);
+        List<com.pbms.modules.finance.dto.RevenueTransactionDTO> dtoList = mapToTransactionDTOList(rawList);
 
         return new PageImpl<>(dtoList, PageRequest.of(page - 1, size), totalElements);
     }
@@ -148,9 +169,9 @@ public class RevenueService {
                 outputStream.write(0xBF);
 
                 try (PrintWriter writer = new PrintWriter(new java.io.OutputStreamWriter(outputStream, java.nio.charset.StandardCharsets.UTF_8))) {
-                    writer.println("Ngày;Loại xe;Cổng;Nguồn thu;Phương thức thanh toán;Tổng doanh thu;Số giao dịch");
+                    writer.println("Ngày giờ ra;Biển số;Loại xe;Cổng ra;Tiền vé;Tiền lố giờ;Tiền phạt;Tổng thu;Thanh toán");
 
-                    Query query = entityManager.createNativeQuery("SELECT * FROM (" + BASE_SQL + ") AS raw_data ORDER BY date_str DESC");
+                    Query query = entityManager.createNativeQuery("SELECT * FROM (" + TABLE_SQL + ") AS raw_data ORDER BY checkoutTime DESC");
                     query.setParameter("startDate", startDate.toString());
                     query.setParameter("endDate", endDate.toString());
 
@@ -162,16 +183,18 @@ public class RevenueService {
                     java.util.stream.Stream<Object[]> stream = hibernateQuery.stream();
 
                     stream.forEach(row -> {
-                        String dateStr = (String) row[0];
-                        String vehicleType = (String) row[1];
-                        String gateName = (String) row[2];
-                        String revenueSource = (String) row[3];
-                        String paymentMethod = (String) row[4];
-                        BigDecimal totalRevenue = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
-                        Long totalTransactions = row[6] != null ? ((Number) row[6]).longValue() : 0L;
+                        String checkoutTime = (String) row[0];
+                        String plate = (String) row[1];
+                        String vehicleType = (String) row[2];
+                        String gateName = (String) row[3];
+                        BigDecimal baseFee = row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
+                        BigDecimal overtimeFee = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+                        BigDecimal penaltyFee = row[6] != null ? new BigDecimal(row[6].toString()) : BigDecimal.ZERO;
+                        BigDecimal totalFee = row[7] != null ? new BigDecimal(row[7].toString()) : BigDecimal.ZERO;
+                        String paymentMethod = (String) row[8];
 
-                        writer.printf("%s;%s;%s;%s;%s;%s;%s\n",
-                                dateStr, vehicleType, gateName, revenueSource, paymentMethod, totalRevenue, totalTransactions);
+                        writer.printf("%s;%s;%s;%s;%s;%s;%s;%s;%s\n",
+                                checkoutTime, plate, vehicleType, gateName, baseFee, overtimeFee, penaltyFee, totalFee, paymentMethod);
                     });
                 }
             } catch (Exception e) {
@@ -179,6 +202,24 @@ public class RevenueService {
                 throw new RuntimeException("Failed to export CSV", e);
             }
         };
+    }
+
+    private List<com.pbms.modules.finance.dto.RevenueTransactionDTO> mapToTransactionDTOList(List<Object[]> results) {
+        List<com.pbms.modules.finance.dto.RevenueTransactionDTO> dtoList = new ArrayList<>();
+        for (Object[] row : results) {
+            dtoList.add(com.pbms.modules.finance.dto.RevenueTransactionDTO.builder()
+                    .checkoutTime((String) row[0])
+                    .plate((String) row[1])
+                    .vehicleType((String) row[2])
+                    .gateName((String) row[3])
+                    .baseFee(row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO)
+                    .overtimeFee(row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO)
+                    .penaltyFee(row[6] != null ? new BigDecimal(row[6].toString()) : BigDecimal.ZERO)
+                    .totalFee(row[7] != null ? new BigDecimal(row[7].toString()) : BigDecimal.ZERO)
+                    .paymentMethod((String) row[8])
+                    .build());
+        }
+        return dtoList;
     }
 
     private List<RevenueRecordDTO> mapToDTOList(List<Object[]> results) {

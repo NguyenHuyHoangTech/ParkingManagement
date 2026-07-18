@@ -38,7 +38,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 1. PUBLIC & AUTHENTICATION
                         .requestMatchers("/api/v1/public/**", "/api/v1/identity/auth/**", "/api/v1/webhooks/**",
-                                "/api/v1/iot/**", "/api/v1/operation/iot/**")
+                                "/api/v1/finance/payments/webhook/**",
+                                "/api/v1/iot/**", "/api/v1/operation/iot/**", "/api/v1/temp/**")
                         .permitAll()
                         .requestMatchers("/h2-console/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/ws/**", "/ws-pbms/**", "/uploads/**", "/error").permitAll()

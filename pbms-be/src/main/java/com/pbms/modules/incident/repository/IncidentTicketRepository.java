@@ -12,6 +12,14 @@ public interface IncidentTicketRepository extends JpaRepository<IncidentTicket, 
     List<IncidentTicket> findByIssueTypeAndStatus(String issueType, String status);
     List<IncidentTicket> findAllByOrderByIdDesc();
     List<IncidentTicket> findByUserEmailOrderByIdDesc(String email);
+    
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT i FROM IncidentTicket i LEFT JOIN i.session s " +
+           "WHERE i.user.email = :email " +
+           "OR EXISTS (SELECT 1 FROM Vehicle v WHERE v.user.email = :email AND v.plateNumber = s.plate AND v.vehicleType = s.vehicleType) " +
+           "OR (i.session IS NULL AND EXISTS (SELECT 1 FROM Vehicle v WHERE v.user.email = :email AND v.plateNumber = i.reportedPlate)) " +
+           "ORDER BY i.id DESC")
+    List<IncidentTicket> findAllByUserEmailOrVehicleOwner(@org.springframework.data.repository.query.Param("email") String email);
+
     List<IncidentTicket> findBySessionId(Long sessionId);
     List<IncidentTicket> findByUserIdAndResolvedAtBetweenAndStatus(Long userId, java.time.LocalDateTime start, java.time.LocalDateTime end, String status);
     boolean existsBySessionIdAndIssueTypeAndStatusNot(Long sessionId, String issueType, String status);

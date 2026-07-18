@@ -157,7 +157,9 @@ public class IotHardwareController {
         data.put("currentTime", TimeProvider.now());
         
         // 1. Slots (Mapped to Map to avoid deep nesting and lazy loading)
-        data.put("slots", slotRepository.findAll().stream().map(s -> {
+        data.put("slots", slotRepository.findAll().stream()
+                .filter(s -> s.getZone() != null && !"DELETED".equals(s.getZone().getStatus()))
+                .map(s -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", s.getId());
             map.put("slotName", s.getSlotName());

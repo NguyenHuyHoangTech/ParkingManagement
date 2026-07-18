@@ -249,6 +249,10 @@ export const RefundManagementScreen = () => {
     }
     
     return true;
+  }).sort((a: any, b: any) => {
+    const timeA = a.cancelTime ? new Date(a.cancelTime.replace(' ', 'T')).getTime() : 0;
+    const timeB = b.cancelTime ? new Date(b.cancelTime.replace(' ', 'T')).getTime() : 0;
+    return timeB - timeA;
   });
 
   return (

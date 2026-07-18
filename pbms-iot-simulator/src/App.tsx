@@ -160,7 +160,7 @@ const App = () => {
   
   React.useEffect(() => {
     const stompClient = new Client({
-      brokerURL: 'ws://localhost:8080/ws-pbms',
+      brokerURL: import.meta.env.VITE_IOT_API_URL ? import.meta.env.VITE_IOT_API_URL.replace('http', 'ws').replace('/api/v1', '/ws-pbms') : 'ws://localhost:8080/ws-pbms',
       onConnect: () => {
         setConnectionStatus('connected');
         stompClient.subscribe('/topic/time-sync', (message) => {
@@ -190,7 +190,7 @@ const App = () => {
   const { data: syncData, refetch: refetchSync } = useQuery({
     queryKey: ['iot-data-sync'],
     queryFn: async () => {
-      const res = await axios.get('http://localhost:8080/api/v1/operation/iot/hardware/data-sync');
+      const res = await axios.get(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/data-sync`);
       return res.data.data;
     },
     refetchInterval: 2000
@@ -281,14 +281,14 @@ const App = () => {
     return (
       <div className="space-y-6">
         <Card className="bg-white border-gray-200 rounded-xl" title={<span className="text-blue-400 font-mono">1. Select Zone & Vehicle Type</span>}>
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
               <div className="mb-2 text-gray-600">Select Floor</div>
               <Select className="w-full" value={selectedFloorIdForOut} onChange={setSelectedFloorIdForOut}>
                 {floors.map((f: any) => <Select.Option key={f.id} value={f.id}>{f.floorName}</Select.Option>)}
               </Select>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <div className="mb-2 text-gray-600">Chọn Vehicle Type</div>
               <Select className="w-full" value={selectedVehicleTypeIdForOut} onChange={setSelectedVehicleTypeIdForOut}>
                 {vehicleTypes.map((v: any) => <Select.Option key={v.id} value={v.id}>{v.typeName}</Select.Option>)}
@@ -331,8 +331,8 @@ const App = () => {
                 });
               }}
             >
-              <Row gutter={16}>
-                <Col span={12}>
+              <Row gutter={[16, 16]}>
+                <Col xs={24} lg={12}>
                   <Form.Item name="gateId" label="Select Check-Out Gate" rules={[{ required: true, message: 'Please select checkout gate!' }]}>
                     <Select placeholder="-- Check-Out Gate --" size="large">
                       {availableCheckoutGates.map((g: any) => (
@@ -349,22 +349,22 @@ const App = () => {
                   <Form.Item name="vehicleType" hidden><Input /></Form.Item>
                 </Col>
                 
-                <Col span={12}>
+                <Col xs={24} lg={12}>
                   <div className="flex flex-col gap-4 h-full">
                     {/* IN Images */}
                     <div className="flex-1 bg-gray-100 rounded border border-gray-300 p-2 overflow-hidden flex flex-col relative">
                       <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded z-10">ENTRY CAMERA (DB)</div>
-                      <div className="flex gap-2 h-full">
-                        <div className="flex-1 relative">
+                      <div className="flex flex-col sm:flex-row gap-2 h-full">
+                        <div className="flex-1 relative h-32 sm:h-auto">
                           {selectedSession.picInPanorama ? (
-                            <img src={selectedSession.picInPanorama.startsWith('/') ? `http://localhost:8080${selectedSession.picInPanorama}` : selectedSession.picInPanorama} alt="IN" className="w-full h-full object-cover rounded opacity-80" />
+                            <img src={selectedSession.picInPanorama.startsWith('/') ? `${(import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1').replace('/api/v1', '')}${selectedSession.picInPanorama}` : selectedSession.picInPanorama} alt="IN" className="w-full h-full object-cover rounded opacity-80" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No image</div>
                           )}
                         </div>
-                        <div className="w-1/3 relative bg-gray-200 rounded flex items-center justify-center p-1">
+                        <div className="w-full sm:w-1/3 relative bg-gray-200 rounded flex items-center justify-center p-1 h-20 sm:h-auto mt-2 sm:mt-0">
                           {selectedSession.picInFace ? (
-                            <img src={selectedSession.picInFace.startsWith('/') ? `http://localhost:8080${selectedSession.picInFace}` : selectedSession.picInFace} alt="LPR IN" className="w-full h-auto rounded border border-gray-400" />
+                            <img src={selectedSession.picInFace.startsWith('/') ? `${(import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1').replace('/api/v1', '')}${selectedSession.picInFace}` : selectedSession.picInFace} alt="LPR IN" className="w-full h-auto rounded border border-gray-400" />
                           ) : (
                             <div className="text-[10px] text-gray-400">No plate</div>
                           )}
@@ -375,13 +375,13 @@ const App = () => {
                     {/* OUT Images */}
                     <div className="flex-1 bg-blue-50 rounded border-2 border-blue-400 p-2 overflow-hidden flex flex-col relative shadow-inner">
                       <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded z-10 font-bold">EXIT CAMERA (MOCK LPR)</div>
-                      <div className="flex gap-2 h-full">
-                        <div className="flex-1 relative">
+                      <div className="flex flex-col sm:flex-row gap-2 h-full">
+                        <div className="flex-1 relative h-32 sm:h-auto">
                           {checkoutPreviewImages.panorama && (
                             <img src={checkoutPreviewImages.panorama} alt="OUT" className="w-full h-full object-cover rounded" />
                           )}
                         </div>
-                        <div className="w-1/3 relative bg-white border border-blue-200 rounded flex items-center justify-center p-1 shadow-sm">
+                        <div className="w-full sm:w-1/3 relative bg-white border border-blue-200 rounded flex items-center justify-center p-1 shadow-sm h-20 sm:h-auto mt-2 sm:mt-0">
                           {checkoutPreviewImages.lpr && (
                             <img src={checkoutPreviewImages.lpr} alt="LPR OUT" className="w-full h-auto rounded border-2 border-blue-400" />
                           )}
@@ -475,7 +475,8 @@ const App = () => {
     mutationFn: async (values: any) => {
       const gate = gates.find((g: any) => g.id === values.gateId);
       const isOut = gate?.gateType === 'OUT' || gate?.gateType === 'EXIT' || (gate?.gateType === 'IN_OUT' && values.actionType === 'OUT');
-      const url = isOut ? 'http://localhost:8080/api/v1/operation/iot/hardware/gates/checkout' : 'http://localhost:8080/api/v1/operation/iot/hardware/gates/checkin';
+      const baseUrl = import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1';
+      const url = isOut ? `${baseUrl}/operation/iot/hardware/gates/checkout` : `${baseUrl}/operation/iot/hardware/gates/checkin`;
       
       const base64Img = generateMockLicensePlateImage(values.plate, values.actionType, values.vehicleType);
       
@@ -507,7 +508,7 @@ const App = () => {
 
   const triggerSensorMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number, status: string }) => {
-      return axios.post('http://localhost:8080/api/v1/operation/iot/hardware/sensors/update', {
+      return axios.post(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/sensors/update`, {
         sensorId: id,
         status: status
       }).then(res => res.data);
@@ -524,7 +525,7 @@ const App = () => {
   const timeTravelMutation = useMutation({
     mutationFn: async (values: any) => {
       const targetTimeStr = values.targetTime.format('YYYY-MM-DDTHH:mm:ss');
-      return axios.post('http://localhost:8080/api/v1/operation/iot/hardware/time/fast-forward', {
+      return axios.post(`${import.meta.env.VITE_IOT_API_URL || 'http://localhost:8080/api/v1'}/operation/iot/hardware/time/fast-forward`, {
         targetTime: targetTimeStr
       }).then(res => res.data);
     },
@@ -594,8 +595,8 @@ const App = () => {
     }
 
     return (
-    <Row gutter={16}>
-      <Col span={14}>
+    <Row gutter={[16, 16]}>
+      <Col xs={24} lg={14}>
         <Card className="bg-white border-gray-200 rounded-xl" title={<span className="text-blue-400 font-mono">Camera LPR & RFID Trigger</span>}>
           <Form 
             form={form} 
@@ -617,8 +618,8 @@ const App = () => {
               </Select>
             </Form.Item>
 
-            <Row gutter={16}>
-              <Col span={12}>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12}>
                 <Form.Item name="actionType" label={<span className="text-gray-600">Action</span>} initialValue="IN">
                   <Select 
                     className="bg-gray-100 text-gray-800 border-none rounded" size="large"
@@ -629,7 +630,7 @@ const App = () => {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Form.Item name="vehicleType" label={<span className="text-gray-600">Vehicle Type</span>} rules={[{ required: true, message: 'Please select Vehicle Type' }]}>
                   <Select className="bg-gray-100 text-gray-800 border-none rounded" placeholder="-- Select Vehicle Type --" size="large">
                     {availableVehicleTypes.map((v: any) => (
@@ -665,14 +666,14 @@ const App = () => {
             </Form.Item>
 
             {previewImages.panorama && (
-              <div className="mb-4 bg-slate-50 border-4 border-gray-200 rounded-xl overflow-hidden shadow-lg p-2 flex gap-2 h-48">
-                <div className="flex-1 relative border-r-2 border-gray-200 h-full">
+              <div className="mb-4 bg-slate-50 border-4 border-gray-200 rounded-xl overflow-hidden shadow-lg p-2 flex flex-col sm:flex-row gap-2 h-auto sm:h-48">
+                <div className="flex-1 relative border-b-2 sm:border-r-2 sm:border-b-0 border-gray-200 h-32 sm:h-full">
                   <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded z-10 uppercase tracking-widest">
                     Panorama Camera
                   </div>
                   <img src={previewImages.panorama} alt="Preview" className="w-full h-full object-cover opacity-90 rounded" />
                 </div>
-                <div className="w-1/3 h-full relative bg-gray-50 flex flex-col items-center justify-center p-2 rounded">
+                <div className="w-full sm:w-1/3 h-24 sm:h-full relative bg-gray-50 flex flex-col items-center justify-center p-2 rounded">
                   <div className="absolute top-0 left-0 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded z-10 uppercase tracking-widest">
                     LPR Crop
                   </div>
@@ -700,7 +701,7 @@ const App = () => {
         </Card>
       </Col>
       
-      <Col span={10}>
+      <Col xs={24} lg={10}>
           <Card className="bg-white border-gray-200 rounded-xl h-full shadow-lg" title={
             <div className="flex justify-between items-center">
               <span className="text-purple-500 font-mono">Guest Vehicle List</span>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Steps, Button, Tag, Input, Upload, message, InputNumber, Modal, Select, Divider, Form, Radio, Table } from 'antd';
+import { Card, Typography, Steps, Button, Tag, Input, Upload, message, InputNumber, Modal, Select, Divider, Form, Radio, Table, QRCode } from 'antd';
 import { 
-  CameraOutlined, CheckCircleOutlined, CloseCircleOutlined, UploadOutlined, LockOutlined, WarningOutlined
+  CameraOutlined, CheckCircleOutlined, CloseCircleOutlined, UploadOutlined, LockOutlined, WarningOutlined, QrcodeOutlined
 } from '@ant-design/icons';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
@@ -37,9 +37,18 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const [p2Notes, setP2Notes] = useState('');
   const [p2File, setP2File] = useState<any>(null);
   const [feeDiscount, setFeeDiscount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PAYPAL' | 'PAYOS'>('CASH');
   const [damageCausePhase2, setDamageCausePhase2] = useState<'NATURAL' | 'USER'>('NATURAL');
   const [isFeeVisible, setIsFeeVisible] = useState(false);
+
+  // Digital Payment States
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [paymentQrCode, setPaymentQrCode] = useState<string>('');
+  const [paymentOrderId, setPaymentOrderId] = useState<string>('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  const [isLoadingPayment, setIsLoadingPayment] = useState(false);
 
   // Zone Violation Monthly Ticket Lookup States
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
@@ -124,6 +133,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const baseSessionPenalty = (ticket.sessionPenaltyFee || 0) - (ticket.fineAmount || 0);
   const totalPenalty = (baseSessionPenalty > 0 ? baseSessionPenalty : 0) + effectivePenaltyFee;
 
+  const calculatedParkingFee = ticket.expectedFee !== undefined
+    ? ((ticket.expectedFee || 0) + (ticket.overtimeFee || 0))
+    : (ticket.sessionParkingFee || 0);
 
   useEffect(() => {
     // Reset states when ticket changes
@@ -135,6 +147,10 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     setFeeDiscount(0);
     setPaymentMethod('CASH');
     setIsFeeVisible(false);
+    setPaymentUrl(null);
+    setPaymentQrCode('');
+    setPaymentOrderId('');
+    setPaymentConfirmed(false);
   }, [ticket.id]);
 
   const getBase64 = (file: File): Promise<string> =>
@@ -191,6 +207,113 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       onClose();
     }
   });
+
+  const getDocUrlSafe = async () => {
+      if (p2File) return await getBase64(p2File);
+      return '';
+  };
+
+  // Generate Payment URL when switching to digital method
+  useEffect(() => {
+    if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && ticket) {
+      const amount = calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0);
+      if (amount > 0) {
+        setIsLoadingPayment(true);
+        getDocUrlSafe().then(docUrl => {
+            const payload = {
+                incidentId: ticket.id,
+                resolutionNotes: p2Notes,
+                resolutionImageUrl: docUrl,
+                parkingFee: calculatedParkingFee,
+                penaltyFee: totalPenalty,
+                discountAmount: (feeDiscount || ticket.discountFee || 0),
+            };
+            axiosClient.post('/finance/payments/initialize', { 
+                actionType: 'RESOLVE_INCIDENT',
+                gateway: paymentMethod, 
+                amount: amount,
+                payload: payload
+            })
+              .then(res => {
+                setPaymentUrl(res.data.data.paymentUrl);
+                setPaymentQrCode(res.data.data.qrCode || res.data.data.paymentUrl || '');
+                if (paymentMethod === 'PAYPAL') {
+                  const urlObj = new URL(res.data.data.paymentUrl);
+                  setPaymentOrderId(urlObj.searchParams.get('token') || '');
+                } else {
+                  setPaymentOrderId(res.data.data.orderId || '');
+                }
+              })
+              .catch((err) => {
+                const errMsg = err.response?.data?.message || err.message || `Unable to generate ${paymentMethod} QR code`;
+                message.error(errMsg);
+                setPaymentMethod('CASH');
+              })
+              .finally(() => setIsLoadingPayment(false));
+        });
+      } else {
+        setPaymentConfirmed(true);
+      }
+    } else {
+      setPaymentUrl(null);
+      setPaymentQrCode('');
+      setPaymentOrderId('');
+      setPaymentConfirmed(false);
+    }
+  }, [paymentMethod, ticket, calculatedParkingFee, totalPenalty, feeDiscount]);
+
+  // Listen for webhook payment confirmation
+  useEffect(() => {
+    if (ticket && ticket.status === 'RESOLVED' && !paymentConfirmed && (paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS')) {
+      message.success(`Thanh toán ${paymentMethod} thành công! Hệ thống đã tự động xử lý sự cố.`);
+      setPaymentConfirmed(true);
+      onClose();
+    }
+  }, [ticket, paymentConfirmed, paymentMethod, onClose]);
+
+  // Polling for cooldown
+  useEffect(() => {
+    let timer: any;
+    if (verifyCooldown > 0) {
+      timer = setTimeout(() => setVerifyCooldown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [verifyCooldown]);
+
+  const handleManualVerify = () => {
+    if (!paymentOrderId || verifyCooldown > 0) return;
+    setIsVerifying(true);
+    const captureUrl = paymentMethod === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
+    
+    axiosClient.post(captureUrl, { token: paymentOrderId })
+      .then(res => {
+        if (res.data?.data?.status === 'COMPLETED') {
+          axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
+            .then(execRes => {
+                message.success(`Xác nhận thanh toán ${paymentMethod} thành công!`);
+                queryClient.invalidateQueries({ queryKey: ['incidents'] });
+                onClose();
+            })
+            .catch(execErr => {
+                message.error(execErr.response?.data?.message || 'Lỗi khi ghi nhận xử lý sự cố. Đã chuyển sang hoàn tiền.');
+                setPaymentConfirmed(true);
+            });
+        } else {
+           message.warning('Chưa ghi nhận thanh toán hoàn tất từ cổng.');
+        }
+      })
+      .catch(err => {
+         if (err.response?.status === 400) {
+           message.warning('Chưa ghi nhận thanh toán hoàn tất. Thử lại sau ít phút.');
+         } else {
+           message.error('Hệ thống đang bận.');
+         }
+      })
+      .finally(() => {
+         setIsVerifying(false);
+         setVerifyCooldown(10);
+      });
+  };
 
   const pauseFeeMutation = useMutation({
     mutationFn: async () => {
@@ -260,10 +383,6 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const currentStep = ticket.status === 'CANCELLED' || ticket.status === 'REJECTED' 
     ? 2 
     : (ticket.phase === 1 ? 0 : ticket.phase === 2 ? 1 : 2);
-
-  const calculatedParkingFee = ticket.expectedFee !== undefined
-    ? ((ticket.expectedFee || 0) + (ticket.overtimeFee || 0))
-    : (ticket.sessionParkingFee || 0);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200">
@@ -643,15 +762,66 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
                                   </Upload>
                                 </Form.Item>
+                                
+                                <div className="mt-4 mb-4">
+                                  <Radio.Group 
+                                    value={paymentMethod} 
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    buttonStyle="solid"
+                                    className="flex w-full bg-slate-100 rounded-lg p-1 border border-slate-200"
+                                  >
+                                    <Radio.Button value="CASH" className="flex-1 text-center font-bold">Tiền mặt</Radio.Button>
+                                    <Radio.Button value="PAYPAL" className="flex-1 text-center font-bold">PayPal</Radio.Button>
+                                    <Radio.Button value="PAYOS" className="flex-1 text-center font-bold">PayOS QR</Radio.Button>
+                                  </Radio.Group>
+                                </div>
+                                
+                                {(paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && (
+                                  <div className="flex flex-col items-center justify-center p-4 bg-white rounded border-2 border-dashed border-blue-400 mb-4">
+                                    {!paymentConfirmed ? (
+                                      <>
+                                        {paymentUrl ? (
+                                          <div className="flex flex-col items-center">
+                                            {paymentMethod === 'PAYOS' ? (
+                                                (paymentQrCode && (paymentQrCode.startsWith('data:image') || paymentQrCode.startsWith('http'))) ? (
+                                                    <img src={paymentQrCode} alt="PayOS QR" className="w-40 h-40 object-contain" />
+                                                ) : (
+                                                    <QRCode value={paymentQrCode || paymentUrl} size={160} />
+                                                )
+                                            ) : (
+                                                <QRCode value={paymentUrl} size={160} />
+                                            )}
+                                            <div className="mt-2 text-center text-sm font-semibold text-slate-600">
+                                              Yêu cầu khách quét QR để thanh toán. Cửa sổ sẽ tự đóng khi thanh toán thành công.
+                                            </div>
+                                            <Button type="link" onClick={handleManualVerify} loading={isVerifying} disabled={verifyCooldown > 0} className={`mt-2 ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}>
+                                              {verifyCooldown > 0 ? `Chờ ${verifyCooldown}s để kiểm tra lại` : 'Kiểm tra trạng thái thanh toán'}
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex flex-col items-center py-4 text-slate-500">
+                                            <QrcodeOutlined className="text-4xl animate-pulse mb-2" />
+                                            Đang tạo mã QR thanh toán...
+                                          </div>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <div className="text-green-600 font-bold flex items-center justify-center">
+                                        <CheckCircleOutlined className="mr-2 text-xl" /> Đã xác nhận thanh toán!
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 <Button 
                                   type="primary" 
                                   className="bg-green-600" 
                                   onClick={() => resolvePhase2Mutation.mutate()} 
-                                  loading={resolvePhase2Mutation.isPending} 
+                                  loading={resolvePhase2Mutation.isPending || isLoadingPayment} 
+                                  disabled={(paymentMethod !== 'CASH' && !paymentConfirmed) || (calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)) <= 0}
                                   block
                                 >
-                                  Xác nhận đã thu đủ tiền & Cho xe ra bãi
-
+                                  {paymentMethod === 'CASH' || (calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)) <= 0 ? 'Xác nhận đã thu đủ tiền & Cho xe ra bãi' : 'Đợi khách thanh toán QR...'}
                                 </Button>
                               </Form>
                             </>

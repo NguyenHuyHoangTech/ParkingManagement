@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Badge, Dropdown, MenuProps, notification, Button, Typography, Drawer, List } from 'antd';
 import { BellOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Client } from '@stomp/stompjs';
+import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { simulatedDayjs } from '../../../core/utils/timeProvider';
 import { useAuthStore } from '../../../core/store/useAuthStore';
@@ -23,6 +24,7 @@ const getStorageKey = (email: string | null) => `pbms_notifications_${email || '
 export const NotificationDropdown: React.FC = () => {
   const email = useAuthStore((state) => state.email);
   const storageKey = getStorageKey(email);
+  const queryClient = useQueryClient();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
@@ -77,7 +79,7 @@ export const NotificationDropdown: React.FC = () => {
 
   useEffect(() => {
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws-pbms',
+      brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
       debug: function (str) { /* silent */ },
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
@@ -86,6 +88,10 @@ export const NotificationDropdown: React.FC = () => {
 
     client.onConnect = function (frame) {
       client.subscribe('/topic/alerts', (message) => {
+        // Invalidate incidents queries
+        queryClient.invalidateQueries({ queryKey: ['incidents'] });
+        queryClient.invalidateQueries({ queryKey: ['incidents_global_badge'] });
+        
         const payload = message.body;
         let displayMessage = payload;
         

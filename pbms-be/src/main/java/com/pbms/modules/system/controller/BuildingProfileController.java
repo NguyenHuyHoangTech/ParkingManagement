@@ -10,7 +10,6 @@ import com.pbms.common.annotation.LogAudit;
 
 @RestController
 @RequestMapping("/api/v1/system/building-profile")
-@PreAuthorize("hasRole('MANAGER')")
 public class BuildingProfileController {
 
     private final BuildingProfileService service;

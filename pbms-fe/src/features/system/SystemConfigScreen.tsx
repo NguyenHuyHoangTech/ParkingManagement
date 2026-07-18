@@ -90,7 +90,7 @@ export const SystemConfigScreen = () => {
   }, [configs]);
 
   const testConnectionMutation = useMutation({
-    mutationFn: async (type: 'EMAIL' | 'PAYPAL' | 'PAYOS' | 'GEMINI') => {
+    mutationFn: async (type: 'EMAIL' | 'PAYPAL' | 'PAYOS' | 'GEMINI' | 'TEST_GEMINI_MODEL') => {
       if (type === 'EMAIL') {
         const res = await axiosClient.post('/system/configs/test-email', { email: smtpEmail, password: smtpPassword });
         return res.data;
@@ -103,19 +103,25 @@ export const SystemConfigScreen = () => {
       } else if (type === 'GEMINI') {
         const res = await axiosClient.post('/system/configs/test-gemini', { apiKey: geminiApiKey });
         return res.data;
+      } else if (type === 'TEST_GEMINI_MODEL') {
+        const res = await axiosClient.post('/system/configs/test-gemini-model', { apiKey: geminiApiKey, model: geminiModel });
+        return res.data;
       }
     },
     onMutate: (type) => {
       if (type === 'EMAIL') setTestEmailStatus('testing');
       if (type === 'PAYPAL') setTestPaypalStatus('testing');
       if (type === 'PAYOS') setTestPayosStatus('testing');
-      if (type === 'GEMINI') setTestGeminiStatus('testing');
+      if (type === 'GEMINI' || type === 'TEST_GEMINI_MODEL') setTestGeminiStatus('testing');
     },
     onSuccess: (data, type) => {
       message.success('Connected successfully!');
       if (type === 'EMAIL') setTestEmailStatus('success');
       if (type === 'PAYPAL') setTestPaypalStatus('success');
       if (type === 'PAYOS') setTestPayosStatus('success');
+      if (type === 'TEST_GEMINI_MODEL') {
+        setTestGeminiStatus('success');
+      }
       if (type === 'GEMINI') {
         setTestGeminiStatus('success');
         if (data && data.data) {
@@ -141,7 +147,7 @@ export const SystemConfigScreen = () => {
       if (type === 'EMAIL') setTestEmailStatus('error');
       if (type === 'PAYPAL') setTestPaypalStatus('error');
       if (type === 'PAYOS') setTestPayosStatus('error');
-      if (type === 'GEMINI') setTestGeminiStatus('error');
+      if (type === 'GEMINI' || type === 'TEST_GEMINI_MODEL') setTestGeminiStatus('error');
     }
   });
 
@@ -333,12 +339,21 @@ export const SystemConfigScreen = () => {
                 </div>
               </div>
               <div className="flex justify-between items-center border-t pt-4 mt-4">
-                <Button 
-                  loading={testConnectionMutation.isPending && testConnectionMutation.variables === 'GEMINI'} 
-                  onClick={() => testConnectionMutation.mutate('GEMINI')}
-                >
-                  Test Connection & Load Models
-                </Button>
+                <div className="flex space-x-2">
+                  <Button 
+                    loading={testConnectionMutation.isPending && testConnectionMutation.variables === 'TEST_GEMINI_MODEL'} 
+                    onClick={() => testConnectionMutation.mutate('TEST_GEMINI_MODEL')}
+                    disabled={!geminiModel}
+                  >
+                    Test Selected Model
+                  </Button>
+                  <Button 
+                    loading={testConnectionMutation.isPending && testConnectionMutation.variables === 'GEMINI'} 
+                    onClick={() => testConnectionMutation.mutate('GEMINI')}
+                  >
+                    Refresh Models List
+                  </Button>
+                </div>
                 {testGeminiStatus === 'success' && <Text type="success">Verified</Text>}
               </div>
             </Card>

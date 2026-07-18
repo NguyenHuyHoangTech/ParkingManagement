@@ -8,7 +8,7 @@ import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
 import { IncidentDetailPanel } from '../incident/components/IncidentDetailPanel';
-import { VehicleAssignmentTab } from '../incident/components/VehicleAssignmentTab';
+
 
 const { Title, Text } = Typography;
 
@@ -113,7 +113,7 @@ export const ExceptionDeskScreen = () => {
   const filteredTickets = ticketsData.filter((t: any) => {
     if (!isManager && t.type === 'OTHER_FEEDBACK') return false;
     const isMismatchType = t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH';
-    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION') || (selectedCategory === 'MISMATCH' && isMismatchType);
+    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION') || (selectedCategory === 'MISMATCH' && isMismatchType);
     if (!catMatch) return false;
 
     if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
@@ -121,7 +121,7 @@ export const ExceptionDeskScreen = () => {
     if (queueFilter === 'PHASE_3') return t.status === 'RESOLVED';
     if (queueFilter === 'CANCELLED') return t.status === 'CANCELLED' || t.status === 'REJECTED';
     return true;
-  }).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleIncidentSuccess = (category?: string, plate?: string) => {
     setSelectedCategory('ALL');
@@ -145,7 +145,7 @@ export const ExceptionDeskScreen = () => {
 
   const renderMobileView = () => {
     const isShowingDetail = selectedTicket !== null;
-    const isShowingForm = (selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE') && selectedTicket === null;
+    const isShowingForm = (selectedCategory === 'CREATE_INCIDENT') && selectedTicket === null;
     const isShowingList = !isShowingDetail && !isShowingForm;
 
     return (
@@ -183,7 +183,6 @@ export const ExceptionDeskScreen = () => {
                 {[
                   { id: 'ALL', label: 'Tất cả', count: pendingTickets.length },
                   { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố' },
-                  { id: 'ASSIGN_VEHICLE', label: 'Gán Xe' },
                   { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
                   { id: 'OVERSTAY', label: 'Quá giờ', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
                   { id: 'LOST_CARD', label: 'Mất thẻ', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
@@ -216,19 +215,19 @@ export const ExceptionDeskScreen = () => {
               <Select size="large" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
                 {
                   value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
-                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch;
                   }).length})`
                 },
                 {
                   value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
-                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
                   }).length})`
                 },
                 {
                   value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
-                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
                   }).length})`
                 },
@@ -290,38 +289,6 @@ export const ExceptionDeskScreen = () => {
             </div>
           </div>
         )}
-
-        {isShowingForm && selectedCategory === 'ASSIGN_VEHICLE' && (
-          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
-            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
-              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
-              <Title level={4} className="m-0 text-gray-800">Gán xe vào tài khoản</Title>
-            </div>
-            <div className="flex-1 overflow-y-auto pb-24">
-              <div className="p-4">
-                <VehicleAssignmentTab isManager={isManager} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isShowingDetail && selectedTicket && (
-          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-right">
-            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
-              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
-              <Title level={4} className="m-0 text-gray-800 flex-1 truncate">{selectedTicket.plate || selectedTicket.rfid || 'Chi tiết'}</Title>
-              {selectedTicket.status === 'RESOLVED' ? <Tag color="success">Hoàn tất</Tag> : <Tag color="processing">Phase {selectedTicket.phase}</Tag>}
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <IncidentDetailPanel
-                ticket={selectedTicket}
-                userRole="STAFF"
-                isManager={isManager}
-                onClose={navigateBack}
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -337,7 +304,6 @@ export const ExceptionDeskScreen = () => {
           {[
             { id: 'ALL', label: 'All Incidents', icon: '📋', count: pendingTickets.length },
             { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố (Quầy)', icon: '➕', count: 0 },
-            { id: 'ASSIGN_VEHICLE', label: 'Gán Xe Vào Tài Khoản', icon: '🔑', count: 0 },
             { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
             { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
             { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
@@ -377,9 +343,24 @@ export const ExceptionDeskScreen = () => {
             <Text strong className="text-gray-700 text-base">Queue ({filteredTickets.length})</Text>
           </div>
           <Select size="small" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
-            { value: 'ALL', label: 'Tất cả trạng thái' },
-            { value: 'PHASE_1', label: 'Phase 1 (Tiếp nhận)' },
-            { value: 'PHASE_2', label: 'Phase 2 (Xử lý)' },
+            {
+              value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
+                const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                return catMatch;
+              }).length})`
+            },
+            {
+              value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
+                const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+              }).length})`
+            },
+            {
+              value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
+                const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
+                return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
+              }).length})`
+            },
             { value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)' },
             { value: 'CANCELLED', label: 'Đã Hủy/Từ chối' },
           ]} />

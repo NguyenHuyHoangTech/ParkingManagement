@@ -36,14 +36,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   return (
     <Layout className="min-h-screen bg-slate-50">
       <Header className="!bg-white border-b border-slate-200 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 h-16 w-full">
-        <Space className="mr-8">
+        <Space className="mr-2 md:mr-8 shrink-0">
           <ApiOutlined className="text-blue-600 text-2xl" />
-          <Title level={4} className="!mb-0 !text-slate-800 font-bold">
+          <Title level={4} className="!mb-0 !text-slate-800 font-bold hidden md:block">
             IoT Simulator
           </Title>
         </Space>
         
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
           <Menu 
             theme="light"
             mode="horizontal" 
@@ -54,7 +54,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           />
         </div>
 
-        <Space size="large" className="ml-8">
+        <Space size="middle" className="ml-2 md:ml-8 shrink-0">
           {connectionStatus === 'connected' ? (
             <Tag color="success" className="rounded-full px-3 py-1 text-xs">
               ● Connected

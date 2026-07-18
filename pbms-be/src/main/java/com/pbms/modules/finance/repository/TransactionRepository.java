@@ -16,5 +16,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     void updateCreatedAtNative(@Param("id") Long id, @Param("createdAt") java.time.LocalDateTime createdAt);
 
     java.util.List<Transaction> findByParkingSessionIdInAndStatus(java.util.List<Long> parkingSessionIds, String status);
+
+    java.util.List<Transaction> findByWorkSessionIdAndStatus(Long workSessionId, String status);
 }
 

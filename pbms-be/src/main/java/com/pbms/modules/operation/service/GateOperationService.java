@@ -632,7 +632,7 @@ public class GateOperationService {
                     hasBlacklistViolation = true;
                 }
                 oldTicket.setSession(session);
-                incidentTicketRepository.save(oldTicket);
+                saveAndBroadcast(oldTicket);
                 penaltyFeeToAdd = penaltyFeeToAdd.add(oldTicket.getFineAmount() != null ? oldTicket.getFineAmount() : java.math.BigDecimal.ZERO);
             }
             
@@ -655,7 +655,7 @@ public class GateOperationService {
                         .status("WAITING_CHECKOUT")
                         .fineAmount(penaltyFee)
                         .build();
-                incidentTicketRepository.save(ticket);
+                saveAndBroadcast(ticket);
                 penaltyFeeToAdd = penaltyFeeToAdd.add(penaltyFee);
             }
             
@@ -827,7 +827,7 @@ public class GateOperationService {
             t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Tự động đóng do xe đã xuất bãi thành công"
                     : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
-            incidentTicketRepository.save(t);
+            saveAndBroadcast(t);
             
             // If it was a blacklist violation, they have now paid/resolved it by checking out
             if ("BLACKLIST_VIOLATION".equals(t.getIssueType())) {
@@ -925,10 +925,19 @@ public class GateOperationService {
                 .sessionId(session.getId())
                 .plateNumber(session.getPlateOut())
                 .status("SUCCESS")
-                .message("Check-out successful")
-                .checkoutFee(totalAmount)
+                .message("Checkout successful")
                 .build();
-
+        messagingTemplate.convertAndSend("/topic/gates/" + request.getGateId() + "/out", response);
         return response;
+    }
+
+    private com.pbms.modules.incident.domain.IncidentTicket saveAndBroadcast(com.pbms.modules.incident.domain.IncidentTicket ticket) {
+        com.pbms.modules.incident.domain.IncidentTicket saved = incidentTicketRepository.save(ticket);
+        try {
+            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+        } catch (Exception e) {
+            log.error("Failed to broadcast incident update", e);
+        }
+        return saved;
     }
 }

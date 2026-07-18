@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Lock;
 
 @Repository
 public interface RfidCardRepository extends JpaRepository<RfidCard, Long> {
+    Optional<RfidCard> findByCardId(String cardId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RfidCard> findByCardCode(String cardCode);
     

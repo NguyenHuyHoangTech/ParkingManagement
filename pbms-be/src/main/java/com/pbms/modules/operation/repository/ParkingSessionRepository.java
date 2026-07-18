@@ -29,6 +29,9 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
     long countByVehicleTypeIdAndStatus(Long vehicleTypeId, String status);
     
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<ParkingSession> findByRfidCard_CardIdAndStatus(String cardId, String status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ParkingSession> findByRfidCard_CardCodeAndStatus(String cardCode, String status);
     
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -38,6 +41,7 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
     Optional<ParkingSession> findByPlateAndStatus(String plate, String status);
     
     List<ParkingSession> findByPlateAndVehicleTypeIdAndStatus(String plate, Long vehicleTypeId, String status);
+    List<ParkingSession> findByPlateAndVehicleTypeIdAndStatusIn(String plate, Long vehicleTypeId, List<String> statuses);
 
     List<ParkingSession> findByStatus(String status);
     

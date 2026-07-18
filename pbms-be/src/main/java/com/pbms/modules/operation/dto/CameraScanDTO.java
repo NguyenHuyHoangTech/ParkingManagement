@@ -21,4 +21,8 @@ public class CameraScanDTO {
 
     /** Hình ảnh cắt ngang biển số hoặc xe được mã hóa dạng Base64 */
     private String imageBase64;
+
+    public void setPlateNumber(String plateNumber) {
+        this.plateNumber = com.pbms.modules.infrastructure.utils.LicensePlateUtils.normalize(plateNumber);
+    }
 }

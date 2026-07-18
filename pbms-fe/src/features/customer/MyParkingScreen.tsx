@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getImageUrl } from '../../core/utils/imageHelper';
+import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 import { simulatedDayjs } from '../../core/utils/timeProvider';
 import { FeeBreakdown } from '../../components/FeeBreakdown';
 
@@ -72,11 +73,11 @@ export const MyParkingScreen = () => {
         tabParam === 'history' ? '4' : '1'
   );
 
-  const PACKAGES = [
-    { id: 1, name: '1 Month', discount: 0 },
-    { id: 3, name: '3 Months', discount: 0.05 },
-    { id: 6, name: '6 Months', discount: 0.10 },
-    { id: 12, name: '12 Months', discount: 0.15 },
+  const BASE_PACKAGES = [
+    { id: 1, name: '1 Month' },
+    { id: 3, name: '3 Months' },
+    { id: 6, name: '6 Months' },
+    { id: 12, name: '12 Months' },
   ];
   const VEHICLES = [
     { id: 'CAR', name: 'Car', pricePerMonth: 1000000 },
@@ -169,6 +170,19 @@ export const MyParkingScreen = () => {
     }
   });
 
+  const { data: discountConfig = {} } = useQuery({
+    queryKey: ['config-discounts'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/operation/monthly-tickets/config-discounts');
+      return res.data.data || {};
+    }
+  });
+
+  const PACKAGES = BASE_PACKAGES.map(p => ({
+    ...p,
+    discount: discountConfig[p.id.toString()] || 0
+  }));
+
   const { data: historyRecords = [], isLoading: isHistoryLoading } = useQuery<HistoryRecord[]>({
     queryKey: ['my-history', selectedHistoryPlate],
     queryFn: async () => {
@@ -194,6 +208,7 @@ export const MyParkingScreen = () => {
               timeOut: '---',
               status: resStatus,
               zoneName: item.zoneName,
+              expectedEntryTime: item.expectedEntryTime,
               expectedDurationMinutes: item.expectedDurationMinutes,
               reservationFee: item.reservationFee || 0,
               refundAmount: item.refundAmount || 0,
@@ -365,8 +380,9 @@ export const MyParkingScreen = () => {
         setRenewPaymentToken(data.data.paymentUrl.split('/').pop() || '');
       }
     },
-    onError: () => {
-      message.error('Error creating renewal payment link.');
+    onError: (err: any) => {
+      const errorMsg = err.response?.data?.message || 'Error creating renewal payment link.';
+      message.error(errorMsg);
       setIsRenewQRModalVisible(false);
     }
   });
@@ -436,45 +452,63 @@ export const MyParkingScreen = () => {
       });
   };
 
+  // Countdown timer for QR expiration
   useEffect(() => {
     let timer: any;
     if (isRenewQRModalVisible && !isRenewSuccess && renewPaymentToken) {
       if (renewCountdown > 0) {
         timer = setTimeout(() => {
           setRenewCountdown(c => c - 1);
-          if (renewCountdown % 3 === 0) {
-            const captureUrl = renewGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
-            axiosClient.post(captureUrl, { token: renewPaymentToken })
-              .then(res => {
-                if (res.data?.data?.status === 'COMPLETED') {
-                  axiosClient.post('/finance/payments/execute-action', { token: renewPaymentToken })
-                    .then(execRes => {
-                      setIsRenewSuccess(true);
-                      message.success('Monthly pass renewed successfully!');
-                      queryClient.invalidateQueries({ queryKey: ['my-passes'] });
-                      setTimeout(() => {
-                        setIsRenewQRModalVisible(false);
-                        setRenewDrawerVisible(false);
-                      }, 2000);
-                    })
-                    .catch(err => {
-                      message.error(err.response?.data?.message || 'System Error: Payment refunded.');
-                      setIsRenewSuccess(true); // Stop polling
-                      setIsRenewQRModalVisible(false);
-                      setRenewDrawerVisible(false);
-                    });
-                }
-              })
-              .catch(() => { });
-          }
         }, 1000);
       } else {
         setIsRenewQRModalVisible(false);
-        message.warning('Payment timeout.');
+        message.warning('Payment session expired. Please try again.');
       }
     }
     return () => clearTimeout(timer);
-  }, [isRenewQRModalVisible, isRenewSuccess, renewPaymentToken, renewCountdown]);
+  }, [renewCountdown, isRenewQRModalVisible, isRenewSuccess, renewPaymentToken]);
+
+  // WebSocket listener for payment confirmation
+  useEffect(() => {
+    let client: any = null;
+    let subscription: any = null;
+
+    if (isRenewQRModalVisible && !isRenewSuccess && renewPaymentToken) {
+      import('@stomp/stompjs').then(({ Client }) => {
+        client = new Client({
+          brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
+          reconnectDelay: 5000,
+        });
+
+        client.onConnect = () => {
+          subscription = client.subscribe(`/topic/payments/${renewPaymentToken}`, (msg: any) => {
+            const payload = JSON.parse(msg.body);
+            if (payload.status === 'SUCCESS') {
+              setIsRenewSuccess(true);
+              message.success('Monthly pass renewed successfully!');
+              queryClient.invalidateQueries({ queryKey: ['my-passes'] });
+              setTimeout(() => {
+                setIsRenewQRModalVisible(false);
+                setRenewDrawerVisible(false);
+              }, 2000);
+            } else if (payload.status === 'FAILED') {
+              message.error(payload.message || 'System Error: Payment refunded.');
+              setIsRenewSuccess(true);
+              setIsRenewQRModalVisible(false);
+              setRenewDrawerVisible(false);
+            }
+          });
+        };
+
+        client.activate();
+      });
+    }
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+      if (client) client.deactivate();
+    };
+  }, [isRenewQRModalVisible, isRenewSuccess, renewPaymentToken, queryClient]);
 
   const renderActiveSession = () => {
     if (isLoading || isFetching) return <div className="p-12 text-center"><Spin size="large" /></div>;
@@ -610,7 +644,7 @@ export const MyParkingScreen = () => {
             placeholder="Enter License Plate"
             prefix={<CarOutlined className="text-gray-400" />}
             value={plateNumberInput}
-            onChange={(e) => setPlateNumberInput(e.target.value)}
+            onChange={(e) => setPlateNumberInput(normalizePlateNumber(e.target.value))}
           />
           <Select
             size="large"
@@ -694,6 +728,7 @@ export const MyParkingScreen = () => {
                       </Title>
                       <div className="mt-4 space-y-1">
                         <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Expected arrival: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY')}</Text></Text>
+                        <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Expected exit: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').format('HH:mm DD/MM/YYYY')}</Text></Text>
                         <Text className={`block ${displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-500'}`}>Reserved location: <Text strong className={displayStatus !== 'PENDING' && displayStatus !== 'ACTIVE' ? 'text-gray-400' : 'text-gray-800'}>{item.zoneName || item.slotName}</Text></Text>
                       </div>
                     </div>
@@ -792,8 +827,18 @@ export const MyParkingScreen = () => {
   };
 
   const renderMonthlyPassTab = () => {
-    const activePasses = monthlyPasses.filter(p => !p.status.includes('EXPIRED') || p.inParkingLot);
-    const inactivePasses = monthlyPasses.filter(p => p.status === 'EXPIRED' && !p.inParkingLot);
+    const activePasses = monthlyPasses.filter(p => !p.status.includes('EXPIRED') || p.inParkingLot)
+      .sort((a, b) => {
+        const idA = parseInt(String(a.id).replace('MP-', ''), 10) || 0;
+        const idB = parseInt(String(b.id).replace('MP-', ''), 10) || 0;
+        return idB - idA;
+      });
+    const inactivePasses = monthlyPasses.filter(p => p.status === 'EXPIRED' && !p.inParkingLot)
+      .sort((a, b) => {
+        const idA = parseInt(String(a.id).replace('MP-', ''), 10) || 0;
+        const idB = parseInt(String(b.id).replace('MP-', ''), 10) || 0;
+        return idB - idA;
+      });
 
     const renderList = (passes: MonthlyPass[]) => (
       passes.length > 0 ? (
@@ -1275,10 +1320,17 @@ export const MyParkingScreen = () => {
                   )}
                 </Text>
 
-                <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
-                  <Spin size="small" />
-                  <Text>Waiting for payment ({renewCountdown}s)...</Text>
-                </div>
+                {renewCountdown > 0 ? (
+                  <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
+                    <Spin size="small" />
+                    <Text>Waiting for payment ({renewCountdown}s)...</Text>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2 text-orange-600 mb-2 bg-orange-50 p-2 rounded-lg border border-orange-200">
+                    <WarningOutlined />
+                    <Text className="text-orange-600 font-semibold text-center">Auto-verification timeout. Please confirm manually if you have paid.</Text>
+                  </div>
+                )}
 
                 {renewPaymentUrl && renewPaymentToken && (
                     <div className="mb-4 text-center">
@@ -1412,6 +1464,10 @@ export const MyParkingScreen = () => {
                         <div>
                           <Text type="secondary" className="block mb-1">📅 Giờ dự kiến vào:</Text>
                           <Text strong className="text-slate-700">{record.timeIn}</Text>
+                        </div>
+                        <div>
+                          <Text type="secondary" className="block mb-1">📅 Giờ dự kiến ra:</Text>
+                          <Text strong className="text-slate-700">{record.expectedEntryTime && record.expectedDurationMinutes ? dayjs(record.expectedEntryTime).add(record.expectedDurationMinutes, 'minute').format('HH:mm DD/MM/YYYY') : '---'}</Text>
                         </div>
                         <div>
                           <Text type="secondary" className="block mb-1">🅿️ Khu vực:</Text>

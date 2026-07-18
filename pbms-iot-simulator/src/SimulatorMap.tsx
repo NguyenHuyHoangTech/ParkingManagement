@@ -184,7 +184,7 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
   };
 
   return (
-    <div className="flex-1 relative cursor-grab active:cursor-grabbing bg-gray-200 h-full w-full rounded-xl overflow-hidden" ref={containerRef} style={{ minHeight: '600px' }}>
+    <div className="flex-1 relative cursor-grab active:cursor-grabbing bg-gray-200 h-full w-full rounded-xl overflow-hidden" ref={containerRef} style={{ minHeight: '400px' }}>
       {containerSize.width > 0 && containerSize.height > 0 && (
         <Stage
           width={containerSize.width}

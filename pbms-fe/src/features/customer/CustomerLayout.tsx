@@ -9,12 +9,14 @@ import {
   UserOutlined,
   IdcardOutlined,
   MenuOutlined,
-  SettingOutlined
+  SettingOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useWebSocket } from '../../core/websocket/useWebSocket';
 import { UserProfileSettingsModal } from '../shared/components/UserProfileSettingsModal';
+import { BuildingRulesModal } from '../shared/components/BuildingRulesModal';
 import { SystemClock } from '../shared/components/SystemClock';
 import { useQuery } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
@@ -31,6 +33,7 @@ export const CustomerLayout = () => {
   const { connected } = useWebSocket();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   const { data: buildingProfile } = useQuery({
     queryKey: ['public-building-profile'],
@@ -60,6 +63,7 @@ export const CustomerLayout = () => {
   const userMenu: any = {
     items: [
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Quy định', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],
@@ -146,6 +150,7 @@ export const CustomerLayout = () => {
             setIsMobileMenuOpen(false);
             if (key === 'logout') handleLogout();
             else if (key === 'settings') setIsSettingsOpen(true);
+            else if (key === 'rules') setIsRulesOpen(true);
             else navigate(key);
           }}
           items={[
@@ -155,6 +160,7 @@ export const CustomerLayout = () => {
             { key: '/customer/my-parking', icon: <HistoryOutlined />, label: 'Quản lý dịch vụ' },
             { key: '/customer/helpdesk', icon: <CustomerServiceOutlined />, label: 'Hỗ trợ' },
             { type: 'divider' }, 
+            { key: 'rules', icon: <ReadOutlined className="text-blue-600" />, label: <span className="text-blue-600 font-bold">Quy định bãi đỗ xe</span> },
             { key: 'settings', icon: <SettingOutlined className="text-slate-600" />, label: <span className="text-slate-600 font-bold">Cài đặt</span> },
             { key: 'logout', icon: <LogoutOutlined className="text-red-500" />, label: <span className="text-red-500 font-bold">Đăng xuất</span> }
           ]}
@@ -187,7 +193,7 @@ export const CustomerLayout = () => {
                       <ul className="space-y-3 text-sm text-slate-500 font-medium">
                           <li><a onClick={() => navigate('/customer/my-parking')} className="hover:text-blue-600 transition cursor-pointer">Tra cứu hóa đơn</a></li>
                           <li><a onClick={() => navigate('/customer/helpdesk')} className="hover:text-blue-600 transition cursor-pointer">Báo mất thẻ / Sự cố</a></li>
-                          <li><a onClick={() => navigate('/customer/rules')} className="hover:text-blue-600 transition cursor-pointer">Quy định bãi giữ xe</a></li>
+                          <li><a onClick={() => setIsRulesOpen(true)} className="hover:text-blue-600 transition cursor-pointer">Quy định bãi giữ xe</a></li>
                       </ul>
                   </div>
                   <div>
@@ -213,6 +219,10 @@ export const CustomerLayout = () => {
       <UserProfileSettingsModal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
+      />
+      <BuildingRulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
       />
     </div>
   );

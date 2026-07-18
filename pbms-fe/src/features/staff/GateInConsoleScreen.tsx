@@ -9,6 +9,7 @@ import { CarOutlined, LockOutlined, UnlockOutlined, CheckCircleOutlined, DollarO
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
+import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 import { Stage, Layer, Rect, Group, Text as KonvaText, Line, Label, Tag as KonvaTag, Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
 
@@ -246,6 +247,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           isBlacklisted: payload.isBlacklisted || false,
           warnings: derivedWarnings,
           rfid: payload.rfid || '---',
+          cardId: payload.cardId || payload.rfid || '---',
           customerType: payload.customerType === 'PREBOOKED' ? 'BOOK' : (payload.customerType === 'MONTHLY' ? 'Monthly Pass' : (payload.customerType || 'Haunt')),
           vehicleType: payload.vehicleType || 'CAR',
           aiVehicleType: payload.vehicleType || 'CAR',
@@ -467,7 +469,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           <div className="flex justify-between items-center bg-slate-100 p-2 rounded-lg border border-slate-200 shadow-sm">
             <div className="flex items-center space-x-2">
               <IdcardOutlined className="text-2xl text-blue-600" />
-              <Text className="text-xl font-bold text-slate-700 font-mono tracking-wider">{scanData?.rfid || '---'}</Text>
+              <Text className="text-xl font-bold text-slate-700 font-mono tracking-wider">{scanData?.cardId || scanData?.rfid || '---'}</Text>
             </div>
             <div className="flex items-center space-x-2">
               <Tag color={
@@ -498,7 +500,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             <Text className="text-slate-500 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate Identification (AI)</Text>
             <Input
               value={editablePlate}
-              onChange={(e) => setEditablePlate(e.target.value)}
+              onChange={(e) => setEditablePlate(normalizePlateNumber(e.target.value))}
               disabled={!scanData}
               placeholder="---"
               className="w-full text-2xl h-10 font-mono text-center font-bold uppercase rounded-lg border-2 border-blue-400 focus:border-blue-600 focus:shadow-[0_0_8px_rgba(37,99,235,0.2)] bg-slate-50 text-slate-900"

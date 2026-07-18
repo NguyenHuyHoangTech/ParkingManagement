@@ -6,11 +6,13 @@ import {
   HistoryOutlined, 
   LogoutOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { UserProfileSettingsModal } from '../shared/components/UserProfileSettingsModal';
+import { BuildingRulesModal } from '../shared/components/BuildingRulesModal';
 import { SystemClock } from '../shared/components/SystemClock';
 
 const { Header, Sider, Content } = Layout;
@@ -23,6 +25,7 @@ export const AdminLayout = () => {
   const logout = useAuthStore((state) => state.logout);
   const email = useAuthStore((state) => state.email);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -54,6 +57,12 @@ export const AdminLayout = () => {
         icon: <SettingOutlined />,
         label: 'Account Settings',
         onClick: () => setIsSettingsOpen(true),
+      },
+      {
+        key: 'rules',
+        icon: <ReadOutlined />,
+        label: 'Nội Quy',
+        onClick: () => setIsRulesOpen(true),
       },
       {
         key: 'logout',
@@ -114,7 +123,14 @@ export const AdminLayout = () => {
           <Outlet />
         </Content>
       </Layout>
-      <UserProfileSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <UserProfileSettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
+      <BuildingRulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
+      />
     </Layout>
   );
 };

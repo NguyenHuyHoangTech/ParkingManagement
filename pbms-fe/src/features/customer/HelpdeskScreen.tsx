@@ -6,7 +6,7 @@ import axiosClient from '../../core/api/axiosClient';
 
 import { IncidentSubmitForm } from '../incident/components/IncidentSubmitForm';
 import { IncidentDetailPanel } from '../incident/components/IncidentDetailPanel';
-import { VehicleAssignmentTab } from '../incident/components/VehicleAssignmentTab';
+
 
 const { Title, Text } = Typography;
 
@@ -309,20 +309,6 @@ export const HelpdeskScreen = () => {
             <div className="p-8 flex-1">
               <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                 <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="CUSTOMER" />
-              </div>
-            </div>
-          </div>
-        ) : selectedCategory === 'ASSIGN_VEHICLE' && !selectedTicket ? (
-          <div className="flex flex-col h-full overflow-y-auto">
-            <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
-              <div>
-                <Title level={4} className="m-0 text-blue-700">Gán xe vào tài khoản</Title>
-                <Text className="text-sm text-gray-500">Khai báo thông tin xe đang đỗ để theo dõi sự cố</Text>
-              </div>
-            </div>
-            <div className="p-8 flex-1">
-              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <VehicleAssignmentTab isManager={false} />
               </div>
             </div>
           </div>

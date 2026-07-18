@@ -1,5 +1,5 @@
 import { simulatedDayjs } from '../../core/utils/timeProvider';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useWebSocket } from '../../core/websocket/useWebSocket';
 import dayjs from 'dayjs';
@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { FeeBreakdown } from '../../components/FeeBreakdown';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
+import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 import Konva from 'konva';
 
 const { Title, Text } = Typography;
@@ -68,6 +69,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const [countdown, setCountdown] = useState<number>(0);
   const [isExpired, setIsExpired] = useState<boolean>(false);
 
+  const handleRefreshPriceRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (!expiresAt) {
       setCountdown(0);
@@ -78,6 +81,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
       setCountdown(remaining);
       setIsExpired(remaining <= 0);
+      if (remaining <= 0 && handleRefreshPriceRef.current) {
+        clearInterval(timer);
+        handleRefreshPriceRef.current();
+      }
     }, 1000);
     return () => clearInterval(timer);
   }, [expiresAt]);
@@ -87,8 +94,9 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   useEffect(() => {
     if (activeGate && stompClient && connected) {
       const destination = `/topic/gates/${activeGate.id}/scans`;
+      const outDest = `/topic/gates/${activeGate.id}/out`;
       const notifDest = `/topic/floors/${activeGate.floorId}/notifications`;
-      addLog(`Subscribed to ${destination} and ${notifDest}`);
+      addLog(`Subscribed to ${destination}, ${outDest} and ${notifDest}`);
 
       const notifSub = stompClient.subscribe(notifDest, (msg) => {
         const payload = JSON.parse(msg.body);
@@ -101,6 +109,21 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         });
       });
       
+      const outSub = stompClient.subscribe(outDest, (msg) => {
+        const payload = JSON.parse(msg.body);
+        if (payload.status === 'SUCCESS' && isProcessingRef.current) {
+          message.success(`Checkout thành công! Barrier đã mở!`);
+          setScanData(null);
+          setEditablePlate('');
+          setPaymentMethod('CASH');
+          setPaymentConfirmed(false);
+          setPaymentUrl(null);
+          setPaymentQrCode('');
+          setPaymentOrderId('');
+          isProcessingRef.current = false;
+        }
+      });
+
       const subscription = stompClient.subscribe(destination, (msg) => {
         if (isProcessingRef.current) {
           addLog("Close stream band: Ignore new signal due to pending processing of current vehicle");
@@ -195,9 +218,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       });
 
       return () => {
-        subscription.unsubscribe();
         notifSub.unsubscribe();
-        addLog(`Unsubscribed from ${destination} and ${notifDest}`);
+        outSub.unsubscribe();
+        subscription.unsubscribe();
+        addLog(`Unsubscribed from ${destination}, ${outDest} and ${notifDest}`);
       };
     }
   }, [activeGate, stompClient, connected]);
@@ -356,7 +380,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   }, [paymentMethod, scanData]);
 
-  const handleRefreshPrice = () => {
+  const handleRefreshPrice = useCallback(() => {
       if (!scanData?.rfid && !scanData?.plateNumber) return;
       setIsLoading(true);
       axiosClient.get('/operation/gates/checkout-session-info', {
@@ -385,46 +409,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       }).finally(() => {
           setIsLoading(false);
       });
-  };
+  }, [scanData?.rfid, scanData?.plateNumber]);
+
+  useEffect(() => {
+    handleRefreshPriceRef.current = handleRefreshPrice;
+  }, [handleRefreshPrice]);
 
   // Poll for payment status
-  useEffect(() => {
-    if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && paymentUrl && paymentOrderId && !paymentConfirmed) {
-      const intervalId = setInterval(() => {
-        const captureUrl = paymentMethod === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
-        axiosClient.post(captureUrl, { token: paymentOrderId })
-          .then(res => {
-            if (res.data?.data?.status === 'COMPLETED') {
-              clearInterval(intervalId);
-              // Execute the checkout action internally via payments execute
-              axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
-                .then(execRes => {
-                    message.success(`Payment via ${paymentMethod} successful! Barrier opened!`);
-                    
-                    // Reset UI to accept next vehicle
-                    setScanData(null);
-                    setEditablePlate('');
-                    setPaymentMethod('CASH');
-                    setPaymentConfirmed(false);
-                    setPaymentUrl(null);
-                    setPaymentQrCode('');
-                    setPaymentOrderId('');
-                    isProcessingRef.current = false;
-                })
-                .catch(execErr => {
-                    message.error(execErr.response?.data?.message || 'System failed to checkout. A refund has been requested automatically.');
-                    setPaymentConfirmed(true); // Treat as confirmed to clear screen, but with error shown
-                });
-            }
-          })
-          .catch((err) => {
-            // Wait silently if not yet approved
-          });
-      }, 3000);
-
-      return () => clearInterval(intervalId);
-    }
-  }, [paymentMethod, paymentUrl, paymentOrderId, paymentConfirmed]);
+  // Polling has been removed in favor of WebSocket listener (outDest) above.
 
   // Polling for cooldown
   useEffect(() => {
@@ -535,7 +527,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex justify-between items-center flex-none">
                     <div className="flex items-center space-x-2">
                       <IdcardOutlined className="text-2xl text-blue-600" />
-                      <Text className="text-xl font-bold text-slate-700 font-mono tracking-wider">{scanData.rfid}</Text>
+                      <Text className="text-xl font-bold text-slate-700 font-mono tracking-wider">{scanData.cardId || scanData.rfid}</Text>
                     </div>
                     <div className="flex items-center space-x-2">
                       {scanData.routing && <Tag color="purple" className="m-0 font-bold px-3 py-1 text-sm rounded">{scanData.routing}</Tag>}
@@ -605,7 +597,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       <Text className="text-blue-700 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate Ra (Edit if wrong)</Text>
                       <Input 
                         value={editablePlate} 
-                        onChange={(e) => setEditablePlate(e.target.value)} 
+                        onChange={(e) => setEditablePlate(normalizePlateNumber(e.target.value))} 
                         className="w-full text-2xl h-10 font-mono text-center font-bold uppercase rounded border-2 border-blue-400 focus:border-blue-600 bg-white text-slate-900"
                       />
                     </div>
@@ -664,7 +656,6 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                     {expiresAt && !isExpired && (
                       <div className="mt-1.5 flex justify-end items-center gap-1.5">
                         <ClockCircleOutlined className={`text-[11px] ${countdown < 60 ? 'text-red-400 animate-pulse' : 'text-slate-400'}`} />
-                        <Text className="text-slate-400 text-[11px]">Thời gian giữ giá:</Text>
                         <span className={`font-mono text-[11px] font-bold ${countdown < 60 ? 'text-red-400 animate-pulse' : 'text-slate-300'}`}>
                           {Math.floor(countdown / 60).toString().padStart(2, '0')}:{(countdown % 60).toString().padStart(2, '0')}
                         </span>
@@ -676,7 +667,13 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   <div className="mt-6">
                     <Radio.Group 
                       value={paymentMethod} 
-                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      onChange={(e) => {
+                        setPaymentMethod(e.target.value);
+                        if (handleRefreshPriceRef.current) {
+                          handleRefreshPriceRef.current();
+                        }
+                      }}
+                      buttonStyle="solid"
                       className="flex w-full bg-slate-700 rounded-lg p-1 border border-slate-600 shadow-inner"
                     >
                       <Radio.Button value="CASH" className="flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 !text-slate-800 bg-white shadow-sm rounded-l-md">Cash</Radio.Button>

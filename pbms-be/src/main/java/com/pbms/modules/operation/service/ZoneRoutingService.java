@@ -79,10 +79,10 @@ public class ZoneRoutingService {
 
         long occupiedSlots = slotRepository.countByZoneIdAndStatus(zoneId, "OCCUPIED");
         
-        // Only count pending reservations that are active right now
+        // Only count reservations that are PENDING or ACTIVE right now
         // Window: [expectedEntryTime - window_minutes, expectedEntryTime + expectedDurationMinutes]
         java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
-        List<com.pbms.modules.operation.domain.Reservation> pendingList = reservationRepository.findByZoneIdAndStatus(zoneId, "PENDING");
+        List<com.pbms.modules.operation.domain.Reservation> pendingList = reservationRepository.findByZoneIdAndStatusIn(zoneId, java.util.Arrays.asList("PENDING"));
         int windowMinutes = 30;
         try {
             windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue());
@@ -250,14 +250,16 @@ public class ZoneRoutingService {
             .filter(z -> visitedChain.stream().noneMatch(v -> v.getId().equals(z.getId())))
             .collect(Collectors.toList());
 
-        for (Zone z : visitedChain) {
+        for (Zone z : remainingZones) {
             BigDecimal occ = calculateZoneOccupancy(z.getId());
-            if (occ.compareTo(BigDecimal.valueOf(100)) < 0) {
+            RoutingRule r = applicableRules.stream().filter(rule -> rule.getZone().getId().equals(z.getId())).findFirst().orElse(null);
+            double threshold = r != null ? r.getFillThresholdPct() : 100.0;
+            if (occ.compareTo(BigDecimal.valueOf(threshold)) < 0) {
                 return z;
             }
         }
 
-        for (Zone z : remainingZones) {
+        for (Zone z : zones) {
             BigDecimal occ = calculateZoneOccupancy(z.getId());
             if (occ.compareTo(BigDecimal.valueOf(100)) < 0) {
                 return z;
@@ -370,22 +372,27 @@ public class ZoneRoutingService {
         }
 
         if (!suggestionFound) {
-            for (Zone z : visitedChain) {
-                if (calculateZoneOccupancy(z.getId()).compareTo(BigDecimal.valueOf(100)) < 0) {
+            List<Zone> remainingZones = zones.stream()
+                    .filter(z -> visitedChain.stream().noneMatch(v -> v.getId().equals(z.getId())))
+                    .collect(Collectors.toList());
+            for (Zone z : remainingZones) {
+                BigDecimal occ = calculateZoneOccupancy(z.getId());
+                RoutingRule r = applicableRules.stream().filter(rule -> rule.getZone().getId().equals(z.getId())).findFirst().orElse(null);
+                double threshold = r != null ? r.getFillThresholdPct() : 100.0;
+                if (occ.compareTo(BigDecimal.valueOf(threshold)) < 0) {
                     actualSuggestedZone = z;
                     suggestionFound = true;
                     break;
                 }
             }
-            if (!suggestionFound) {
-                List<Zone> remainingZones = zones.stream()
-                        .filter(z -> visitedChain.stream().noneMatch(v -> v.getId().equals(z.getId())))
-                        .collect(Collectors.toList());
-                for (Zone z : remainingZones) {
-                    if (calculateZoneOccupancy(z.getId()).compareTo(BigDecimal.valueOf(100)) < 0) {
-                        actualSuggestedZone = z;
-                        break;
-                    }
+        }
+
+        if (!suggestionFound) {
+            for (Zone z : zones) {
+                if (calculateZoneOccupancy(z.getId()).compareTo(BigDecimal.valueOf(100)) < 0) {
+                    actualSuggestedZone = z;
+                    suggestionFound = true;
+                    break;
                 }
             }
         }
@@ -407,7 +414,7 @@ public class ZoneRoutingService {
             try { windowMinutes = Integer.parseInt(systemConfigService.getConfigByKey("RESERVATION_EARLY_MINS").getConfigValue()); } catch (Exception e) {}
             java.time.LocalDateTime nowTime = com.pbms.common.utils.TimeProvider.now();
             final int fWin = windowMinutes;
-            long countInWindow = reservationRepository.findByZoneIdAndStatus(z.getId(), "PENDING").stream().filter(r -> {
+            long countInWindow = reservationRepository.findByZoneIdAndStatusIn(z.getId(), java.util.Arrays.asList("PENDING")).stream().filter(r -> {
                 java.time.LocalDateTime startWindow = r.getExpectedEntryTime().minusMinutes(fWin);
                 java.time.LocalDateTime endWindow = r.getExpectedEntryTime().plusMinutes(r.getExpectedDurationMinutes());
                 return !nowTime.isBefore(startWindow) && !nowTime.isAfter(endWindow);

@@ -13,6 +13,6 @@ export const getImageUrl = (path: string | undefined | null): string => {
     return `data:image/jpeg;base64,${path}`;
   }
 
-  const baseUrl = import.meta.env.VITE_BASE_URL || 'http://localhost:8080';
+  const baseUrl = import.meta.env.VITE_BASE_URL || '';
   return `${baseUrl}${path.startsWith('/') ? path : '/' + path}`;
 };

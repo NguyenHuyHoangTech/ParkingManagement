@@ -16,6 +16,7 @@ import com.pbms.modules.finance.service.PaymentValidatorService;
 import com.pbms.modules.finance.repository.PaymentOrderRepository;
 import com.pbms.modules.finance.dto.PaymentActionRequest;
 import com.pbms.modules.finance.dto.PaymentExecutionResponse;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @RestController
 @RequestMapping("/api/v1/finance/payments")
@@ -26,6 +27,7 @@ public class PaymentController {
     private final PayOsStrategy payOsStrategy;
     private final PaymentValidatorService paymentValidatorService;
     private final PaymentOrderRepository paymentOrderRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * POST /api/v1/payments/initialize
@@ -187,6 +189,82 @@ public class PaymentController {
             }
             return ResponseEntity.badRequest().body(ApiResponse.error(500, "Execution Failed: " + e.getMessage()));
         }
+    }
+
+    /**
+     * POST /api/v1/finance/payments/webhook/payos
+     * Webhook endpoint for PayOS
+     */
+    @SuppressWarnings("unchecked")
+    @PostMapping("/webhook/payos")
+    public ResponseEntity<ApiResponse<String>> handlePayOsWebhook(@RequestBody Map<String, Object> payload) {
+        try {
+            java.util.Map<String, Object> data = (java.util.Map<String, Object>) payload.get("data");
+            if (data == null) return ResponseEntity.ok(ApiResponse.success("Ignored", "No data"));
+            
+            String orderCode = String.valueOf(data.get("orderCode"));
+            return processWebhookPayment(orderCode);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
+    /**
+     * POST /api/v1/finance/payments/webhook/paypal
+     * Webhook endpoint for PayPal
+     */
+    @SuppressWarnings("unchecked")
+    @PostMapping("/webhook/paypal")
+    public ResponseEntity<ApiResponse<String>> handlePayPalWebhook(@RequestBody Map<String, Object> payload) {
+        try {
+            java.util.Map<String, Object> resource = (java.util.Map<String, Object>) payload.get("resource");
+            if (resource == null) return ResponseEntity.ok(ApiResponse.success("Ignored", "No resource"));
+            
+            String orderId = (String) resource.get("id");
+            return processWebhookPayment(orderId);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
+        }
+    }
+
+    private ResponseEntity<ApiResponse<String>> processWebhookPayment(String token) {
+        if (token == null || token.isEmpty()) return ResponseEntity.ok(ApiResponse.success("Ignored", "No token"));
+        
+        java.util.Optional<com.pbms.modules.finance.domain.PaymentOrder> orderOpt = paymentOrderRepository.findByOrderCode(token);
+        if (orderOpt.isEmpty()) return ResponseEntity.ok(ApiResponse.success("Ignored", "Order not found"));
+        
+        com.pbms.modules.finance.domain.PaymentOrder order = orderOpt.get();
+        if (!"PENDING".equals(order.getStatus())) {
+            return ResponseEntity.ok(ApiResponse.success("Ignored", "Order is not PENDING"));
+        }
+        
+        order.setStatus("PAID");
+        paymentOrderRepository.save(order);
+        
+        try {
+            PaymentExecutionResponse execRes = paymentValidatorService.executeAction(token);
+            if (!execRes.isSuccess()) {
+                paymentValidatorService.processRefundForFailedAction(token, execRes.getMessage(), "SYSTEM_WEBHOOK");
+                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + execRes.getMessage() + "\"}");
+            } else {
+                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"SUCCESS\"}");
+            }
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (e instanceof org.springframework.transaction.UnexpectedRollbackException && e.getCause() != null) {
+                errorMessage = e.getCause().getMessage();
+            } else if (e.getCause() != null && e.getCause() instanceof IllegalArgumentException) {
+                errorMessage = e.getCause().getMessage();
+            } else if (e.getCause() != null) {
+                errorMessage = e.getCause().getMessage();
+            }
+            try {
+                paymentValidatorService.processRefundForFailedAction(token, errorMessage, "SYSTEM_WEBHOOK");
+                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + errorMessage + "\"}");
+            } catch (Exception ignored) {}
+        }
+        
+        return ResponseEntity.ok(ApiResponse.success("Processed", "Webhook processed successfully"));
     }
 }
 

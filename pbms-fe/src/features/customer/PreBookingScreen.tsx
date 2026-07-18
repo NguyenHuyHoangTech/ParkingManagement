@@ -2,11 +2,12 @@ import { simulatedDayjs, useSystemTime, useSimulatedOffset, refreshSimulatedOffs
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert } from 'antd';
-import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined } from '@ant-design/icons';
+import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
+import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 
 const { Title, Text } = Typography;
 
@@ -70,6 +71,31 @@ export const PreBookingScreen = () => {
     return 30;
   }, [earlyMinsData]);
 
+  // Fetch Additional Reservation Configs
+  const { data: reservationConfigs } = useQuery({
+    queryKey: ['public-reservation-configs-all'],
+    queryFn: async () => {
+      try {
+        const [defaultDuration, earlyPercent, latePercent] = await Promise.all([
+          axiosClient.get('/public/config/RESERVATION_DEFAULT_DURATION_MINS'),
+          axiosClient.get('/public/config/RESERVATION_REFUND_EARLY_PERCENT'),
+          axiosClient.get('/public/config/RESERVATION_REFUND_LATE_PERCENT')
+        ]);
+        return {
+          defaultDurationMins: parseInt(defaultDuration.data.data, 10) || 120,
+          earlyPercent: parseFloat(earlyPercent.data.data) || 1.0,
+          latePercent: parseFloat(latePercent.data.data) || 0.5
+        };
+      } catch (err) {
+        return { defaultDurationMins: 120, earlyPercent: 1.0, latePercent: 0.5 };
+      }
+    }
+  });
+
+  const defaultDurationMins = reservationConfigs?.defaultDurationMins || 120;
+  const refundEarlyPercent = reservationConfigs?.earlyPercent || 1.0;
+  const refundLatePercent = reservationConfigs?.latePercent || 0.5;
+
   const operatingHours = React.useMemo(() => {
     if (!buildingProfileData) return { is247: false, start: '06:00', end: '22:30' };
     return {
@@ -106,9 +132,9 @@ export const PreBookingScreen = () => {
     // If the offset changes (e.g., initial fetch from server), update the selected times
     if (!location.state?.arrivalTime) {
       setArrivalTime(simulatedDayjs().add(earlyMins, 'minute'));
-      setEndTime(simulatedDayjs().add(2, 'hour').add(earlyMins, 'minute'));
+      setEndTime(simulatedDayjs().add(earlyMins + defaultDurationMins, 'minute'));
     }
-  }, [systemOffset, earlyMins, location.state]);
+  }, [systemOffset, earlyMins, defaultDurationMins, location.state]);
 
   const addDebugLog = (type: string, data: any) => {
     setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type, data }]);
@@ -310,46 +336,62 @@ export const PreBookingScreen = () => {
       });
   };
 
+  // Countdown timer for QR expiration
   useEffect(() => {
     let timer: any;
     if (isQRModalVisible && !isPaymentSuccess && paymentOrderId) {
       if (countdown > 0) {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
-          if (countdown % 3 === 0) {
-            const captureUrl = selectedGateway === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
-            axiosClient.post(captureUrl, { token: paymentOrderId })
-              .then(res => {
-                if (res.data?.data?.status === 'COMPLETED') {
-                  // Execute Business Logic via Payment Execute Action
-                  axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
-                    .then(execRes => {
-                      message.success('Booking confirmed successfully!');
-                      setIsPaymentSuccess(true);
-                      setIsQRModalVisible(false);
-                      setTimeout(() => {
-                        navigate('/customer/my-parking?tab=booking');
-                      }, 2000);
-                    })
-                    .catch(execErr => {
-                      // The system failed to book AFTER payment. It initiated a refund.
-                      message.error(execErr.response?.data?.message || 'System failed to book. Your payment has been queued for a full refund.');
-                      setIsQRModalVisible(false);
-                      // We do NOT set payment success, but we clear it to avoid loops
-                      clearTimeout(timer);
-                    });
-                }
-              })
-              .catch(() => { });
-          }
         }, 1000);
       } else {
         setIsQRModalVisible(false);
-        message.warning('Waiting time for payment is over');
+        message.warning('Payment session expired. Please create a new booking request.');
       }
     }
     return () => clearTimeout(timer);
   }, [isQRModalVisible, isPaymentSuccess, paymentOrderId, countdown]);
+
+  // WebSocket listener for payment confirmation
+  useEffect(() => {
+    let client: any = null;
+    let subscription: any = null;
+
+    if (isQRModalVisible && !isPaymentSuccess && paymentOrderId) {
+      import('@stomp/stompjs').then(({ Client }) => {
+        client = new Client({
+          brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
+          reconnectDelay: 5000,
+        });
+
+        client.onConnect = () => {
+          setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type: 'WS_CONNECTED', data: `Subscribed to /topic/payments/${paymentOrderId}` }]);
+          subscription = client.subscribe(`/topic/payments/${paymentOrderId}`, (stompMessage: any) => {
+            const payload = JSON.parse(stompMessage.body);
+            setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type: 'WS_MESSAGE', data: payload }]);
+            if (payload.status === 'SUCCESS') {
+              message.success('Booking confirmed successfully!');
+              setIsPaymentSuccess(true);
+              setIsQRModalVisible(false);
+              setTimeout(() => {
+                navigate('/customer/my-parking?tab=booking');
+              }, 2000);
+            } else if (payload.status === 'FAILED') {
+              message.error(payload.message || 'System failed to book. Your payment has been queued for a full refund.');
+              setIsQRModalVisible(false);
+            }
+          });
+        };
+
+        client.activate();
+      });
+    }
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+      if (client) client.deactivate();
+    };
+  }, [isQRModalVisible, isPaymentSuccess, paymentOrderId, navigate]);
 
   // Debug: System Time
   const currentSystemTime = useSystemTime();
@@ -358,7 +400,7 @@ export const PreBookingScreen = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30 flex flex-col relative pb-12 font-sans">
 
       {/* System Time Debugger */}
-      <div className="hidden fixed bottom-4 left-4 z-50 bg-slate-900/90 text-green-400 font-mono p-3 rounded-lg shadow-lg border border-green-500/30 backdrop-blur-md pointer-events-auto max-h-[50vh] overflow-y-auto w-80">
+      <div className="block fixed bottom-4 left-4 z-50 bg-slate-900/90 text-green-400 font-mono p-3 rounded-lg shadow-lg border border-green-500/30 backdrop-blur-md pointer-events-auto max-h-[50vh] overflow-y-auto w-80">
         <div className="text-[10px] text-green-500/70 mb-1 font-bold uppercase tracking-wider">⏱ System Time (Debug)</div>
         <div className="text-base font-bold mb-3 pb-2 border-b border-green-500/30">{currentSystemTime.format('DD/MM/YYYY HH:mm:ss')}</div>
 
@@ -411,7 +453,7 @@ export const PreBookingScreen = () => {
                 prefix={<NumberOutlined className="text-slate-400" />}
                 placeholder="For example: 51H-123e45"
                 value={plateNumber}
-                onChange={e => setPlateNumber(e.target.value.toUpperCase())}
+                onChange={e => setPlateNumber(normalizePlateNumber(e.target.value))}
                 className="rounded-lg h-12 text-lg font-mono font-bold uppercase"
               />
             </div>
@@ -559,6 +601,15 @@ export const PreBookingScreen = () => {
                   {isFeeLoading ? <Spin size="small" /> : <Text strong className="text-xl text-blue-600 font-bold">{totalFee.toLocaleString()}  VND</Text>}
                 </div>
               </Space>
+
+              <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                <Text className="block text-sm font-bold text-blue-800 mb-2">Cancellation & Refund Policy</Text>
+                <ul className="list-disc pl-5 text-xs text-blue-700 m-0 space-y-1">
+                  <li>Cancel at least {earlyMins} minutes before entry time: Refund {refundEarlyPercent * 100}% of the fee.</li>
+                  <li>Cancel within {earlyMins} minutes before entry time: Refund {refundLatePercent * 100}% of the fee.</li>
+                  <li>No show (after entry time): No refund.</li>
+                </ul>
+              </div>
             </Card>
 
             <Card title={<span className="font-black text-xl"><CreditCardOutlined className="mr-2 text-purple-600" />Payment method</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md mt-6">
@@ -628,10 +679,17 @@ export const PreBookingScreen = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
-                        <Spin size="small" />
-                        <Text>Awaiting payment ({Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')})...</Text>
-                      </div>
+                      {countdown > 0 ? (
+                        <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
+                          <Spin size="small" />
+                          <Text>Awaiting payment ({Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')})...</Text>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center space-x-2 text-orange-600 mb-2 bg-orange-50 p-2 rounded-lg border border-orange-200">
+                          <WarningOutlined />
+                          <Text className="text-orange-600 font-semibold text-center">Auto-verification timeout. Please confirm manually if you have paid.</Text>
+                        </div>
+                      )}
 
                       {paymentUrl && paymentOrderId && (
                         <div className="mb-4 text-center">

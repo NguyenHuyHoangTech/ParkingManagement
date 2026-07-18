@@ -380,19 +380,37 @@ public class MapConfigurationService {
 
         for (Gate cg : currentGates) {
             if (!incomingGateIds.contains(cg.getId()) && !"DELETED".equals(cg.getStatus())) {
-                if (!"PATROL".equals(cg.getGateType())) {
-                    cg.setStatus("DELETED");
-                    gateRepository.save(cg);
+                if ("OCCUPIED".equals(cg.getStatus())) {
+                    throw new IllegalStateException(
+                        "Cannot delete gate \"" + cg.getGateName() + "\" because a staff member is currently on duty at this gate.");
                 }
+                cg.setStatus("DELETED");
+                gateRepository.save(cg);
             }
         }
 
         for (GateConfigDTO gDTO : mapConfig.getGates()) {
             if (gDTO.getStatus() != null && gDTO.getStatus().equals("DELETED")) {
+                // Explicit soft-delete request from frontend
+                if (gDTO.getId() != null && gateMap.containsKey(gDTO.getId())) {
+                    Gate gToDelete = gateMap.get(gDTO.getId());
+                    if ("OCCUPIED".equals(gToDelete.getStatus())) {
+                        throw new IllegalStateException(
+                            "Cannot delete gate \"" + gToDelete.getGateName() + "\" because a staff member is currently on duty at this gate.");
+                    }
+                    if (!"DELETED".equals(gToDelete.getStatus())) {
+                        gToDelete.setStatus("DELETED");
+                        gateRepository.save(gToDelete);
+                    }
+                }
                 continue;
             }
 
-            Floor f = floorRepository.findById(gDTO.getFloorId()).orElseThrow();
+            Floor f = null;
+            if (gDTO.getFloorId() != null) {
+                f = floorRepository.findById(gDTO.getFloorId()).orElse(null);
+            }
+            
             VehicleType gvt = null;
             if (gDTO.getVehicleTypeId() != null) {
                 gvt = vehicleTypeRepository.findById(gDTO.getVehicleTypeId()).orElse(null);

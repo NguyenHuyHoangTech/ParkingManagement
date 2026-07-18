@@ -45,8 +45,34 @@ public class PaymentValidatorService {
     private final MonthlyTicketRepository monthlyTicketRepository;
     private final ParkingSessionRepository parkingSessionRepository;
     private final com.pbms.common.security.JwtProvider jwtProvider;
+    private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
+    private final org.springframework.context.ApplicationContext applicationContext;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
+    /**
+     * Calculates monthly ticket total with duration-based discount from system config.
+     * Mirrors the same logic used on the frontend.
+     */
+    private BigDecimal calculateMonthlyTicketFee(PricingPolicy policy, int durationMonths) {
+        BigDecimal rate = policy.getMonthlyRate() != null ? policy.getMonthlyRate() : BigDecimal.ZERO;
+        BigDecimal baseFee = rate.multiply(BigDecimal.valueOf(durationMonths));
+        double discountRate = 0.0;
+        try {
+            String key = "MONTHLY_DISCOUNT_" + durationMonths;
+            com.pbms.modules.system.domain.SystemConfig config = systemConfigService.getConfigByKey(key);
+            if (config != null && config.getConfigValue() != null) {
+                discountRate = Double.parseDouble(config.getConfigValue());
+            }
+        } catch (Exception e) {
+            // Default discount fallback
+            if (durationMonths == 3) discountRate = 0.05;
+            else if (durationMonths == 6) discountRate = 0.10;
+            else if (durationMonths == 12) discountRate = 0.15;
+        }
+        BigDecimal discount = baseFee.multiply(BigDecimal.valueOf(discountRate));
+        return baseFee.subtract(discount);
+    }
 
     /**
      * Calculates the exact required payment amount based on the action type and payload.
@@ -64,12 +90,16 @@ public class PaymentValidatorService {
                 
             } else if ("CREATE_MONTHLY_TICKET".equals(actionType)) {
                 Long vehicleTypeId = payload.get("vehicleTypeId") != null ? Long.parseLong(payload.get("vehicleTypeId").toString()) : null;
-                int duration = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString()) : 1;
+                int duration = 1;
+                if (payload.get("durationMonths") != null) {
+                    duration = Integer.parseInt(payload.get("durationMonths").toString());
+                } else if (payload.get("duration") != null) {
+                    duration = Integer.parseInt(payload.get("duration").toString());
+                }
                 
                 PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
                         .orElseThrow(() -> new IllegalArgumentException("No active pricing policy for vehicle type: " + vehicleTypeId));
-                BigDecimal rate = policy.getMonthlyRate() != null ? policy.getMonthlyRate() : BigDecimal.ZERO;
-                return rate.multiply(BigDecimal.valueOf(duration)).doubleValue();
+                return calculateMonthlyTicketFee(policy, duration).doubleValue();
                 
             } else if ("RENEW_MONTHLY_TICKET".equals(actionType)) {
                 Long ticketId = Long.valueOf(payload.get("id").toString());
@@ -79,8 +109,7 @@ public class PaymentValidatorService {
                         .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
                 PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(ticket.getVehicleType().getId(), "ACTIVE")
                         .orElseThrow(() -> new IllegalArgumentException("No active pricing policy found"));
-                BigDecimal rate = policy.getMonthlyRate() != null ? policy.getMonthlyRate() : BigDecimal.ZERO;
-                return rate.multiply(BigDecimal.valueOf(duration)).doubleValue();
+                return calculateMonthlyTicketFee(policy, duration).doubleValue();
                 
             } else if ("CHECKOUT".equals(actionType)) {
                 String plateNumber = payload.get("plateNumber") != null ? payload.get("plateNumber").toString() : null;
@@ -117,6 +146,12 @@ public class PaymentValidatorService {
                 // Fallback (should ideally be rejected if no token is provided, but keep for legacy testing)
                 com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = gateOperationService.getCheckOutSessionInfo(session, com.pbms.common.utils.TimeProvider.now());
                 return gateOperationService.calculateTotalAmount(info).doubleValue();
+            } else if ("RESOLVE_INCIDENT".equals(actionType)) {
+                Double parkingFee = payload.get("parkingFee") != null ? Double.parseDouble(payload.get("parkingFee").toString()) : 0.0;
+                Double penaltyFee = payload.get("penaltyFee") != null ? Double.parseDouble(payload.get("penaltyFee").toString()) : 0.0;
+                Double discount = payload.get("discountAmount") != null ? Double.parseDouble(payload.get("discountAmount").toString()) : 0.0;
+                Double total = parkingFee + penaltyFee - discount;
+                return total > 0 ? total : 0.0;
             }
         } catch (Exception e) {
             log.error("Failed to calculate required amount for action: " + actionType, e);
@@ -148,6 +183,10 @@ public class PaymentValidatorService {
             } else if ("CHECKOUT".equals(actionType)) {
                 if (payload.get("rfid") == null && payload.get("plateNumber") == null)
                     throw new IllegalArgumentException("RFID or Plate Number is required for Checkout");
+            } else if ("RESOLVE_INCIDENT".equals(actionType)) {
+                if (payload.get("incidentId") == null) {
+                    throw new IllegalArgumentException("Incident ID is required for resolving incident");
+                }
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("Validation failed before payment: " + e.getMessage());
@@ -188,13 +227,20 @@ public class PaymentValidatorService {
      */
     @Transactional
     public PaymentExecutionResponse executeAction(String orderCode) {
+        int updated = paymentOrderRepository.updateStatusIfMatch(orderCode, "PAID", "PROCESSING");
+        if (updated == 0) {
+            PaymentOrder order = paymentOrderRepository.findByOrderCode(orderCode).orElse(null);
+            if (order != null && "COMPLETED".equals(order.getStatus())) {
+                return new PaymentExecutionResponse(true, "COMPLETED", "Action executed successfully (cached)", null);
+            }
+            if (order != null && "PROCESSING".equals(order.getStatus())) {
+                return new PaymentExecutionResponse(true, "PROCESSING", "Action is currently being executed by another request", null);
+            }
+            return new PaymentExecutionResponse(false, "FAILED", "Order is not in PAID status (current: " + (order != null ? order.getStatus() : "null") + ")", null);
+        }
+
         PaymentOrder order = paymentOrderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new IllegalArgumentException("Payment Order not found"));
-
-        if (!"PAID".equals(order.getStatus())) {
-            return new PaymentExecutionResponse(false, "FAILED",
-                    "Order is not in PAID status (current: " + order.getStatus() + ")", null);
-        }
 
         try {
             // Re-parse payload
@@ -203,15 +249,55 @@ public class PaymentValidatorService {
                     });
             Object resultData = null;
 
-            if ("CREATE_RESERVATION".equals(order.getActionType())) {
+            org.springframework.security.core.context.SecurityContext originalContext = org.springframework.security.core.context.SecurityContextHolder.getContext();
+            try {
+                if (order.getUserId() != null) {
+                    com.pbms.modules.identity.domain.User u = userRepository.findById(order.getUserId()).orElse(null);
+                    if (u != null) {
+                        java.util.List<org.springframework.security.core.GrantedAuthority> authorities = java.util.Collections.<org.springframework.security.core.GrantedAuthority>singletonList(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + u.getRole()));
+                        org.springframework.security.authentication.UsernamePasswordAuthenticationToken auth = 
+                                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(u.getEmail(), null, authorities);
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
+                }
+
+                if ("CREATE_RESERVATION".equals(order.getActionType())) {
                 CreateReservationRequest createReq = objectMapper.convertValue(payload, CreateReservationRequest.class);
+                java.time.LocalDateTime entry = createReq.getExpectedEntryTime();
+                if (entry.isBefore(com.pbms.common.utils.TimeProvider.now())) {
+                    throw new IllegalArgumentException("Thời gian bắt đầu đặt chỗ đã trôi qua do thanh toán quá trễ. Giao dịch sẽ bị hủy và số tiền thanh toán sẽ được tự động hoàn lại.");
+                }
+                BigDecimal currentFee = reservationService.previewPrice(createReq.getVehicleTypeId(), entry, createReq.getExpectedDurationMinutes());
+                if (currentFee.compareTo(order.getAmount()) > 0) {
+                    throw new IllegalArgumentException("Phí dịch vụ đặt chỗ đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                }
                 resultData = reservationService.createReservation(createReq);
             } else if ("CREATE_MONTHLY_TICKET".equals(order.getActionType())) {
+                Long vehicleTypeId = payload.get("vehicleTypeId") != null ? Long.parseLong(payload.get("vehicleTypeId").toString()) : null;
+                int duration = 1;
+                if (payload.get("durationMonths") != null) {
+                    duration = Integer.parseInt(payload.get("durationMonths").toString());
+                } else if (payload.get("duration") != null) {
+                    duration = Integer.parseInt(payload.get("duration").toString());
+                }
+                PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
+                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chính sách giá"));
+                BigDecimal currentTotal = calculateMonthlyTicketFee(policy, duration);
+                if (currentTotal.compareTo(order.getAmount()) > 0) {
+                    throw new IllegalArgumentException("Giá vé tháng đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                }
                 resultData = monthlyTicketService.createTicket(payload);
             } else if ("RENEW_MONTHLY_TICKET".equals(order.getActionType())) {
                 Long ticketId = Long.valueOf(payload.get("id").toString());
-                int duration = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString())
-                        : 1;
+                int duration = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString()) : 1;
+                MonthlyTicket ticket = monthlyTicketRepository.findById(ticketId).orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
+                PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(ticket.getVehicleType().getId(), "ACTIVE")
+                        .orElseThrow(() -> new IllegalArgumentException("No active pricing policy found"));
+                BigDecimal currentTotal = calculateMonthlyTicketFee(policy, duration);
+                if (currentTotal.compareTo(order.getAmount()) > 0) {
+                    throw new IllegalArgumentException("Giá vé tháng đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                }
                 resultData = monthlyTicketService.renewTicket(ticketId, duration);
             } else if ("CHECKOUT".equals(order.getActionType())) {
                 // Typically Check-out updates the session
@@ -219,6 +305,17 @@ public class PaymentValidatorService {
                         com.pbms.modules.operation.dto.CheckOutRequestDTO.class);
                 checkoutReq.setPaymentMethod(order.getPaymentMethod()); // ensure it reflects the gateway
                 resultData = gateOperationService.processCheckOut(checkoutReq);
+            } else if ("RESOLVE_INCIDENT".equals(order.getActionType())) {
+                Long incidentId = Long.valueOf(payload.get("incidentId").toString());
+                String resolutionNotes = payload.get("resolutionNotes") != null ? payload.get("resolutionNotes").toString() : null;
+                String resolutionImageUrl = payload.get("resolutionImageUrl") != null ? payload.get("resolutionImageUrl").toString() : null;
+                String uploadedPicOutUrl = payload.get("uploadedPicOutUrl") != null ? payload.get("uploadedPicOutUrl").toString() : null;
+                BigDecimal parkingFee = payload.get("parkingFee") != null ? new BigDecimal(payload.get("parkingFee").toString()) : null;
+                BigDecimal penaltyFee = payload.get("penaltyFee") != null ? new BigDecimal(payload.get("penaltyFee").toString()) : null;
+                BigDecimal discountAmount = payload.get("discountAmount") != null ? new BigDecimal(payload.get("discountAmount").toString()) : null;
+                
+                com.pbms.modules.incident.service.IncidentService incidentService = applicationContext.getBean(com.pbms.modules.incident.service.IncidentService.class);
+                resultData = incidentService.resolveIncident(incidentId, resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, order.getPaymentMethod());
             } else {
                 throw new UnsupportedOperationException("Unknown action type: " + order.getActionType());
             }
@@ -227,6 +324,9 @@ public class PaymentValidatorService {
             order.setStatus("COMPLETED");
             paymentOrderRepository.save(order);
             return new PaymentExecutionResponse(true, "COMPLETED", "Action executed successfully", resultData);
+            } finally {
+                org.springframework.security.core.context.SecurityContextHolder.setContext(originalContext);
+            }
 
         } catch (Exception e) {
             // Rethrow to let the transaction roll back
@@ -239,7 +339,7 @@ public class PaymentValidatorService {
         PaymentOrder order = paymentOrderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new IllegalArgumentException("Payment Order not found"));
 
-        if (!"PAID".equals(order.getStatus()) && !"FAILED".equals(order.getStatus())) {
+        if (!"PAID".equals(order.getStatus()) && !"FAILED".equals(order.getStatus()) && !"PROCESSING".equals(order.getStatus())) {
             return new PaymentExecutionResponse(false, "FAILED",
                     "Cannot refund order in status: " + order.getStatus(), null);
         }

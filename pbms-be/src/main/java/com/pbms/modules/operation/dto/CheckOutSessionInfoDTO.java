@@ -25,6 +25,9 @@ public class CheckOutSessionInfoDTO {
     /** Mã thẻ RFID đang được sử dụng cho phiên đỗ xe này */
     private String rfid;
 
+    /** Mã định danh hiển thị của thẻ RFID (CardID) */
+    private String cardId;
+
     /** Loại phương tiện (Ví dụ: Xe máy, Ô tô) */
     private String vehicleType;
 

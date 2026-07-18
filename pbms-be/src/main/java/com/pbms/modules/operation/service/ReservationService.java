@@ -48,6 +48,7 @@ public class ReservationService {
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final org.springframework.scheduling.TaskScheduler taskScheduler;
     private final com.pbms.modules.operation.repository.ParkingSessionRepository parkingSessionRepository;
+    private final com.pbms.modules.operation.repository.MonthlyTicketRepository monthlyTicketRepository;
 
     @org.springframework.context.annotation.Lazy
     @org.springframework.beans.factory.annotation.Autowired
@@ -112,6 +113,11 @@ public class ReservationService {
         if (!activeSessions.isEmpty()) {
             throw new IllegalStateException("Phương tiện này hiện đang ở trong bãi, không thể đặt chỗ.");
         }
+        
+        boolean hasActiveTicket = monthlyTicketRepository.findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").isPresent();
+        if (hasActiveTicket) {
+            throw new IllegalStateException("Phương tiện này đang có vé tháng hợp lệ, không thể đặt chỗ trước.");
+        }
 
         Zone zone = zoneRepository.findById(request.getZoneId())
                 .orElseThrow(() -> new RuntimeException("Zone not found"));
@@ -147,6 +153,10 @@ public class ReservationService {
         if (vehicle.getUser() == null && currentUser != null) {
             vehicle.setUser(currentUser);
             vehicleRepository.save(vehicle);
+        } else if (vehicle.getUser() != null && currentUser != null && !vehicle.getUser().getId().equals(currentUser.getId())) {
+            vehicle.setUser(currentUser);
+            vehicleRepository.save(vehicle);
+            log.info("Overwritten ownership of vehicle {} to user {} via Reservation", request.getPlateNumber(), currentUser.getEmail());
         }
 
         // 2. Calculate Price dynamically
@@ -542,14 +552,18 @@ public class ReservationService {
 
                 if (!now.isBefore(info.getTargetSimulatedTime())) {
                     // Time has passed, execute now synchronously
-                    info.getTask().run();
+                    if (info.getTask() != null) {
+                        info.getTask().run();
+                    }
                     executedCount++;
                 } else {
                     // Reschedule for remaining time
-                    long newDelayMillis = java.time.Duration.between(now, info.getTargetSimulatedTime()).toMillis();
-                    java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(),
-                            java.time.Instant.now().plusMillis(newDelayMillis));
-                    info.setFuture(newFuture);
+                    if (info.getTask() != null) {
+                        long newDelayMillis = java.time.Duration.between(now, info.getTargetSimulatedTime()).toMillis();
+                        java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(),
+                                java.time.Instant.now().plusMillis(newDelayMillis));
+                        info.setFuture(newFuture);
+                    }
                     rescheduledCount++;
                 }
             }

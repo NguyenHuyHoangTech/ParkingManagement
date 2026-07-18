@@ -11,6 +11,7 @@ import com.pbms.modules.operation.domain.VehicleType;
 import com.pbms.modules.operation.repository.VehicleTypeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.pbms.modules.finance.repository.PaymentOrderRepository;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -21,12 +22,14 @@ public class PricingConfigurationService {
 
     private final PricingPolicyRepository policyRepository;
     private final VehicleTypeRepository vehicleTypeRepository;
+    private final PaymentOrderRepository paymentOrderRepository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
-    public PricingConfigurationService(PricingPolicyRepository policyRepository, VehicleTypeRepository vehicleTypeRepository) {
+    public PricingConfigurationService(PricingPolicyRepository policyRepository, VehicleTypeRepository vehicleTypeRepository, PaymentOrderRepository paymentOrderRepository) {
         this.policyRepository = policyRepository;
         this.vehicleTypeRepository = vehicleTypeRepository;
+        this.paymentOrderRepository = paymentOrderRepository;
     }
 
     public List<PricingPolicyDTO> getAllPolicies() {
@@ -35,6 +38,10 @@ public class PricingConfigurationService {
 
     @Transactional
     public PricingPolicyDTO savePolicy(PricingPolicyDTO dto) {
+        if (paymentOrderRepository.countByStatus("PROCESSING") > 0) {
+            throw new RuntimeException("Không thể lưu cấu hình bảng giá lúc này. Đang có giao dịch đang được hệ thống xử lý. Vui lòng thử lại sau vài giây.");
+        }
+
         VehicleType vt = vehicleTypeRepository.findById(dto.getVehicleTypeId())
                 .orElseThrow(() -> new RuntimeException("VehicleType not found with id " + dto.getVehicleTypeId()));
 

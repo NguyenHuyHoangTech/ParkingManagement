@@ -36,8 +36,11 @@ public class ScanEventDTO {
     /** Tên loại phương tiện */
     private String vehicleType;
 
-    /** Mã thẻ RFID được quét */
+    /** Mã thẻ RFID được quét (mã phần cứng - CardCode) */
     private String rfid;
+
+    /** Mã định danh thẻ hiển thị cho người dùng (CardID) */
+    private String cardId;
     
     /** Ảnh toàn cảnh (panorama) thu được từ camera IoT (được mã hóa base64) */
     private String imageBase64;

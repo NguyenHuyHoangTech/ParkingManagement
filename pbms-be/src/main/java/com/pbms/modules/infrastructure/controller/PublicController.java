@@ -86,15 +86,29 @@ public class PublicController {
 
     @GetMapping("/config/{key}")
     public ResponseEntity<ApiResponse<String>> getPublicConfig(@PathVariable String key) {
-        if ("RESERVATION_EARLY_MINS".equals(key)) {
+        if (key != null && key.startsWith("RESERVATION_")) {
             try {
-                SystemConfig config = systemConfigService.getConfigByKey(key);
-                return ResponseEntity.ok(ApiResponse.success(config.getConfigValue(), "Config retrieved"));
+                com.pbms.modules.system.domain.SystemConfig config = systemConfigService.getConfigByKey(key);
+                if (config != null) {
+                    return ResponseEntity.ok(ApiResponse.success(config.getConfigValue(), "Config retrieved"));
+                } else {
+                    return ResponseEntity.ok(ApiResponse.success(getDefaultValueForKey(key), "Default value"));
+                }
             } catch (Exception e) {
-                return ResponseEntity.ok(ApiResponse.success("30", "Default value"));
+                return ResponseEntity.ok(ApiResponse.success(getDefaultValueForKey(key), "Default value"));
             }
         }
         return ResponseEntity.badRequest().body(ApiResponse.error(400, "Config not public"));
+    }
+
+    private String getDefaultValueForKey(String key) {
+        switch (key) {
+            case "RESERVATION_EARLY_MINS": return "30";
+            case "RESERVATION_DEFAULT_DURATION_MINS": return "120";
+            case "RESERVATION_REFUND_EARLY_PERCENT": return "1.0";
+            case "RESERVATION_REFUND_LATE_PERCENT": return "0.5";
+            default: return "";
+        }
     }
 }
 

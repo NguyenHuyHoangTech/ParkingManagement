@@ -57,7 +57,7 @@ public class PayPalStrategy implements PaymentStrategy {
             }
         } catch (Exception e) {
             log.error("Error getting PayPal access token: {}", e.getMessage());
-            throw new RuntimeException("An error occurred");
+            throw new RuntimeException("PayPal API Error: " + e.getMessage());
         }
         throw new RuntimeException("Failed to retrieve PayPal access token");
     }
@@ -117,7 +117,7 @@ public class PayPalStrategy implements PaymentStrategy {
             }
         } catch (Exception e) {
             log.error("Error creating PayPal order: {}", e.getMessage());
-            throw new RuntimeException("An error occurred");
+            throw new RuntimeException("PayPal API Error: " + e.getMessage());
         }
         
         throw new RuntimeException("PayPal approval link not found in response");

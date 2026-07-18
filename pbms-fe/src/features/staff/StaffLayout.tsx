@@ -8,11 +8,13 @@ import {
   SettingOutlined,
   DesktopOutlined,
   ClockCircleOutlined,
-  WarningOutlined
+  WarningOutlined,
+  ReadOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { UserProfileSettingsModal } from '../shared/components/UserProfileSettingsModal';
+import { BuildingRulesModal } from '../shared/components/BuildingRulesModal';
 import { useState } from 'react';
 import { useSystemTime } from '../../core/utils/timeProvider';
 import { NotificationDropdown } from '../shared/components/NotificationDropdown';
@@ -35,6 +37,7 @@ export const StaffLayout = () => {
   const role = useAuthStore((state) => state.role);
   const isManager = role === 'ROLE_MANAGER';
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
   const systemTime = useSystemTime();
 
   // Conflict state
@@ -78,7 +81,7 @@ export const StaffLayout = () => {
 
   useEffect(() => {
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws-pbms',
+      brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
@@ -185,6 +188,7 @@ export const StaffLayout = () => {
     items: [
       { key: 'shift', icon: <ClockCircleOutlined />, label: 'Shift Management', onClick: () => navigate('/staff/shift-management') },
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Nội Quy', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],
@@ -200,7 +204,6 @@ export const StaffLayout = () => {
       const res = await axiosClient.get('/incident/incidents');
       return res.data?.data || [];
     },
-    refetchInterval: 5000,
     enabled: shiftStatus === 'OPEN'
   });
 
@@ -325,9 +328,13 @@ export const StaffLayout = () => {
       </Content>
 
 
-      <UserProfileSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+      <UserProfileSettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
+      <BuildingRulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
       />
 
 

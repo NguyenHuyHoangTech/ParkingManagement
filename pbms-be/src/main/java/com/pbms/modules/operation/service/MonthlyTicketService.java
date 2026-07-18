@@ -30,6 +30,8 @@ public class MonthlyTicketService {
     private final com.pbms.modules.operation.repository.VehicleRepository vehicleRepository;
     private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
     private final com.pbms.modules.infrastructure.repository.SlotRepository slotRepository;
+    private final com.pbms.common.service.EmailService emailService;
+    private final com.pbms.modules.operation.repository.ReservationRepository reservationRepository;
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Transactional(readOnly = true)
@@ -102,6 +104,17 @@ public class MonthlyTicketService {
     public void expireMonthlyTickets() {
         log.info("Running expireMonthlyTickets cronjob...");
         LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+
+        // 1. Fetch tickets that are about to be expired
+        List<MonthlyTicket> expiringTickets = monthlyTicketRepository.findTicketsToProcessExpiration(now);
+        for (MonthlyTicket ticket : expiringTickets) {
+            if (ticket.getUser() != null) {
+                sendTicketEmail(ticket.getUser(), ticket, "EXPIRED");
+            }
+        }
+        log.info("Sent expiration emails for {} tickets.", expiringTickets.size());
+
+        // 2. Mark them as EXPIRED
         int expiredCount = monthlyTicketRepository.expirePastTickets(now);
         log.info("Expired {} monthly tickets.", expiredCount);
     }
@@ -177,6 +190,16 @@ public class MonthlyTicketService {
                         "Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
             }
         }
+        
+        boolean hasActiveTicket = monthlyTicketRepository.findByPlateAndStatus(plate, "ACTIVE").isPresent();
+        if (hasActiveTicket) {
+            throw new IllegalArgumentException("Phương tiện này đã có vé tháng đang hoạt động. Vui lòng kiểm tra lại.");
+        }
+        
+        boolean hasPendingReservation = !reservationRepository.findByVehicle_PlateNumberAndStatus(plate, "PENDING").isEmpty();
+        if (hasPendingReservation) {
+            throw new IllegalArgumentException("Phương tiện này đang có lịch đặt chỗ trước chờ xử lý. Không thể đăng ký vé tháng đè lên.");
+        }
     }
 
     public void validateRenewTicket(Long id, int durationMonths) {
@@ -200,7 +223,12 @@ public class MonthlyTicketService {
         Long vehicleTypeId = payload.get("vehicleTypeId") != null
                 ? Long.parseLong(payload.get("vehicleTypeId").toString())
                 : null;
-        int months = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString()) : 1;
+        int months = 1;
+        if (payload.get("durationMonths") != null) {
+            months = Integer.parseInt(payload.get("durationMonths").toString());
+        } else if (payload.get("duration") != null) {
+            months = Integer.parseInt(payload.get("duration").toString());
+        }
 
         com.pbms.modules.operation.domain.VehicleType vt = null;
         if (vehicleTypeId != null) {
@@ -230,11 +258,32 @@ public class MonthlyTicketService {
                 .build();
 
         monthlyTicketRepository.save(ticket);
+        
+        // Overwrite vehicle ownership if necessary
+        com.pbms.modules.operation.domain.Vehicle existingVehicle = vehicleRepository.findByPlateNumber(plate).orElse(null);
+        if (existingVehicle != null && currentUser != null) {
+            if (existingVehicle.getUser() == null || !existingVehicle.getUser().getId().equals(currentUser.getId())) {
+                existingVehicle.setUser(currentUser);
+                vehicleRepository.save(existingVehicle);
+                log.info("Overwritten ownership of vehicle {} to user {}", plate, currentUser.getEmail());
+            }
+        } else if (existingVehicle == null && currentUser != null) {
+            com.pbms.modules.operation.domain.Vehicle newVehicle = com.pbms.modules.operation.domain.Vehicle.builder()
+                    .plateNumber(plate)
+                    .vehicleType(vt)
+                    .user(currentUser)
+                    .build();
+            vehicleRepository.save(newVehicle);
+        }
 
         try {
             checkMonthlyThreshold();
         } catch (Exception e) {
             log.error("Failed to check monthly threshold", e);
+        }
+
+        if (currentUser != null && currentUser.getEmail() != null) {
+            sendTicketEmail(currentUser, ticket, "CREATE");
         }
 
         return MonthlyTicketDTO.builder()
@@ -263,6 +312,10 @@ public class MonthlyTicketService {
         }
         ticket.setValidUntil(newEndDate);
         monthlyTicketRepository.save(ticket);
+
+        if (ticket.getUser() != null && ticket.getUser().getEmail() != null) {
+            sendTicketEmail(ticket.getUser(), ticket, "RENEW");
+        }
 
         return MonthlyTicketDTO.builder()
                 .id("MP-" + ticket.getId())
@@ -365,5 +418,57 @@ public class MonthlyTicketService {
         } catch (Exception e) {
             log.error("Error in checkMonthlyThreshold", e);
         }
+    }
+
+    private void sendTicketEmail(com.pbms.modules.identity.domain.User user, MonthlyTicket ticket, String type) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) return;
+        
+        String subject = "";
+        String htmlBody = "";
+        String endDateStr = ticket.getValidUntil().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        String startDateStr = ticket.getValidFrom().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        
+        String commonStyles = "font-family: Arial, sans-serif; color: #333; line-height: 1.6;";
+        String tableStyles = "border-collapse: collapse; width: 100%; margin-top: 15px;";
+        String thTdStyles = "border: 1px solid #ddd; padding: 8px; text-align: left;";
+        
+        String detailsHtml = "<table style='" + tableStyles + "'>" +
+                "<tr><th style='" + thTdStyles + "'>Biển số xe</th><td style='" + thTdStyles + "'>" + ticket.getPlate() + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Loại phương tiện</th><td style='" + thTdStyles + "'>" + (ticket.getVehicleType() != null ? ticket.getVehicleType().getTypeName() : "N/A") + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Ngày bắt đầu</th><td style='" + thTdStyles + "'>" + startDateStr + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Ngày hết hạn</th><td style='" + thTdStyles + "'><strong>" + endDateStr + "</strong></td></tr>" +
+                "</table>";
+
+        if ("CREATE".equals(type)) {
+            subject = "Xác nhận đăng ký Vé Tháng thành công - PBMS";
+            htmlBody = "<div style='" + commonStyles + "'>" +
+                    "<h2 style='color: #4CAF50;'>Đăng ký Vé Tháng Thành Công!</h2>" +
+                    "<p>Xin chào " + user.getFullName() + ",</p>" +
+                    "<p>Cảm ơn bạn đã đăng ký vé tháng tại hệ thống PBMS. Dưới đây là thông tin vé của bạn:</p>" +
+                    detailsHtml +
+                    "<p style='margin-top: 20px;'>Chúc bạn có những trải nghiệm tuyệt vời cùng chúng tôi!</p>" +
+                    "</div>";
+        } else if ("RENEW".equals(type)) {
+            subject = "Xác nhận gia hạn Vé Tháng thành công - PBMS";
+            htmlBody = "<div style='" + commonStyles + "'>" +
+                    "<h2 style='color: #2196F3;'>Gia Hạn Vé Tháng Thành Công!</h2>" +
+                    "<p>Xin chào " + user.getFullName() + ",</p>" +
+                    "<p>Vé tháng của bạn đã được gia hạn thành công. Dưới đây là thông tin cập nhật:</p>" +
+                    detailsHtml +
+                    "<p style='margin-top: 20px;'>Cảm ơn bạn đã tiếp tục đồng hành cùng PBMS!</p>" +
+                    "</div>";
+        } else if ("EXPIRED".equals(type)) {
+            subject = "Thông báo: Vé Tháng của bạn đã hết hạn - PBMS";
+            htmlBody = "<div style='" + commonStyles + "'>" +
+                    "<h2 style='color: #f44336;'>Vé Tháng Đã Hết Hạn</h2>" +
+                    "<p>Xin chào " + user.getFullName() + ",</p>" +
+                    "<p>Chúng tôi xin thông báo rằng vé tháng cho phương tiện của bạn đã hết hạn vào ngày <strong>" + endDateStr + "</strong>.</p>" +
+                    detailsHtml +
+                    "<p style='margin-top: 20px;'>Hệ thống đã tự động khóa quyền truy cập của phương tiện này dưới dạng vé tháng. Bạn vui lòng gia hạn vé tháng sớm nhất để không bị gián đoạn dịch vụ.</p>" +
+                    "<p><a href='http://localhost:5173/customer/my-parking?tab=monthly' style='display: inline-block; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px;'>Gia hạn ngay</a></p>" +
+                    "</div>";
+        }
+
+        emailService.sendHtmlEmail(user.getEmail(), subject, htmlBody);
     }
 }

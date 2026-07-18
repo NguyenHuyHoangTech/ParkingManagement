@@ -548,33 +548,39 @@ export const VehicleRoutingScreen = () => {
             </div>
           </div>
           
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="timeWindow" axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dx={-10} domain={[0, 100]} />
-              <RechartsTooltip 
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(value: any) => [`${value}%`, '']}
-              />
-              <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
-              
-              <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} label={{ position: 'top', value: 'Critical Threshold 90%', fill: '#ef4444', fontSize: 12, fontWeight: 'bold' }} />
-              
-              {zoneNames.map((zName, idx) => (
-            <Line 
-              key={zName}
-              type="monotone" 
-              dataKey={zName}
-              name={zName} 
-              stroke={COLORS[idx % COLORS.length]} 
-              strokeWidth={3}
-              dot={{r: 4, strokeWidth: 2}}
-              activeDot={{r: 6}}
-            />
-          ))}
-            </LineChart>
-          </ResponsiveContainer>
+          {zoneNames.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="timeWindow" axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dx={-10} domain={[0, 100]} />
+                <RechartsTooltip 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value: any) => [`${value}%`, '']}
+                />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                
+                <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} label={{ position: 'top', value: 'Critical Threshold 90%', fill: '#ef4444', fontSize: 12, fontWeight: 'bold' }} />
+                
+                {zoneNames.map((zName, idx) => (
+                  <Line 
+                    key={zName}
+                    type="monotone" 
+                    dataKey={zName}
+                    name={zName} 
+                    stroke={COLORS[idx % COLORS.length]} 
+                    strokeWidth={3}
+                    dot={{r: 4, strokeWidth: 2}}
+                    activeDot={{r: 6}}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              No walk-in zones available for this configuration to track water level.
+            </div>
+          )}
         </div>
       </div>
 

@@ -29,6 +29,10 @@ public class Transaction extends BaseEntity {
     @JoinColumn(name = "payment_order_id")
     private PaymentOrder paymentOrder;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "work_session_id")
+    private com.pbms.modules.identity.domain.StaffWorkSession workSession;
+
     @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 

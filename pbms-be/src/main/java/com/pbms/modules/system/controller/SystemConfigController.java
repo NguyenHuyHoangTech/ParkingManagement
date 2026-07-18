@@ -91,5 +91,16 @@ public class SystemConfigController {
         List<java.util.Map<String, String>> models = service.testGeminiConnectionAndGetModels(apiKey);
         return ResponseEntity.ok(ApiResponse.success(models, "Connection successful"));
     }
+
+    @PostMapping("/test-gemini-model")
+    public ResponseEntity<ApiResponse<String>> testGeminiModel(@RequestBody java.util.Map<String, String> payload) {
+        String apiKey = payload.get("apiKey");
+        String modelName = payload.get("model");
+        if (apiKey == null || apiKey.trim().isEmpty() || modelName == null || modelName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(400, "API Key and Model are required"));
+        }
+        String response = service.testSingleGeminiModel(apiKey, modelName);
+        return ResponseEntity.ok(ApiResponse.success(response, "Connection successful"));
+    }
 }
 

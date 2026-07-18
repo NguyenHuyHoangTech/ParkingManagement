@@ -23,7 +23,7 @@ public class RfidCardService {
         return rfidCardRepository.findAll().stream()
                 .map(card -> RfidCardDTO.builder()
                         .uid(card.getCardCode())
-                        .visualId("CARD-VL-" + String.format("%03d", card.getId()))
+                        .visualId(card.getCardId() != null ? card.getCardId() : "N/A")
                         .status(card.getStatus())
                         .location(card.getStatus().equals("IN_USE") ? "In Session" : (card.getStatus().equals("AVAILABLE") ? "Gate Staff" : "Unknown"))
                         .build())
@@ -44,15 +44,17 @@ public class RfidCardService {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
-                if (line.trim().isEmpty() || line.startsWith("cardCode")) continue; // skip header or empty line
+                if (line.trim().isEmpty() || line.toLowerCase().startsWith("cardid") || line.toLowerCase().startsWith("card_id")) continue; // skip header or empty line
                 String[] columns = line.split(",");
-                if (columns.length > 0) {
-                    String cardCode = columns[0].trim();
-                    if (!cardCode.isEmpty() && rfidCardRepository.findByCardCode(cardCode).isEmpty()) {
+                if (columns.length >= 2) {
+                    String cardId = columns[0].trim();
+                    String cardCode = columns[1].trim();
+                    if (!cardId.isEmpty() && !cardCode.isEmpty() && rfidCardRepository.findByCardId(cardId).isEmpty()) {
                         RfidCard card = new RfidCard();
+                        card.setCardId(cardId);
                         card.setCardCode(cardCode);
-                        card.setStatus(columns.length > 1 ? columns[1].trim() : "AVAILABLE");
-                        card.setAssignedPlate(columns.length > 2 ? columns[2].trim() : null);
+                        card.setStatus("AVAILABLE");
+                        card.setAssignedPlate(null);
                         rfidCardRepository.save(card);
                         count++;
                     }

@@ -30,7 +30,7 @@ refreshSimulatedOffset();
 
 // Initialize WebSocket for Time Sync
 const stompClient = new Client({
-    brokerURL: 'ws://localhost:8080/ws-pbms',
+    brokerURL: window.location.protocol === 'https:' ? `wss://${window.location.host}/ws-pbms` : `ws://${window.location.host}/ws-pbms`,
     onConnect: () => {
         stompClient.subscribe('/topic/time-sync', (message) => {
             if (message.body) {

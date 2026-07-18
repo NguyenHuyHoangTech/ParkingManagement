@@ -117,10 +117,8 @@ public class WorkSessionService {
         }
 
         StaffWorkSession session = sessionOpt.get();
-        session.setStatus("COMPLETED");
-        session.setLogoutTime(com.pbms.common.utils.TimeProvider.now());
 
-        // Calculate expected revenue from preview
+        // Calculate expected revenue from preview BEFORE changing status to COMPLETED
         Map<String, Object> preview = getPreviewSettlement(email);
         BigDecimal expectedRevenue = preview.get("totalRevenue") != null 
             ? new BigDecimal(preview.get("totalRevenue").toString()) 
@@ -133,6 +131,9 @@ public class WorkSessionService {
         BigDecimal expectedOtherRevenue = preview.get("otherRevenue") != null 
             ? new BigDecimal(preview.get("otherRevenue").toString()) 
             : BigDecimal.ZERO;
+            
+        session.setStatus("COMPLETED");
+        session.setLogoutTime(com.pbms.common.utils.TimeProvider.now());
         
         session.setExpectedRevenue(expectedRevenue);
         session.setExpectedCashRevenue(expectedCashRevenue);
@@ -223,38 +224,18 @@ public class WorkSessionService {
             } else {
                 totalTransactions = checkIns.size() + checkOuts.size();
             }
-            
-            // Calculate revenue breakdown for checkouts
-            List<Long> checkoutIds = checkOuts.stream().map(ps -> ps.getId()).toList();
-            List<com.pbms.modules.finance.domain.Transaction> transactions = checkoutIds.isEmpty() ? new java.util.ArrayList<>() : transactionRepository.findByParkingSessionIdInAndStatus(checkoutIds, "SUCCESS");
-            
-            Map<Long, BigDecimal> otherRevenueMap = new HashMap<>();
-            for (com.pbms.modules.finance.domain.Transaction t : transactions) {
-                if (!"CASH".equals(t.getPaymentMethod())) {
-                    otherRevenueMap.put(t.getParkingSession().getId(), t.getAmount());
-                }
-            }
-
-            for (ParkingSession ps : checkOuts) {
-                BigDecimal fee = ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO;
-                BigDecimal overtime = ps.getOvertimeFee() != null ? ps.getOvertimeFee() : BigDecimal.ZERO;
-                BigDecimal penalty = ps.getPenaltyFee() != null ? ps.getPenaltyFee() : BigDecimal.ZERO;
-                BigDecimal actualTotal = fee.add(overtime).add(penalty);
-                
-                totalRevenue = totalRevenue.add(actualTotal);
-                if (otherRevenueMap.containsKey(ps.getId())) {
-                    BigDecimal otherAmt = otherRevenueMap.get(ps.getId());
-                    otherRevenue = otherRevenue.add(otherAmt);
-                    if (actualTotal.compareTo(otherAmt) > 0) {
-                        cashRevenue = cashRevenue.add(actualTotal.subtract(otherAmt));
-                    }
+        }
+        
+        List<com.pbms.modules.finance.domain.Transaction> transactions = transactionRepository.findByWorkSessionIdAndStatus(session.getId(), "SUCCESS");
+        for (com.pbms.modules.finance.domain.Transaction t : transactions) {
+            if (t.getAmount() != null) {
+                totalRevenue = totalRevenue.add(t.getAmount());
+                if ("CASH".equalsIgnoreCase(t.getPaymentMethod())) {
+                    cashRevenue = cashRevenue.add(t.getAmount());
                 } else {
-                    cashRevenue = cashRevenue.add(actualTotal);
+                    otherRevenue = otherRevenue.add(t.getAmount());
                 }
             }
-            
-            // Account for Patrol penalty collections is now handled automatically via Transaction records
-            // during the checkout phase of the incident resolution, exactly like normal checkout gates.
         }
 
         Map<String, Object> preview = new HashMap<>();

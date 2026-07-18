@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
+import { normalizePlateNumber } from '../../../core/utils/licensePlateUtils';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -286,9 +287,9 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
                 className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' ? 'md:col-span-2' : ''}`}
               >
                 <div className="flex gap-2">
-                  <Form.Item name="plate" rules={[{ required: true, message: 'Vui lòng nhập biển số' }]} noStyle>
-                    <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="VD: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={() => setIsPlateVerified(false)} />
-                  </Form.Item>
+                    <Form.Item name="plate" rules={[{ required: true, message: 'Vui lòng nhập biển số' }]} noStyle>
+                      <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="VD: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={(e) => { setIsPlateVerified(false); form.setFieldsValue({ plate: normalizePlateNumber(e.target.value) }); }} />
+                    </Form.Item>
                   {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION') && (
                     <Button type="primary" size="large" className="h-12" loading={isCheckingPlate} onClick={handleCheckPlate}>
                       Kiểm tra
@@ -298,7 +299,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
               </Form.Item>
             )}
 
-            {(selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK' && selectedCategory !== 'ZONE_VIOLATION' && selectedCategory !== 'BLACKLIST_VIOLATION') && (
+            {userRole !== 'STAFF' && (selectedCategory !== 'LOST_CARD' && selectedCategory !== 'DAMAGED_CARD' && selectedCategory !== 'OTHER_FEEDBACK' && selectedCategory !== 'ZONE_VIOLATION' && selectedCategory !== 'BLACKLIST_VIOLATION') && (
               <Form.Item 
                 label="Mã thẻ / Mã Booking"
                 required
@@ -315,7 +316,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
               </Form.Item>
             )}
 
-            {(isPlateVerified || selectedCategory === 'OTHER_FEEDBACK') && (
+            {(isPlateVerified || userRole === 'STAFF' || selectedCategory === 'OTHER_FEEDBACK') && (
               <>
             {selectedCategory === 'DAMAGED_CARD' ? (
               <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">

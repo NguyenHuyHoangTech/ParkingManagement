@@ -3,6 +3,8 @@ server:
   servlet:
     context-path: /
 spring:
+  cache:
+    type: simple
   config:
     import: optional:file:./.env
   application:
@@ -36,7 +38,7 @@ google:
     id: ${GOOGLE_CLIENT_ID:643517877685-3s06vf1g291nld9730fv5fun270mbneb.apps.googleusercontent.com}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3001}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3001,http://10.87.33.170:5173,http://10.87.33.170:3001}
 
 iot:
   api:

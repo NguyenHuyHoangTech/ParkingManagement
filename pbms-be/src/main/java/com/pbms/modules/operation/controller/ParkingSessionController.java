@@ -60,7 +60,8 @@ public class ParkingSessionController {
             for (ParkingSession s : list) {
                 if (("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) 
                         && s.getRfidCard() != null 
-                        && s.getRfidCard().getCardCode().equals(rfid.trim())) {
+                        && (s.getRfidCard().getCardCode().equalsIgnoreCase(rfid.trim()) 
+                            || (s.getRfidCard().getCardId() != null && s.getRfidCard().getCardId().equalsIgnoreCase(rfid.trim())))) {
                     if (vehicleTypeId != null && s.getVehicleType() != null && !s.getVehicleType().getId().equals(vehicleTypeId)) {
                         continue;
                     }
@@ -80,9 +81,11 @@ public class ParkingSessionController {
                 }
             }
         } else if (rfid != null && !rfid.isBlank()) {
-            session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "ACTIVE").orElse(null);
+            session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "ACTIVE")
+                    .orElseGet(() -> parkingSessionRepository.findByRfidCard_CardIdAndStatus(rfid.trim(), "ACTIVE").orElse(null));
             if (session == null) {
-                session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "LOCKED").orElse(null);
+                session = parkingSessionRepository.findByRfidCard_CardCodeAndStatus(rfid.trim(), "LOCKED")
+                        .orElseGet(() -> parkingSessionRepository.findByRfidCard_CardIdAndStatus(rfid.trim(), "LOCKED").orElse(null));
             }
             if (session != null && vehicleTypeId != null && session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
                 session = null;

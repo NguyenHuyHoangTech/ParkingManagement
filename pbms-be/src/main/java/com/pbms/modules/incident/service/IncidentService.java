@@ -48,6 +48,37 @@ public class IncidentService {
         return null;
     }
 
+    private void verifyVehicleOwnership(String plate, String currentUserEmail) {
+        if (plate == null || plate.isBlank()) return;
+        
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            boolean isStaff = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_STAFF") || a.getAuthority().equals("ROLE_MANAGER"));
+            if (isStaff) return;
+        }
+
+        String targetPlate = plate.trim().toUpperCase();
+        String ownerEmail = null;
+
+        java.util.Optional<com.pbms.modules.operation.domain.MonthlyTicket> mtOpt = monthlyTicketRepository.findByPlateAndStatus(targetPlate, "ACTIVE");
+        if (mtOpt.isPresent() && mtOpt.get().getUser() != null) {
+            ownerEmail = mtOpt.get().getUser().getEmail();
+        }
+
+        if (ownerEmail == null) {
+            java.util.Optional<com.pbms.modules.operation.domain.Vehicle> vehOpt = vehicleRepository.findByPlateNumber(targetPlate);
+            if (vehOpt.isPresent() && vehOpt.get().getUser() != null) {
+                ownerEmail = vehOpt.get().getUser().getEmail();
+            }
+        }
+
+        if (ownerEmail != null) {
+            if (currentUserEmail == null || !ownerEmail.equalsIgnoreCase(currentUserEmail.trim())) {
+                throw new IllegalArgumentException("Biển số xe này đã được đăng ký bởi một tài khoản khác. Chỉ chủ sở hữu xe hoặc Nhân viên quản lý mới có quyền báo cáo sự cố cho xe này!");
+            }
+        }
+    }
+
     @Transactional
     public IncidentTicket createIncident(IncidentTicketRequest request, String email) {
         ParkingSession session = null;
@@ -62,6 +93,12 @@ public class IncidentService {
                     request.getPlate().trim().toUpperCase(), request.getVehicleTypeId(), "ACTIVE");
             session = activeSessions.isEmpty() ? null : activeSessions.get(0);
         }
+
+        String targetPlate = request.getPlate();
+        if ((targetPlate == null || targetPlate.isBlank()) && session != null) {
+            targetPlate = session.getPlate();
+        }
+        verifyVehicleOwnership(targetPlate, email);
 
         if (session != null) {
             if (request.getVehicleTypeId() == null) {
@@ -79,12 +116,14 @@ public class IncidentService {
         if ("SLOT_OCCUPIED".equals(request.getIssueType())) {
             boolean hasSlotOccupied = false;
             if (session != null) {
-                hasSlotOccupied = incidentTicketRepository.existsBySessionIdAndIssueType(session.getId(), "SLOT_OCCUPIED");
+                hasSlotOccupied = incidentTicketRepository.existsBySessionIdAndIssueTypeAndStatusIn(
+                        session.getId(), "SLOT_OCCUPIED", java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
             } else if (request.getPlate() != null && !request.getPlate().isBlank()) {
-                hasSlotOccupied = incidentTicketRepository.existsByReportedPlateAndIssueType(request.getPlate().trim().toUpperCase(), "SLOT_OCCUPIED");
+                hasSlotOccupied = incidentTicketRepository.existsByReportedPlateAndIssueTypeAndStatusIn(
+                        request.getPlate().trim().toUpperCase(), "SLOT_OCCUPIED", java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
             }
             if (hasSlotOccupied) {
-                throw new IllegalArgumentException("Xe này đã báo cáo sự cố bị chiếm chỗ trước đó!");
+                throw new IllegalArgumentException("Xe này đã báo cáo sự cố bị chiếm chỗ đang chờ xử lý!");
             }
         }
 
@@ -250,7 +289,7 @@ public class IncidentService {
             }
         }
 
-        return incidentTicketRepository.save(ticket);
+        return saveAndBroadcast(ticket);
     }
 
     // Cronjob running at 2:00 AM every day
@@ -281,7 +320,7 @@ public class IncidentService {
                                 session.getPlate(), session.getTimeIn().toString()))
                         .status("PENDING")
                         .build();
-                incidentTicketRepository.save(ticket);
+                saveAndBroadcast(ticket);
                 log.warn("Created OVERSTAY incident for plate: {}", session.getPlate());
                 messagingTemplate.convertAndSend("/topic/alerts", "OVERSTAY incident generated for plate: " + session.getPlate());
             }
@@ -320,7 +359,7 @@ public class IncidentService {
     public List<IncidentTicketDTO> getAllIncidents(String email) {
         List<IncidentTicket> tickets;
         if (email != null && !email.isBlank()) {
-            tickets = incidentTicketRepository.findByUserEmailOrderByIdDesc(email);
+            tickets = incidentTicketRepository.findAllByUserEmailOrVehicleOwner(email);
         } else {
             tickets = incidentTicketRepository.findAllByOrderByIdDesc();
         }
@@ -343,7 +382,7 @@ public class IncidentService {
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
         ticket.setStatus("WAITING_CHECKOUT");
         ticket.setStaff(getCurrentUser());
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     @Transactional
@@ -363,7 +402,7 @@ public class IncidentService {
             ticket.setUploadedDocUrl(fileStorageService.storeBase64File(uploadedDocUrl));
         }
         
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     @Transactional
@@ -472,8 +511,14 @@ public class IncidentService {
             if (penaltyFee != null) totalAmount = totalAmount.add(penaltyFee);
             
             if (totalAmount.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                com.pbms.modules.identity.domain.StaffWorkSession currentSession = null;
+                if (staff != null) {
+                    currentSession = staffWorkSessionRepository.findByStaffIdAndStatus(staff.getId(), "ACTIVE").orElse(null);
+                }
+
                 com.pbms.modules.finance.domain.Transaction transaction = com.pbms.modules.finance.domain.Transaction.builder()
                         .parkingSession(session)
+                        .workSession(currentSession)
                         .amount(totalAmount)
                         .paymentMethod(paymentMethod != null ? paymentMethod : "CASH")
                         .status("SUCCESS")
@@ -514,7 +559,7 @@ public class IncidentService {
             }
         }
         
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     @Transactional
@@ -605,7 +650,7 @@ public class IncidentService {
         }
 
         log.info("Incident #{} CANCELLED. Reason: {}", id, reason);
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
     
     @Transactional
@@ -718,7 +763,7 @@ public class IncidentService {
         }
 
         log.info("Incident #{} moved to WAITING_CHECKOUT (Phase 1 approved)", id);
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     @Transactional
@@ -739,7 +784,7 @@ public class IncidentService {
         log.info("Incident #{} RESOLVED (Non-card flow)", id);
         messagingTemplate.convertAndSend("/topic/alerts", "[RESOLVED] Ticket #" + id + " has been successfully resolved.");
 
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     /**
@@ -785,7 +830,7 @@ public class IncidentService {
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
 
         log.info("Incident #{} REJECTED. Reason: {}", id, reason);
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     /**
@@ -797,6 +842,7 @@ public class IncidentService {
         if (vehicleTypeId == null) {
             throw new IllegalArgumentException("Loại phương tiện không được để trống.");
         }
+        verifyVehicleOwnership(plate, email);
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
         ParkingSession session = activeSessions.isEmpty() ? null : activeSessions.get(0);
         
@@ -839,7 +885,7 @@ public class IncidentService {
         messagingTemplate.convertAndSend("/topic/alerts",
                 "[MAT THE] Bien so " + plate + " da bao mat the. Phi phat: " + fineAmount.toPlainString() + " VND");
 
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     /**
@@ -880,7 +926,7 @@ public class IncidentService {
                 .build();
 
         log.info("FEE_ADJUSTMENT incident: plate={}, newFee={}", plate, liveFee);
-        return mapToDTO(incidentTicketRepository.save(ticket));
+        return mapToDTO(saveAndBroadcast(ticket));
     }
 
     private IncidentTicketDTO mapToDTO(IncidentTicket ticket) {
@@ -978,6 +1024,7 @@ public class IncidentService {
                 .sessionPicOutPanorama(sessionPicOut)
                 .sessionParkingFee(sessionParkingFee)
                 .sessionVehicleType(sessionVehicleType)
+                .vehicleTypeId(session != null && session.getVehicleType() != null ? session.getVehicleType().getId() : null)
                 .sessionSuggestedZone(sessionSuggestedZone)
                 .feePausedAt(ticket.getFeePausedAt())
                 .baseFee(sessionParkingFee)
@@ -1028,7 +1075,9 @@ public class IncidentService {
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
 
         activeSessions.stream()
-                .filter(session -> session.getRfidCard() != null && session.getRfidCard().getCardCode().equals(rfid.trim()))
+                .filter(session -> session.getRfidCard() != null && 
+                        (session.getRfidCard().getCardCode().equalsIgnoreCase(rfid.trim()) || 
+                         session.getRfidCard().getCardId().equalsIgnoreCase(rfid.trim())))
                 .findFirst()
                 .ifPresent(session -> {
                     result.put("isActive", true);
@@ -1061,7 +1110,17 @@ public class IncidentService {
         if (resolutionImageUrl != null && !resolutionImageUrl.isBlank()) {
             ticket.setResolutionImageUrl(fileStorageService.storeBase64File(resolutionImageUrl));
         }
-        incidentTicketRepository.save(ticket);
+        saveAndBroadcast(ticket);
+    }
+
+    private IncidentTicket saveAndBroadcast(IncidentTicket ticket) {
+        IncidentTicket saved = incidentTicketRepository.save(ticket);
+        try {
+            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+        } catch (Exception e) {
+            log.error("Failed to broadcast incident update", e);
+        }
+        return saved;
     }
 }
 

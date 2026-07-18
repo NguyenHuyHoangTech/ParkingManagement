@@ -344,10 +344,9 @@ export const CardManagementScreen = () => {
                 
                                     Please upload the file <strong>.csv</strong>  has the following column structure:
                                     <div className="bg-white border p-2 mt-2 rounded font-mono text-xs">
-                  cardCode,status,assignedPlate<br/>
-                  E200001968130118,AVAILABLE,<br/>
-                  E200001968130119,AVAILABLE,<br/>
-                  E200001968130120,IN_USE,29A-123.45
+                  CardID,CardCode<br/>
+                  1234567890,A1B2C3D4<br/>
+                  0987654321,E5F6G7H8<br/>
                 </div>
               </div>
             }

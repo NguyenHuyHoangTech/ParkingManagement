@@ -102,11 +102,16 @@ export const ShiftManagementScreen = () => {
       if (floors.length > 0) {
         const firstFloor = floors[0];
         setSelectedFloor(firstFloor);
-        const firstGate = gates.find((g: Gate) => g.floor === firstFloor && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
-        if (firstGate) setSelectedGateId(firstGate.id);
+        if (selectedPostType === 'PATROL') {
+          const firstPatrolGate = gates.find((g: Gate) => g.floor === firstFloor && g.type === 'PATROL');
+          if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
+        } else {
+          const firstGate = gates.find((g: Gate) => g.floor === firstFloor && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
+          if (firstGate) setSelectedGateId(firstGate.id);
+        }
       }
     }
-  }, [gates, isStartModalVisible, selectedFloor]);
+  }, [gates, isStartModalVisible, selectedFloor, selectedPostType]);
 
   // Fetch the current preview settlement
   const { data: settlementPreview, isLoading: isLoadingPreview } = useQuery({
@@ -114,7 +119,7 @@ export const ShiftManagementScreen = () => {
     queryFn: async () => {
       try {
         const res = await axiosClient.get('/identity/work-sessions/current/preview-settlement');
-        return res.data;
+        return res.data?.data;
       } catch (e) {
         return null;
       }
@@ -357,8 +362,14 @@ export const ShiftManagementScreen = () => {
                 onChange={e => {
                   setSelectedFloor(e.target.value);
                   // Reset selected gate
-                  const firstGate = gates.find((g: Gate) => g.floor === e.target.value && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
-                  if (firstGate) setSelectedGateId(firstGate.id);
+                  if (selectedPostType === 'PATROL') {
+                    const firstPatrolGate = gates.find((g: Gate) => g.floor === e.target.value && g.type === 'PATROL');
+                    if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
+                    else setSelectedGateId(-1);
+                  } else {
+                    const firstGate = gates.find((g: Gate) => g.floor === e.target.value && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
+                    if (firstGate) setSelectedGateId(firstGate.id);
+                  }
                 }}
                 buttonStyle="solid"
                 size="large"
@@ -419,7 +430,9 @@ export const ShiftManagementScreen = () => {
                 className={`cursor-pointer h-auto p-4 rounded-xl border-2 flex items-center transition-all ${selectedPostType === 'PATROL' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
                 onClick={() => {
                   setSelectedPostType('PATROL');
-                  setSelectedGateId(-1);
+                  const firstPatrolGate = gates.find((g: Gate) => g.floor === selectedFloor && g.type === 'PATROL');
+                  if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
+                  else setSelectedGateId(-1);
                   setSelectedGateFunction('PATROL');
                 }}
               >
@@ -429,8 +442,20 @@ export const ShiftManagementScreen = () => {
                     <Text strong className="block text-base sm:text-lg mb-1 truncate">Patrol Task</Text>
                     <Text type="secondary" className="text-sm">Handle parking exceptions (wrong parking, lost cards, barrier errors).</Text>
                     {selectedPostType === 'PATROL' && (
-                      <div className="mt-2">
-                        <Tag color="green" className="mt-2 font-bold">Access: Exception Desk</Tag>
+                      <div className="mt-4 p-3 bg-white border border-green-200 rounded-lg" onClick={e => e.stopPropagation()}>
+                        <Text className="block mb-2 text-xs font-bold text-gray-500 uppercase">Select Patrol Area/Gate:</Text>
+                        <Radio.Group onChange={(e) => setSelectedGateId(e.target.value)} value={selectedGateId}>
+                          <Space direction="vertical">
+                            {gates.filter((g: Gate) => g.floor === selectedFloor && g.type === 'PATROL').map((g: Gate) => (
+                              <Radio key={g.id} value={g.id} disabled={g.status !== 'IDLE'}>
+                                {g.name} {g.status !== 'IDLE' && <Text type="danger" className="text-xs ml-2">(Active Operator: {g.staffName} - {g.staffEmail})</Text>}
+                              </Radio>
+                            ))}
+                          </Space>
+                        </Radio.Group>
+                        <div className="mt-4">
+                          <Tag color="green" className="font-bold">Access: Exception Desk</Tag>
+                        </div>
                       </div>
                     )}
                   </div>

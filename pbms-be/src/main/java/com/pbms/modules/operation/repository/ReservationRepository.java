@@ -13,6 +13,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByVehicle_PlateNumberAndStatus(String plateNumber, String status);
     List<Reservation> findByStatus(String status);
     List<Reservation> findByZoneIdAndStatus(Long zoneId, String status);
+    List<Reservation> findByZoneIdAndStatusIn(Long zoneId, List<String> statuses);
 
     List<Reservation> findByVehicle_PlateNumberOrderByExpectedEntryTimeDesc(String plateNumber);
 

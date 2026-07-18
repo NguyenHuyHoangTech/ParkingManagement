@@ -22,5 +22,9 @@ public class CreateReservationRequest {
     private LocalDateTime expectedEntryTime;
     
     private Integer expectedDurationMinutes;
+
+    public void setPlateNumber(String plateNumber) {
+        this.plateNumber = com.pbms.modules.infrastructure.utils.LicensePlateUtils.normalize(plateNumber);
+    }
 }
 
