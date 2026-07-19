@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer, Line, Group, Rect, Text as KonvaText, Label, Tag } from 'react-konva';
 import { Button, Select } from 'antd';
 import { ZoomInOutlined, ZoomOutOutlined, AimOutlined } from '@ant-design/icons';
@@ -16,7 +16,7 @@ const getVehicleDimensions = (typeId, vehicleTypes) => {
   return { width: 3 * GRID_SIZE, height: 6 * GRID_SIZE };
 };
 
-export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, selectedFloorId, toggleSlot }) => {
+export const SimulatorMap = forwardRef(({ floors, zones, gates, slots, vehicleTypes, selectedFloorId, toggleSlot }: any, ref: any) => {
   const activeFloor = floors.find(f => f.id === selectedFloorId);
   const mapCols = activeFloor?.mapCols || 60;
   const mapRows = activeFloor?.mapRows || 40;
@@ -29,23 +29,27 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
   const [defaultScale, setDefaultScale] = useState(1);
 
   const visibleZones = zones.filter(z => z.floorId === selectedFloorId);
-  const visibleGates = gates.filter(g => g.floorId === selectedFloorId);
+  const visibleGates = gates.filter((g: any) => g.floorId === selectedFloorId);
+
+  useImperativeHandle(ref, () => ({
+    handleZoomFit,
+    handleZoomZone
+  }));
 
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        setContainerSize({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
-        });
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          setContainerSize({
+            width: entry.contentRect.width,
+            height: entry.contentRect.height
+          });
+        }
       }
-    };
-    const timer = setTimeout(updateSize, 100);
-    window.addEventListener('resize', updateSize);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', updateSize);
-    };
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -184,7 +188,7 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
   };
 
   return (
-    <div className="flex-1 relative cursor-grab active:cursor-grabbing bg-gray-200 h-full w-full rounded-xl overflow-hidden" ref={containerRef} style={{ minHeight: '400px' }}>
+    <div className="flex-1 relative cursor-grab active:cursor-grabbing bg-[#f8fafc] h-full w-full rounded-xl overflow-hidden shadow-inner" ref={containerRef} style={{ minHeight: 'calc(100vh - 180px)' }}>
       {containerSize.width > 0 && containerSize.height > 0 && (
         <Stage
           width={containerSize.width}
@@ -387,16 +391,7 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
           </Layer>
         </Stage>
       )}
-      <div className="absolute top-4 left-4 flex gap-2 z-10 bg-white/80 p-2 rounded-lg backdrop-blur-sm shadow-sm border border-gray-200">
-        <Button icon={<AimOutlined />} onClick={handleZoomFit}>Fit to Screen</Button>
-        <Select
-          placeholder="Zoom to Zone"
-          options={visibleZones.map((z: any) => ({ label: z.zoneName || z.name, value: z.id }))}
-          onChange={handleZoomZone}
-          allowClear
-          className="w-48"
-        />
-      </div>
+
       {!activeFloor && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-white">
           Chưa tải được dữ liệu tầng
@@ -404,4 +399,4 @@ export const SimulatorMap = ({ floors, zones, gates, slots, vehicleTypes, select
       )}
     </div>
   );
-};
+});

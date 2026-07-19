@@ -26,7 +26,11 @@ public class PricingCalculatorService {
 
     public BigDecimal calculateTotalFee(Long vehicleTypeId, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
         PricingPolicy policy = policyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
-                .orElseThrow(() -> new RuntimeException("No active pricing policy for vehicle type: " + vehicleTypeId));
+                .orElse(null);
+        
+        if (policy == null) {
+            return BigDecimal.ZERO;
+        }
 
         return calculateWithTrace(policy, checkInTime, checkOutTime).getFee();
     }

@@ -21,8 +21,8 @@ export const HelpdeskScreen = () => {
     const handlePopState = (event: PopStateEvent) => {
       // Whenever user presses physical back button, we go back to the main list
       setSelectedTicket(null);
-      if (window.location.hash !== '#create' && window.location.hash !== '#assign') {
-         setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
+      if (window.location.hash !== '#create') {
+         setSelectedCategory(prev => (prev === 'CREATE_INCIDENT') ? 'ALL' : prev);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -68,7 +68,7 @@ export const HelpdeskScreen = () => {
   }, [ticketsData]);
 
   const filteredTickets = ticketsData.filter((t: any) => {
-    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE' || t.type === selectedCategory;
+    const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory;
     if (!catMatch) return false;
     
     if (queueFilter === 'PHASE_1') return t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
@@ -87,14 +87,14 @@ export const HelpdeskScreen = () => {
       setSelectedCategory('ALL');
       setSelectedTicket(null);
     }
-    if (window.location.hash === '#create' || window.location.hash === '#assign') {
+    if (window.location.hash === '#create') {
       window.history.back();
     }
   };
 
   const renderMobileView = () => {
     const isShowingDetail = selectedTicket !== null;
-    const isShowingForm = (selectedCategory === 'CREATE_INCIDENT' || selectedCategory === 'ASSIGN_VEHICLE') && selectedTicket === null;
+    const isShowingForm = selectedCategory === 'CREATE_INCIDENT' && selectedTicket === null;
     const isShowingList = !isShowingDetail && !isShowingForm;
 
     return (
@@ -103,16 +103,22 @@ export const HelpdeskScreen = () => {
           <div className="flex flex-col h-full overflow-hidden animate-fade-in w-full">
             {/* Header */}
             <div className="bg-white p-4 shadow-sm border-b border-gray-100 shrink-0 z-10 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center mb-1">
                 <Title level={4} className="m-0 text-gray-800">Hỗ trợ khách hàng</Title>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  className="rounded-lg font-medium shadow-sm px-4"
+                  onClick={navigateToForm}
+                >
+                  Gửi yêu cầu
+                </Button>
               </div>
               
               {/* Horizontal Scroll Categories */}
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                 {[
                   { id: 'ALL', label: 'Tất cả', count: ticketsData.length },
-                  { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố' },
-                  { id: 'ASSIGN_VEHICLE', label: 'Gán Xe' },
                   { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
                   { id: 'OVERSTAY', label: 'Quá giờ', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
                   { id: 'LOST_CARD', label: 'Mất thẻ', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },
@@ -201,19 +207,6 @@ export const HelpdeskScreen = () => {
           </div>
         )}
 
-        {isShowingForm && selectedCategory === 'ASSIGN_VEHICLE' && (
-          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
-            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
-              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
-              <Title level={4} className="m-0 text-gray-800">Gán xe vào tài khoản</Title>
-            </div>
-            <div className="flex-1 overflow-y-auto pb-24">
-              <div className="p-4 text-center text-slate-500 font-medium">
-                Tính năng đang được phát triển...
-              </div>
-            </div>
-          </div>
-        )}
 
         {isShowingDetail && selectedTicket && (
           <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-right">
@@ -239,14 +232,19 @@ export const HelpdeskScreen = () => {
     <div className="flex flex-row flex-1 h-full animate-fade-in bg-gray-100 p-4 gap-4 overflow-hidden">
       {/* Pane 1: Category Sidebar */}
       <div className={`w-64 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden shrink-0`}>
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center shrink-0">
-          <Text strong className="text-gray-700 text-base">Phân loại sự cố</Text>
+        <div className="p-4 border-b border-gray-100 bg-gray-50 shrink-0">
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            className="w-full h-11 rounded-xl font-semibold shadow-md shadow-blue-200 text-[15px] bg-blue-600 hover:bg-blue-500"
+            onClick={navigateToForm}
+          >
+            Gửi Yêu Cầu Mới
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 pb-3">
           {[
             { id: 'ALL', label: 'Tất cả sự cố', icon: '📋', count: ticketsData.length },
-            { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố Mới', icon: '➕', count: 0 },
-            { id: 'ASSIGN_VEHICLE', label: 'Gán Xe Vào Tài Khoản', icon: '🔑', count: 0 },
             { id: 'ZONE_VIOLATION', label: 'Đỗ sai khu vực', icon: '🚨', count: ticketsData.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
             { id: 'OVERSTAY', label: 'Quá giờ', icon: '🕒', count: ticketsData.filter((t: any) => t.type === 'OVERSTAY').length },
             { id: 'LOST_CARD', label: 'Báo mất thẻ', icon: '🔥', count: ticketsData.filter((t: any) => t.type === 'LOST_CARD').length },

@@ -27,8 +27,8 @@ export const ExceptionDeskScreen = () => {
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       setSelectedTicket(null);
-      if (window.location.hash !== '#create' && window.location.hash !== '#assign') {
-        setSelectedCategory(prev => (prev === 'CREATE_INCIDENT' || prev === 'ASSIGN_VEHICLE') ? 'ALL' : prev);
+      if (window.location.hash !== '#create') {
+        setSelectedCategory(prev => (prev === 'CREATE_INCIDENT') ? 'ALL' : prev);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -151,7 +151,7 @@ export const ExceptionDeskScreen = () => {
     setSelectedCategory('ALL');
     setQueueFilter('ALL');
     setShouldSelectFirstTicket(true);
-    if (window.location.hash === '#create' || window.location.hash === '#assign') {
+    if (window.location.hash === '#create') {
       window.history.back();
     }
   };
@@ -186,8 +186,16 @@ export const ExceptionDeskScreen = () => {
           <div className="flex flex-col h-full overflow-hidden animate-fade-in w-full">
             {/* Header */}
             <div className="bg-white p-4 shadow-sm border-b border-gray-100 shrink-0 z-10 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center mb-1">
                 <Title level={4} className="m-0 text-gray-800">Exception Desk</Title>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  className="rounded-lg font-medium shadow-sm px-4"
+                  onClick={navigateToForm}
+                >
+                  Tạo sự cố
+                </Button>
               </div>
 
               {selectedCategory === 'OVERSTAY' && (
@@ -214,7 +222,6 @@ export const ExceptionDeskScreen = () => {
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                 {[
                   { id: 'ALL', label: 'Tất cả', count: pendingTickets.length },
-                  { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố' },
                   { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
                   { id: 'OVERSTAY', label: 'Quá giờ', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
                   { id: 'LOST_CARD', label: 'Mất thẻ', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
@@ -338,13 +345,19 @@ export const ExceptionDeskScreen = () => {
     <div className="flex flex-row flex-1 h-full animate-fade-in bg-gray-100 p-4 gap-4 overflow-hidden">
       {/* Pane 1: Category Sidebar */}
       <div className={`w-64 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden shrink-0`}>
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center shrink-0">
-          <Text strong className="text-gray-700 text-base">Incident classification</Text>
+        <div className="p-4 border-b border-gray-100 bg-gray-50 shrink-0">
+          <Button 
+            type="primary" 
+            icon={<PlusOutlined />} 
+            className="w-full h-11 rounded-xl font-semibold shadow-md shadow-blue-200 text-[15px] bg-blue-600 hover:bg-blue-500"
+            onClick={navigateToForm}
+          >
+            Tạo Sự Cố Tại Quầy
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 pb-3">
           {[
             { id: 'ALL', label: 'All Incidents', icon: '📋', count: pendingTickets.length },
-            { id: 'CREATE_INCIDENT', label: 'Tạo Sự Cố (Quầy)', icon: '➕', count: 0 },
             { id: 'ZONE_VIOLATION', label: 'Wrong Zone Parking', icon: '🚨', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
             { id: 'OVERSTAY', label: 'Overstay Vehicles', icon: '🕒', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
             { id: 'LOST_CARD', label: 'Lost Card Report', icon: '🔥', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
@@ -464,20 +477,6 @@ export const ExceptionDeskScreen = () => {
             <div className="p-8 flex-1">
               <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                 <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="STAFF" isManager={isManager} />
-              </div>
-            </div>
-          </div>
-        ) : selectedCategory === 'ASSIGN_VEHICLE' && !selectedTicket ? (
-          <div className="flex flex-col h-full overflow-y-auto">
-            <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
-              <div>
-                <Title level={4} className="m-0 text-blue-700">Gán xe vào tài khoản</Title>
-                <Text className="text-sm text-gray-500">Gán quyền sở hữu xe cho khách hàng</Text>
-              </div>
-            </div>
-            <div className="p-8 flex-1">
-              <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-slate-500 font-medium">
-                Tính năng đang được phát triển...
               </div>
             </div>
           </div>

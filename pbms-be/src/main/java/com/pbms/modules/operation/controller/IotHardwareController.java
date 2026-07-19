@@ -313,7 +313,9 @@ public class IotHardwareController {
         }).toList());
 
         // 9. Zones
-        data.put("zones", zoneRepository.findAll().stream().map(z -> {
+        data.put("zones", zoneRepository.findAll().stream()
+                .filter(z -> !"DELETED".equals(z.getStatus()))
+                .map(z -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", z.getId());
             map.put("zoneName", z.getZoneName());

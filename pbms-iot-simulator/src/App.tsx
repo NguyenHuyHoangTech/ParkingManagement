@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Typography, Row, Col, Form, Input, Button, Slider, Select, message, Table, Tag, DatePicker, ConfigProvider, theme, Radio } from 'antd';
-import { SendOutlined, FastForwardOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons';
+import { SendOutlined, FastForwardOutlined, CopyOutlined, SyncOutlined, AimOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -167,6 +167,7 @@ const App = () => {
   const [lastPayload, setLastPayload] = useState<any>(null);
   const [activeMenu, setActiveMenu] = useState('map');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  const mapRef = React.useRef<any>(null);
   
   React.useEffect(() => {
     const stompClient = new Client({
@@ -818,22 +819,36 @@ const App = () => {
 
 
   const renderSensorTab = () => {
+    const visibleZones = zones.filter((z: any) => z.floorId === selectedFloorId);
     return (
-      <Card className="bg-white border-gray-200 rounded-xl h-full min-h-[600px]" 
+      <Card className="bg-white border-gray-200 rounded-xl shadow-lg" 
             title={
-              <div className="flex justify-between items-center">
-                <span className="text-yellow-400 font-mono">Visual Sensor Map</span>
-                <Select
-                  className="w-48 bg-gray-100 text-gray-800 border-none rounded"
-                  value={selectedFloorId}
-                  onChange={(val) => setSelectedFloorId(val)}
-                  options={floors.map((f: any) => ({ label: `${f.floorName} (${f.floorType})`, value: f.id }))}
-                  placeholder="-- Select Floor --"
-                />
+              <div className="flex justify-between items-center w-full">
+                <span className="text-yellow-400 font-mono text-xl">Visual Sensor Map</span>
+                <div className="flex gap-3">
+                  <Button size="large" type="primary" icon={<AimOutlined />} onClick={() => mapRef.current?.handleZoomFit()} className="font-semibold shadow-sm bg-blue-600 hover:bg-blue-500">Fit to Screen</Button>
+                  <Select
+                    size="large"
+                    placeholder="-- Zoom to Zone --"
+                    options={visibleZones.map((z: any) => ({ label: z.zoneName || z.name, value: z.id }))}
+                    onChange={(val) => mapRef.current?.handleZoomZone(val)}
+                    allowClear
+                    className="w-64 font-medium shadow-sm"
+                  />
+                  <Select
+                    size="large"
+                    className="w-64 bg-gray-100 text-gray-800 border-none rounded font-medium shadow-sm"
+                    value={selectedFloorId}
+                    onChange={(val) => setSelectedFloorId(val)}
+                    options={floors.map((f: any) => ({ label: `${f.floorName} (${f.floorType})`, value: f.id }))}
+                    placeholder="-- Select Floor --"
+                  />
+                </div>
               </div>
             }>
         
         <SimulatorMap 
+          ref={mapRef}
           floors={floors}
           zones={zones}
           gates={gates}

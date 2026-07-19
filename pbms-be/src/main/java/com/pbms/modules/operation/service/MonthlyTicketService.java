@@ -120,6 +120,7 @@ public class MonthlyTicketService {
     }
 
     @org.springframework.context.event.EventListener(com.pbms.common.event.TimeFastForwardedEvent.class)
+    @Transactional
     public void handleTimeFastForward(com.pbms.common.event.TimeFastForwardedEvent event) {
         LocalDateTime oldTime = event.getOldSimulatedTime();
         LocalDateTime newTime = event.getNewSimulatedTime();
@@ -129,23 +130,14 @@ public class MonthlyTicketService {
     }
 
     private boolean hasCrossedTime(LocalDateTime oldTime, LocalDateTime newTime, int targetHour, int targetMinute) {
-        if (oldTime == null || newTime == null || !oldTime.isBefore(newTime))
-            return false;
-
-        LocalDateTime targetInOldDay = oldTime.withHour(targetHour).withMinute(targetMinute).withSecond(0).withNano(0);
-        if (oldTime.isBefore(targetInOldDay) && !newTime.isBefore(targetInOldDay)) {
-            return true;
+        if (oldTime == null || newTime == null || !oldTime.isBefore(newTime)) return false;
+        
+        LocalDateTime target = oldTime.withHour(targetHour).withMinute(targetMinute).withSecond(0).withNano(0);
+        if (!target.isAfter(oldTime)) {
+            target = target.plusDays(1);
         }
 
-        LocalDateTime targetInNewDay = newTime.withHour(targetHour).withMinute(targetMinute).withSecond(0).withNano(0);
-        if (oldTime.isBefore(targetInNewDay) && !newTime.isBefore(targetInNewDay)) {
-            return true;
-        }
-
-        if (java.time.Duration.between(oldTime, newTime).toHours() >= 24) {
-            return true;
-        }
-        return false;
+        return !target.isAfter(newTime);
     }
 
     private boolean isVehicleInside(String plate) {
