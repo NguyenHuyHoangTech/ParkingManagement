@@ -230,9 +230,6 @@ export const CustomerMonthlyPassScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
         }, 1000);
-      } else {
-        setIsQRModalVisible(false);
-        message.warning('Payment session expired. Please create a new registration request.');
       }
     }
     return () => clearTimeout(timer);

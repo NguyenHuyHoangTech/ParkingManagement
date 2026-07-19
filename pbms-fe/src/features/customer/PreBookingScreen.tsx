@@ -344,9 +344,6 @@ export const PreBookingScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
         }, 1000);
-      } else {
-        setIsQRModalVisible(false);
-        message.warning('Payment session expired. Please create a new booking request.');
       }
     }
     return () => clearTimeout(timer);
@@ -632,77 +629,84 @@ export const PreBookingScreen = () => {
               </Button>
             )}
 
-            {isQRModalVisible && (
-              <Card className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md mt-6 animate-fade-in-up">
-                <div className="text-center py-4">
-                  {!isPaymentSuccess ? (
-                    <>
-                      <Title level={4} className="mb-2 text-slate-800">Scan QR code to pay</Title>
-                      <Text className="block mb-2 text-slate-500">Use the Camera or Zalo application to scan the code</Text>
-                      <Text className="block mb-6 text-orange-600 font-bold">After making payment on Success on your phone, please keep this screen intact so that the System will automatically confirm</Text>
-
-                      <div className="relative inline-block mb-6">
-                        <div className="bg-white p-4 border-2 border-dashed border-slate-300 rounded-2xl shadow-sm relative z-10 flex justify-center items-center h-[240px] w-[240px]">
-                          {paymentUrl ? <QRCode value={selectedGateway === 'PAYOS' && paymentQrCode ? paymentQrCode : paymentUrl} size={200} /> : <Spin size="large" />}
-                        </div>
-                      </div>
-
-                      <div className="text-2xl font-black text-blue-600 mb-2">{totalFee.toLocaleString()} VND</div>
-
-                      <div className="mb-6">
-                        {paymentUrl ? (
-                          selectedGateway !== 'PAYOS' && (
-                            <Button type="primary" size="large" href={paymentUrl} target="_blank" className="w-full bg-[#0070ba] hover:bg-[#003087] border-none font-bold flex items-center justify-center">
-                              Payment directly by PayPal
-                            </Button>
-                          )
-                        ) : (
-                          <Button disabled size="large" className="w-full">Creating payment linkeee</Button>
-                        )}
-                      </div>
-
-                      {countdown > 0 ? (
-                        <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
-                          <Spin size="small" />
-                          <Text>Awaiting payment ({Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')})...</Text>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center space-x-2 text-orange-600 mb-2 bg-orange-50 p-2 rounded-lg border border-orange-200">
-                          <WarningOutlined />
-                          <Text className="text-orange-600 font-semibold text-center">Auto-verification timeout. Please confirm manually if you have paid.</Text>
-                        </div>
-                      )}
-
-                      {paymentUrl && paymentOrderId && (
-                        <div className="mb-4 text-center">
-                          <Button
-                            type="link"
-                            onClick={handleManualVerify}
-                            loading={isVerifying}
-                            disabled={verifyCooldown > 0}
-                            className={`font-semibold ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
-                          >
-                            {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'I have paid but the screen hasn\'t updated. Verify now!'}
-                          </Button>
-                        </div>
-                      )}
-
-                      <Button type="default" onClick={() => setIsQRModalVisible(false)} className="w-full rounded-xl h-12">Cancel</Button>
-                    </>
-                  ) : (
-                    <div className="animate-fade-in py-8">
-                      <CheckCircleOutlined className="text-[80px] text-green-500 mb-6" />
-                      <Title level={3} className="text-slate-800">Payment Success!</Title>
-                      <Text className="block text-slate-500 mb-2">Your parking space has been recorded by the System</Text>
-                      <Text className="block text-slate-500">Moving back to Managementeee page</Text>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
           </div>
         </div>
       </div>
+
+      <Modal
+        open={isQRModalVisible}
+        footer={null}
+        closable={!isPaymentSuccess}
+        onCancel={() => !isPaymentSuccess && setIsQRModalVisible(false)}
+        centered
+        maskClosable={false}
+        width={400}
+      >
+        <div className="text-center py-4">
+          {!isPaymentSuccess ? (
+            <>
+              <Title level={4} className="mb-2 text-slate-800">Scan QR code to pay</Title>
+              <Text className="block mb-2 text-slate-500">Use the Camera or Zalo application to scan the code</Text>
+              <Text className="block mb-6 text-orange-600 font-bold">After making payment on Success on your phone, please keep this screen intact so that the System will automatically confirm</Text>
+
+              <div className="relative inline-block mb-6">
+                <div className="bg-white p-4 border-2 border-dashed border-slate-300 rounded-2xl shadow-sm relative z-10 flex justify-center items-center h-[240px] w-[240px]">
+                  {paymentUrl ? <QRCode value={selectedGateway === 'PAYOS' && paymentQrCode ? paymentQrCode : paymentUrl} size={200} /> : <Spin size="large" />}
+                </div>
+              </div>
+
+              <div className="text-2xl font-black text-blue-600 mb-2">{totalFee.toLocaleString()} VND</div>
+
+              <div className="mb-6">
+                {paymentUrl ? (
+                  selectedGateway !== 'PAYOS' && (
+                    <Button type="primary" size="large" href={paymentUrl} target="_blank" className="w-full bg-[#0070ba] hover:bg-[#003087] border-none font-bold flex items-center justify-center">
+                      Payment directly by PayPal
+                    </Button>
+                  )
+                ) : (
+                  <Button disabled size="large" className="w-full">Creating payment linkeee</Button>
+                )}
+              </div>
+
+              {countdown > 0 ? (
+                <div className="flex items-center justify-center space-x-2 text-slate-600 mb-2">
+                  <Spin size="small" />
+                  <Text>Awaiting payment ({Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')})...</Text>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center space-x-2 text-orange-600 mb-2 bg-orange-50 p-2 rounded-lg border border-orange-200">
+                  <WarningOutlined />
+                  <Text className="text-orange-600 font-semibold text-center">Auto-verification timeout. Please confirm manually if you have paid.</Text>
+                </div>
+              )}
+
+              {paymentUrl && paymentOrderId && (
+                <div className="mb-4 text-center">
+                  <Button
+                    type="link"
+                    onClick={handleManualVerify}
+                    loading={isVerifying}
+                    disabled={verifyCooldown > 0}
+                    className={`font-semibold ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
+                  >
+                    {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'I have paid but the screen hasn\'t updated. Verify now!'}
+                  </Button>
+                </div>
+              )}
+
+              <Button type="default" onClick={() => setIsQRModalVisible(false)} className="w-full rounded-xl h-12">Cancel</Button>
+            </>
+          ) : (
+            <div className="animate-fade-in py-8">
+              <CheckCircleOutlined className="text-[80px] text-green-500 mb-6" />
+              <Title level={3} className="text-slate-800">Payment Success!</Title>
+              <Text className="block text-slate-500 mb-2">Your parking space has been recorded by the System</Text>
+              <Text className="block text-slate-500">Moving back to Managementeee page</Text>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Debug Panel for Payment & Webhook */}
       <div className="fixed bottom-4 right-4 z-50 w-96 bg-black/80 backdrop-blur-md rounded-lg p-4 shadow-2xl border border-gray-700 max-h-96 flex flex-col">

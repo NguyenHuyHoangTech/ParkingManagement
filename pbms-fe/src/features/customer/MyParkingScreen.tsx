@@ -460,9 +460,6 @@ export const MyParkingScreen = () => {
         timer = setTimeout(() => {
           setRenewCountdown(c => c - 1);
         }, 1000);
-      } else {
-        setIsRenewQRModalVisible(false);
-        message.warning('Payment session expired. Please try again.');
       }
     }
     return () => clearTimeout(timer);

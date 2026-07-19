@@ -364,14 +364,11 @@ public class ReservationService {
             return;
         }
 
-        // ĐÂY CHÍNH LÀ LÚC KHỞI TẠO BỘ ĐẾM:
-        // Hệ thống sẽ tính độ trễ (delayMillis) từ hiện tại đến thời điểm cần thực thi
-        // (targetTime)
-        long delayMillis = java.time.Duration.between(now, targetTime).toMillis();
-        // Sau đó gọi taskScheduler để thực sự bắt đầu đếm ngược và sẽ chạy `task` khi
-        // hết thời gian chờ
-        java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task,
-                java.time.Instant.now().plusMillis(delayMillis));
+        // DAY CHINH LA LUC KHOI TAO BO DEM:
+        // Cung cap cho taskScheduler thoi diem can thuc thi (Instant tinh theo gio gia lap).
+        // taskScheduler se so sanh voi clock gia lap cua no de tinh toan delay tuong ung.
+        java.time.Instant targetInstant = targetTime.atZone(java.time.ZoneId.systemDefault()).toInstant();
+        java.util.concurrent.ScheduledFuture<?> future = taskScheduler.schedule(task, targetInstant);
 
         taskRegistry.get(reservationId).put(type, new ScheduledTaskInfo(future, task, targetTime));
     }
@@ -559,9 +556,8 @@ public class ReservationService {
                 } else {
                     // Reschedule for remaining time
                     if (info.getTask() != null) {
-                        long newDelayMillis = java.time.Duration.between(now, info.getTargetSimulatedTime()).toMillis();
-                        java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(),
-                                java.time.Instant.now().plusMillis(newDelayMillis));
+                        java.time.Instant targetInstant = info.getTargetSimulatedTime().atZone(java.time.ZoneId.systemDefault()).toInstant();
+                        java.util.concurrent.ScheduledFuture<?> newFuture = taskScheduler.schedule(info.getTask(), targetInstant);
                         info.setFuture(newFuture);
                     }
                     rescheduledCount++;
