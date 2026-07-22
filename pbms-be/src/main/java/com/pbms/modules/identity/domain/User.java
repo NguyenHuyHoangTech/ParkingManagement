@@ -21,9 +21,6 @@ public class User extends BaseEntity {
     @Column(name = "google_id", length = 100)
     private String googleId;
 
-    @Column(name = "is_verified", nullable = false)
-    @Builder.Default
-    private Boolean isVerified = false;
 
     @Column(name = "full_name", columnDefinition = "NVARCHAR(255)")
     private String fullName;

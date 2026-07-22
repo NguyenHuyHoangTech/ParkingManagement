@@ -43,9 +43,8 @@ export const ShiftManagementScreen = () => {
   const setAuthShiftStatus = useAuthStore(state => state.setShiftStatus);
 
   const [isStartModalVisible, setIsStartModalVisible] = useState(false);
-  const [selectedFloor, setSelectedFloor] = useState<string>('');
-  const [selectedPostType, setSelectedPostType] = useState<'GATE' | 'PATROL'>('GATE');
-  const [selectedGateId, setSelectedGateId] = useState<number>(0);
+  const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
+  const [selectedGateId, setSelectedGateId] = useState<number | string | null>(null);
   const [selectedGateFunction, setSelectedGateFunction] = useState<string>('ENTRY');
 
   // Temporary state for display during duty
@@ -102,16 +101,11 @@ export const ShiftManagementScreen = () => {
       if (floors.length > 0) {
         const firstFloor = floors[0];
         setSelectedFloor(firstFloor);
-        if (selectedPostType === 'PATROL') {
-          const firstPatrolGate = gates.find((g: Gate) => g.floor === firstFloor && g.type === 'PATROL');
-          if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
-        } else {
-          const firstGate = gates.find((g: Gate) => g.floor === firstFloor && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
-          if (firstGate) setSelectedGateId(firstGate.id);
-        }
+        const firstGate = gates.find((g: Gate) => g.floor === firstFloor && g.type !== 'PATROL');
+        if (firstGate) setSelectedGateId(firstGate.id);
       }
     }
-  }, [gates, isStartModalVisible, selectedFloor, selectedPostType]);
+  }, [gates, isStartModalVisible, selectedFloor]);
 
   // Fetch the current preview settlement
   const { data: settlementPreview, isLoading: isLoadingPreview } = useQuery({
@@ -142,22 +136,13 @@ export const ShiftManagementScreen = () => {
           sessionStorage.setItem('activeGateFloorId', String(gate.floorId));
         }
         sessionStorage.setItem('activeGateName', gate.name);
-        sessionStorage.setItem('activeGateType', selectedGateFunction || gate.type);
-      } else if (selectedPostType === 'PATROL') {
-        sessionStorage.removeItem('activeGateId');
-        sessionStorage.removeItem('activeGateFloorId');
-        sessionStorage.setItem('activeGateName', 'Patrol (No Gate)');
-        sessionStorage.setItem('activeGateType', 'PATROL');
+        sessionStorage.setItem('activeGateType', selectedGateFunction);
       }
 
       setAuthShiftStatus('OPEN');
       setIsStartModalVisible(false);
 
-      if (selectedPostType === 'PATROL') {
-        navigate('/staff/exception-desk');
-      } else {
-        navigate('/staff/gate-console');
-      }
+      navigate('/staff/gate-console');
     },
     onError: (error) => {
       message.error('Failed to start shift: ' + (error as any)?.response?.data?.message || 'Unknown error');
@@ -168,8 +153,8 @@ export const ShiftManagementScreen = () => {
   const endShiftMutation = useMutation({
     mutationFn: async () => {
       const res = await axiosClient.put('/identity/work-sessions/end', {
-        declaredCash: declaredCash !== null ? declaredCash : 0,
-        varianceReason: varianceReason || null
+        declaredCash: settlementPreview?.cashRevenue || 0,
+        varianceReason: null
       });
       return res.data;
     },
@@ -195,7 +180,7 @@ export const ShiftManagementScreen = () => {
   });
 
   const handleStartShift = () => {
-    if (selectedPostType === 'GATE' && !selectedGateId) {
+    if (!selectedGateId) {
       message.error('Please select a Gate!');
       return;
     }
@@ -203,20 +188,6 @@ export const ShiftManagementScreen = () => {
   };
 
   const handleCloseShift = () => {
-    if (activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT' || activeGateType === 'PATROL') {
-      if (cashMatchMode === null) {
-        message.error('Please confirm your cash balance');
-        return;
-      }
-      if (cashMatchMode === 'DIFFERENT' && (declaredCash === null || declaredCash < 0)) {
-        message.error('Please enter the actual cash amount you counted');
-        return;
-      }
-      if (cashMatchMode === 'DIFFERENT' && !varianceReason.trim()) {
-        message.error('Please enter a reason for the discrepancy');
-        return;
-      }
-    }
     endShiftMutation.mutate();
   };
 
@@ -273,7 +244,7 @@ export const ShiftManagementScreen = () => {
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
               <Text className="block text-green-700 font-bold uppercase tracking-widest text-xs mb-1">Current shift</Text>
               <div className="flex items-center space-x-3">
-                {activeGateType === 'PATROL' ? <SafetyCertificateOutlined className="text-2xl text-green-600" /> : <CarOutlined className="text-2xl text-green-600" />}
+                <CarOutlined className="text-2xl text-green-600" />
                 <Title level={4} className="m-0 text-green-800">{activeGateName}</Title>
               </div>
             </div>
@@ -288,11 +259,7 @@ export const ShiftManagementScreen = () => {
                   }`}
               >
                 <div className="flex items-center space-x-2 mb-3">
-                  {gate.type === 'IN' || gate.type === 'OUT' ? (
-                    <CarOutlined className={`text-xl ${gate.status === 'IDLE' ? 'text-green-600' : 'text-gray-400'}`} />
-                  ) : (
-                    <SafetyCertificateOutlined className={`text-xl ${gate.status === 'IDLE' ? 'text-green-600' : 'text-gray-400'}`} />
-                  )}
+                  <CarOutlined className={`text-xl ${gate.status === 'IDLE' ? 'text-green-600' : 'text-gray-400'}`} />
                   <Text strong className="text-base truncate">{gate.name}</Text>
                 </div>
                 <Tag color={gate.status === 'IDLE' ? 'success' : 'default'}>{gate.status}</Tag>
@@ -361,15 +328,8 @@ export const ShiftManagementScreen = () => {
                 value={selectedFloor}
                 onChange={e => {
                   setSelectedFloor(e.target.value);
-                  // Reset selected gate
-                  if (selectedPostType === 'PATROL') {
-                    const firstPatrolGate = gates.find((g: Gate) => g.floor === e.target.value && g.type === 'PATROL');
-                    if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
-                    else setSelectedGateId(-1);
-                  } else {
-                    const firstGate = gates.find((g: Gate) => g.floor === e.target.value && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
-                    if (firstGate) setSelectedGateId(firstGate.id);
-                  }
+                  const firstGate = gates.find((g: Gate) => g.floor === e.target.value && g.type !== 'PATROL');
+                  if (firstGate) setSelectedGateId(firstGate.id);
                 }}
                 buttonStyle="solid"
                 size="large"
@@ -381,83 +341,37 @@ export const ShiftManagementScreen = () => {
               </Radio.Group>
             </div>
 
-            <Text className="block mb-2 font-bold text-gray-700">2. Select Task:</Text>
+            <Text className="block mb-2 font-bold text-gray-700">2. Select Specific Gate:</Text>
             <div className="w-full flex flex-col gap-4">
-              <div
-                className={`cursor-pointer h-auto p-4 rounded-xl border-2 flex items-center transition-all ${selectedPostType === 'GATE' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
-                onClick={() => {
-                  setSelectedPostType('GATE');
-                  const firstGate = gates.find((g: Gate) => g.floor === selectedFloor && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT'));
-                  if (firstGate) setSelectedGateId(firstGate.id);
-                }}
-              >
+              <div className="cursor-pointer h-auto p-4 rounded-xl border-2 flex items-center transition-all border-blue-500 bg-blue-50">
                 <div className="flex items-start w-full">
-                  <CarOutlined className={`text-3xl mt-1 mr-2 sm:mr-4 shrink-0 ${selectedPostType === 'GATE' ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <CarOutlined className="text-3xl mt-1 mr-2 sm:mr-4 shrink-0 text-blue-600" />
                   <div className="flex-1 min-w-0">
                     <Text strong className="block text-base sm:text-lg mb-1 truncate">Manning Gate (IN / OUT)</Text>
                     <Text type="secondary" className="text-sm">Process tickets, collect fees, control vehicle access at booths.</Text>
-                    {selectedPostType === 'GATE' && (
-                      <div className="mt-4 p-3 bg-white border border-blue-200 rounded-lg" onClick={e => e.stopPropagation()}>
-                        <Text className="block mb-2 text-xs font-bold text-gray-500 uppercase">Select Specific Gate:</Text>
-                        <Radio.Group onChange={(e) => setSelectedGateId(e.target.value)} value={selectedGateId}>
-                          <Space direction="vertical">
-                            {gates.filter((g: Gate) => g.floor === selectedFloor && (g.type === 'IN' || g.type === 'OUT' || g.type === 'ENTRY' || g.type === 'EXIT' || g.type === 'IN_OUT' || g.type === 'ENTRY_EXIT')).map((g: Gate) => (
-                              <Radio key={g.id} value={g.id} disabled={g.status !== 'IDLE'}>
-                                {g.name} {g.status !== 'IDLE' && <Text type="danger" className="text-xs ml-2">(Active Operator: {g.staffName} - {g.staffEmail})</Text>}
-                              </Radio>
-                            ))}
-                          </Space>
+                    <div className="mt-4 p-3 bg-white border border-blue-200 rounded-lg">
+                      <Radio.Group onChange={(e) => setSelectedGateId(e.target.value)} value={selectedGateId}>
+                        <Space direction="vertical">
+                          {gates.filter((g: Gate) => g.floor === selectedFloor && g.type !== 'PATROL').map((g: Gate) => (
+                            <Radio key={g.id} value={g.id} disabled={g.status !== 'IDLE'}>
+                              {g.name} {g.status !== 'IDLE' && <Text type="danger" className="text-xs ml-2">(Active Operator: {g.staffName} - {g.staffEmail})</Text>}
+                            </Radio>
+                          ))}
+                        </Space>
+                      </Radio.Group>
+                      
+                      <div className="mt-4 pt-3 border-t border-blue-100">
+                        <Text className="block mb-2 text-xs font-bold text-gray-500 uppercase">Gate Function:</Text>
+                        <Radio.Group
+                          value={selectedGateFunction}
+                          onChange={e => setSelectedGateFunction(e.target.value)}
+                          className="flex"
+                        >
+                          <Radio.Button value="ENTRY" className="flex-1 text-center">AS ENTRY GATE</Radio.Button>
+                          <Radio.Button value="EXIT" className="flex-1 text-center">AS EXIT GATE</Radio.Button>
                         </Radio.Group>
-
-                        <div className="mt-4 pt-3 border-t border-blue-100">
-                          <Text className="block mb-2 text-xs font-bold text-gray-500 uppercase">Gate Function:</Text>
-                          <Radio.Group
-                            value={selectedGateFunction}
-                            onChange={e => setSelectedGateFunction(e.target.value)}
-                            className="flex"
-                          >
-                            <Radio.Button value="ENTRY" className="flex-1 text-center">AS ENTRY GATE</Radio.Button>
-                            <Radio.Button value="EXIT" className="flex-1 text-center">AS EXIT GATE</Radio.Button>
-                          </Radio.Group>
-                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={`cursor-pointer h-auto p-4 rounded-xl border-2 flex items-center transition-all ${selectedPostType === 'PATROL' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
-                onClick={() => {
-                  setSelectedPostType('PATROL');
-                  const firstPatrolGate = gates.find((g: Gate) => g.floor === selectedFloor && g.type === 'PATROL');
-                  if (firstPatrolGate) setSelectedGateId(firstPatrolGate.id);
-                  else setSelectedGateId(-1);
-                  setSelectedGateFunction('PATROL');
-                }}
-              >
-                <div className="flex items-start">
-                  <SafetyCertificateOutlined className={`text-3xl mt-1 mr-2 sm:mr-4 shrink-0 ${selectedPostType === 'PATROL' ? 'text-green-600' : 'text-gray-400'}`} />
-                  <div className="flex-1 min-w-0">
-                    <Text strong className="block text-base sm:text-lg mb-1 truncate">Patrol Task</Text>
-                    <Text type="secondary" className="text-sm">Handle parking exceptions (wrong parking, lost cards, barrier errors).</Text>
-                    {selectedPostType === 'PATROL' && (
-                      <div className="mt-4 p-3 bg-white border border-green-200 rounded-lg" onClick={e => e.stopPropagation()}>
-                        <Text className="block mb-2 text-xs font-bold text-gray-500 uppercase">Select Patrol Area/Gate:</Text>
-                        <Radio.Group onChange={(e) => setSelectedGateId(e.target.value)} value={selectedGateId}>
-                          <Space direction="vertical">
-                            {gates.filter((g: Gate) => g.floor === selectedFloor && g.type === 'PATROL').map((g: Gate) => (
-                              <Radio key={g.id} value={g.id} disabled={g.status !== 'IDLE'}>
-                                {g.name} {g.status !== 'IDLE' && <Text type="danger" className="text-xs ml-2">(Active Operator: {g.staffName} - {g.staffEmail})</Text>}
-                              </Radio>
-                            ))}
-                          </Space>
-                        </Radio.Group>
-                        <div className="mt-4">
-                          <Tag color="green" className="font-bold">Access: Exception Desk</Tag>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -473,8 +387,7 @@ export const ShiftManagementScreen = () => {
           onCancel={() => setIsCloseModalVisible(false)}
           footer={[
             <Button key="back" onClick={() => setIsCloseModalVisible(false)}>Cancel</Button>,
-            <Button key="submit" type="primary" danger loading={endShiftMutation.isPending} onClick={handleCloseShift} disabled={(activeGateType === 'OUT' || activeGateType === 'EXIT' || activeGateType === 'IN_OUT' || activeGateType === 'ENTRY_EXIT' || activeGateType === 'PATROL') && (cashMatchMode === null || (cashMatchMode === 'DIFFERENT' && (declaredCash === null || declaredCash < 0 || !varianceReason.trim())))}>
-
+            <Button key="submit" type="primary" danger loading={endShiftMutation.isPending} onClick={handleCloseShift}>
               Confirm Handover & Close shift
             </Button>,
           ]}
@@ -489,48 +402,6 @@ export const ShiftManagementScreen = () => {
                     <Text className="block text-slate-500 mb-1">System Calculated Cash Revenue</Text>
                     <Title level={2} className="m-0 text-green-600 font-bold">{settlementPreview?.cashRevenue?.toLocaleString() || '0'} VND</Title>
                   </div>
-
-                  <div className="mb-6">
-                    <Text className="block font-bold text-gray-800 mb-2">Do you confirm this amount in your drawer?</Text>
-                    <Radio.Group onChange={(e) => {
-                      setCashMatchMode(e.target.value);
-                      if (e.target.value === 'MATCH') {
-                        setDeclaredCash(settlementPreview?.cashRevenue || 0);
-                        setVarianceReason('');
-                      } else {
-                        setDeclaredCash(null);
-                        setVarianceReason('');
-                      }
-                    }} value={cashMatchMode}>
-                      <Space direction="vertical">
-                        <Radio value="MATCH" className="font-medium">Yes, the cash in drawer matches exactly</Radio>
-                        <Radio value="DIFFERENT" className="font-medium text-orange-600">No, the cash in drawer is different</Radio>
-                      </Space>
-                    </Radio.Group>
-                  </div>
-
-                  {cashMatchMode === 'DIFFERENT' && (
-                    <div className="mb-6 bg-orange-50 p-4 rounded-xl border border-orange-200">
-                      <Text className="block font-bold text-gray-800 mb-2">Enter Actual Cash in Drawer (VND):</Text>
-                      <InputNumber
-                        className="w-full text-lg"
-                        size="large"
-                        formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                        parser={value => Number(value?.replace(/\$\s?|(,*)/g, ''))}
-                        onChange={(val) => setDeclaredCash(val as number)}
-                        value={declaredCash}
-                        placeholder="e.g. 500,000"
-                        min={0}
-                      />
-                      <Text className="block font-bold text-gray-800 mt-4 mb-2">Reason for discrepancy:</Text>
-                      <Input.TextArea
-                        rows={2}
-                        placeholder="E.g. Customer gave short change, Fake note, etc."
-                        value={varianceReason}
-                        onChange={(e) => setVarianceReason(e.target.value)}
-                      />
-                    </div>
-                  )}
                 </>
               ) : (
                 <div className="text-center p-6 bg-green-50 rounded-lg border border-green-200">

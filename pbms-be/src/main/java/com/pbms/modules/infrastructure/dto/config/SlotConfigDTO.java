@@ -13,5 +13,4 @@ public class SlotConfigDTO {
     private Long id;
     private String name;
     private String status;
-    private String plate;
 }

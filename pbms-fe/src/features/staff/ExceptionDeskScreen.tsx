@@ -163,17 +163,7 @@ export const ExceptionDeskScreen = () => {
     setShouldSelectFirstTicket(true);
   };
 
-  if (!isManager && shiftStatus !== 'OPEN') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center max-w-md">
-          <WarningOutlined className="text-6xl text-orange-400 mb-4" />
-          <Title level={3} className="text-slate-800">Not Open On Duty yet</Title>
-          <Button type="primary" size="large" onClick={() => navigate('/staff/shift-management')}>Back to Shift Management</Button>
-        </div>
-      </div>
-    );
-  }
+
 
   const renderMobileView = () => {
     const isShowingDetail = selectedTicket !== null;
@@ -298,6 +288,15 @@ export const ExceptionDeskScreen = () => {
                           <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
                         ) : (
                           <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
+                        )}
+                        {item.priority === 'HIGH' && (
+                          <Tag color="red" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Cấp bách</Tag>
+                        )}
+                        {item.priority === 'MEDIUM' && (
+                          <Tag color="orange" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Trung bình</Tag>
+                        )}
+                        {item.priority === 'LOW' && (
+                          <Tag color="green" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Thấp</Tag>
                         )}
                         {item.sessionVehicleType && (
                           <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
@@ -431,6 +430,15 @@ export const ExceptionDeskScreen = () => {
                   <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Hoàn tất (P3)</Tag>
                 ) : (
                   <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 text-[10px] sm:text-xs">Phase {item.phase}</Tag>
+                )}
+                {item.priority === 'HIGH' && (
+                  <Tag color="red" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Cấp bách</Tag>
+                )}
+                {item.priority === 'MEDIUM' && (
+                  <Tag color="orange" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Trung bình</Tag>
+                )}
+                {item.priority === 'LOW' && (
+                  <Tag color="green" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Thấp</Tag>
                 )}
                 {item.sessionVehicleType && (
                   <Tag color="purple" className="m-0 border-0 text-[10px] sm:text-xs">{item.sessionVehicleType}</Tag>

@@ -24,7 +24,7 @@ public class PricingCalculatorService {
         this.policyRepository = policyRepository;
     }
 
-    public BigDecimal calculateTotalFee(Long vehicleTypeId, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
+    public BigDecimal calculateParkingFee(Long vehicleTypeId, LocalDateTime checkInTime, LocalDateTime checkOutTime) {
         PricingPolicy policy = policyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
                 .orElse(null);
         

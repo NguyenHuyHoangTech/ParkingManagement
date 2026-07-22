@@ -605,23 +605,6 @@ export const SpaceMapScreen = () => {
     if (!expandedKeys.includes('4')) setExpandedKeys(prev => [...prev, '4']);
   };
 
-  const handleAddPatrolGate = () => {
-    const newId = Date.now().toString();
-    const newGate: Gate = {
-      id: newId,
-      floorId: selectedFloorId,
-      name: `Patrol ${gates.filter(g => g.type === 'PATROL' && g.floorId === selectedFloorId).length + 1}`,
-      type: 'PATROL',
-      status: 'IDLE',
-      layoutX: 0,
-      layoutY: 0,
-      rotation: 0,
-      vehicleTypeId: undefined
-    };
-    setGates(prev => [...prev, newGate]);
-    if (!expandedKeys.includes('5')) setExpandedKeys(prev => [...prev, '5']);
-  };
-
   const handleUpdateZoneCapacity = (zoneId: number, newCapacity: number) => {
     setZones(prev => prev.map(z => {
       if (z.id !== zoneId) return z;
@@ -1088,9 +1071,9 @@ export const SpaceMapScreen = () => {
                 <div>
                   <Text className="text-xs text-gray-500 block mb-1">Matrix size (Cell):</Text>
                   <div className="flex items-center space-x-2">
-                    <InputNumber size="small" min={1} max={55} value={mapCols} onChange={v => v && handleUpdateMapSize(v, mapRows)} className="w-20" />
+                    <InputNumber size="small" min={1} max={999} value={mapCols} onChange={v => v && handleUpdateMapSize(v, mapRows)} className="w-20" />
                     <Text type="secondary">x</Text>
-                    <InputNumber size="small" min={1} max={40} value={mapRows} onChange={v => v && handleUpdateMapSize(mapCols, v)} className="w-20" />
+                    <InputNumber size="small" min={1} max={999} value={mapRows} onChange={v => v && handleUpdateMapSize(mapCols, v)} className="w-20" />
                   </div>
                 </div>
               </div>
@@ -1294,77 +1277,6 @@ export const SpaceMapScreen = () => {
               )}
             </Panel>
 
-            {/* --- SECTION 5: PATROL GATES --- */}
-            <Panel
-              header={<div className="flex justify-between items-center w-full pr-4">
-                <Text strong>5e Patrol Gates</Text>
-                <Button type="primary" size="small" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); handleAddPatrolGate(); }} />
-              </div>}
-              key="5"
-            >
-              <div className="space-y-2">
-                {gates.filter(g => g.type === 'PATROL' && g.floorId === selectedFloorId && g.status !== 'DELETED').length > 0 ? (
-                  gates.filter(g => g.type === 'PATROL' && g.floorId === selectedFloorId && g.status !== 'DELETED').map(g => (
-                    <div key={g.id} className="flex justify-between items-center bg-white p-2 border border-gray-200 rounded">
-                      <div className="flex-1 min-w-0">
-                        <Input
-                          value={g.name}
-                          size="small"
-                          variant="borderless"
-                          className="font-bold p-0"
-                          onChange={(e) => setGates(prev => prev.map(gate => gate.id === g.id ? { ...gate, name: e.target.value } : gate))}
-                        />
-                        {g.status === 'OCCUPIED' && (
-                          <div className="text-xs text-amber-600 font-medium mt-0.5">
-                            🟡 Nhân viên đang trực — không thể block
-                          </div>
-                        )}
-                        {g.status === 'MAINTENANCE' && (
-                          <div className="text-xs text-red-600 font-medium mt-0.5">
-                            🔴 Đang bị block (Không thể chọn)
-                          </div>
-                        )}
-                      </div>
-                      {g.status === 'MAINTENANCE' ? (
-                        <Button
-                          type="text"
-                          className="text-green-600"
-                          size="small"
-                          icon={<UnlockOutlined />}
-                          title="Unblock patrol gate"
-                          onClick={() => setGates(prev => prev.map(gate => gate.id === g.id ? { ...gate, status: 'IDLE' } : gate))}
-                        />
-                      ) : (
-                        <Button
-                          type="text"
-                          danger
-                          size="small"
-                          icon={<LockOutlined />}
-                          disabled={g.status === 'OCCUPIED'}
-                          title={g.status === 'OCCUPIED' ? 'Cannot block: staff currently on duty' : 'Block patrol gate'}
-                          onClick={() => {
-                            Modal.confirm({
-                              title: 'Confirm Block Patrol Gate',
-                              content: 'Are you sure you want to block this Patrol Gate? Staff will not be able to select it for patrol.',
-                              okText: 'Block',
-                              cancelText: 'Cancel',
-                              onOk: () => setGates(prev => prev.map(gate => gate.id === g.id ? { ...gate, status: 'MAINTENANCE' } : gate))
-                            });
-                          }}
-                        />
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center text-gray-400 italic text-xs py-2">
-                    No patrol gates for this floor
-                  </div>
-                )}
-                <Text className="text-xs block mt-2 text-gray-500">
-                  * Patrol gates do not appear on the map and are used by staff when patrolling this floor.
-                </Text>
-              </div>
-            </Panel>
           </Collapse>
         </div>
 

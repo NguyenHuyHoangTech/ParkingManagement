@@ -164,7 +164,6 @@ public class IotHardwareController {
             map.put("id", s.getId());
             map.put("slotName", s.getSlotName());
             map.put("status", s.getStatus());
-            map.put("currentPlate", s.getCurrentPlate());
             if (s.getZone() != null) {
                 map.put("zoneId", s.getZone().getId());
             }
@@ -195,12 +194,7 @@ public class IotHardwareController {
                         rfidMap.put("cardId", s.getRfidCard().getCardId());
                         map.put("rfidCard", rfidMap);
                     }
-                    if (s.getSlot() != null) {
-                        Map<String, Object> slotMap = new HashMap<>();
-                        slotMap.put("id", s.getSlot().getId());
-                        slotMap.put("slotName", s.getSlot().getSlotName());
-                        map.put("slot", slotMap);
-                    }
+
                     if (s.getVehicleType() != null) {
                         Map<String, Object> vMap = new HashMap<>();
                         vMap.put("id", s.getVehicleType().getId());
@@ -250,16 +244,17 @@ public class IotHardwareController {
             Map<String, Object> map = new HashMap<>();
             map.put("id", g.getId());
             map.put("gateName", g.getGateName());
-            map.put("gateType", g.getGateType());
-            if (g.getVehicleType() != null) {
-                map.put("vehicleTypeId", g.getVehicleType().getId());
+            var activeSessionOpt = staffWorkSessionRepository.findByGateIdAndStatus(g.getId(), "ACTIVE");
+            map.put("hasStaff", activeSessionOpt.isPresent());
+            if (activeSessionOpt.isPresent()) {
+                map.put("gateType", activeSessionOpt.get().getWorkGateType());
+            } else {
+                map.put("gateType", "NONE"); // Indicate inactive gate
             }
             if (g.getFloor() != null) {
                 map.put("floorType", g.getFloor().getFloorType());
                 map.put("floorId", g.getFloor().getId());
             }
-            boolean hasStaff = staffWorkSessionRepository.findByGateIdAndStatus(g.getId(), "ACTIVE").isPresent();
-            map.put("hasStaff", hasStaff);
             return map;
         }).toList());
 
@@ -269,7 +264,7 @@ public class IotHardwareController {
                 .map(m -> {
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", m.getId());
-                    map.put("plate", m.getPlate());
+                    map.put("plate", m.getPlateNumber());
                     if (m.getUser() != null) {
                         map.put("customerName", m.getUser().getFullName());
                     }

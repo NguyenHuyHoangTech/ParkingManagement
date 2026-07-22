@@ -52,11 +52,6 @@ public class IncidentTicketDTO {
     /** Đường dẫn ảnh/giấy tờ minh chứng tải lên (dùng khi mất thẻ) */
     private String uploadedDocUrl;
 
-    /** Tên khu vực đỗ xe đúng quy định (Dùng cho lỗi đỗ sai bãi) */
-    private String expectedZoneName;
-
-    /** Tên khu vực đỗ xe thực tế mà xe đã vi phạm (Dùng cho lỗi đỗ sai bãi) */
-    private String actualZoneName;
     
     // --- Các trường hỗ trợ tương thích ngược (Legacy Compatibility) ---
     /** (Legacy) Loại sự cố */
@@ -69,8 +64,6 @@ public class IncidentTicketDTO {
     private String rfid;
     /** (Legacy) Thời gian ghi nhận dưới dạng chuỗi */
     private String time;
-    /** (Legacy) Ảnh chụp minh chứng */
-    private String uploadedCardUrl;
     /** (Legacy) Phí cơ bản */
     private BigDecimal baseFee;
     
@@ -94,8 +87,6 @@ public class IncidentTicketDTO {
     private Long vehicleTypeId;
     
     // --- Các trường bổ sung mới cho UI Giai đoạn 2 ---
-    /** Thời điểm phí đỗ xe bị đóng băng/tạm dừng tính phí do sự cố kéo dài */
-    private LocalDateTime feePausedAt;
 
     /** URL ảnh chụp tại cổng xuất (Check-out) tải lên từ thủ công */
     private String uploadedPicOutUrl;
@@ -120,6 +111,9 @@ public class IncidentTicketDTO {
 
     /** Loại lý do khi hủy sự cố (nếu có) */
     private String cancelType;
+
+    /** Token xác thực phiên tính tiền */
+    private String checkoutToken;
 
     /** URL/Đường dẫn ảnh biển số lúc Check-in */
     private String sessionPicInPlate;

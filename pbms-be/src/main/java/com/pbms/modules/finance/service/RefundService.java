@@ -23,22 +23,7 @@ public class RefundService {
     private final MonthlyTicketRepository monthlyTicketRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    private void syncReservation(RefundRequest request) {
-        if ("RESERVATION".equals(request.getReferenceType())) {
-            try {
-                Long resId = Long.valueOf(request.getReferenceId());
-                Reservation res = reservationRepository.findById(resId).orElse(null);
-                if (res != null) {
-                    res.setRefundStatus(request.getStatus());
-                    res.setRefundProofUrl(request.getProofUrl());
-                    res.setRefundRejectReason(request.getRejectReason());
-                    reservationRepository.save(res);
-                }
-            } catch (Exception e) {
-                // Ignore parse errors
-            }
-        }
-    }
+
 
     public List<RefundRequestDTO> getAllRefunds() {
         return refundRequestRepository.findAll().stream()
@@ -51,7 +36,6 @@ public class RefundService {
                 .orElseThrow(() -> new RuntimeException("Refund request not found"));
         request.setStatus("REFUNDED");
         refundRequestRepository.save(request);
-        syncReservation(request);
 
         // Báº¯n WebSocket thÃ´ng bÃ¡o
         messagingTemplate.convertAndSend("/topic/alerts", "Refund request processed successfully for ID: " + id);
@@ -63,22 +47,38 @@ public class RefundService {
         request.setStatus("REJECTED");
         request.setRejectReason(reason);
         refundRequestRepository.save(request);
-        syncReservation(request);
 
         // Báº¯n WebSocket thÃ´ng bÃ¡o
         messagingTemplate.convertAndSend("/topic/alerts", "Refund request rejected for ID: " + id + ". Reason: " + reason);
+    }
+    public void resubmitRefund(Long id, String bankName, String accountNumber, String accountName) {
+        RefundRequest request = refundRequestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Refund request not found"));
+        request.setBankName(bankName);
+        request.setAccountNumber(accountNumber);
+        request.setAccountName(accountName);
+        request.setStatus("PENDING");
+        request.setRejectReason(null);
+        refundRequestRepository.save(request);
+
+        // Notify manager via websocket
+        messagingTemplate.convertAndSend("/topic/alerts", "Refund request resubmitted for ID: " + id);
     }
 
     private RefundRequestDTO mapToDTO(RefundRequest req) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
         String plate = "Unknown";
+        String expectedInTime = "";
         try {
             if ("RESERVATION".equals(req.getReferenceType())) {
                 Reservation res = reservationRepository.findById(Long.valueOf(req.getReferenceId())).orElse(null);
-                if (res != null) plate = res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "Unknown";
+                if (res != null) {
+                    plate = res.getVehicle() != null ? res.getVehicle().getPlateNumber() : "Unknown";
+                    expectedInTime = res.getExpectedEntryTime() != null ? res.getExpectedEntryTime().format(formatter) : "";
+                }
             } else if ("MONTHLY_PASS".equals(req.getReferenceType())) {
                 com.pbms.modules.operation.domain.MonthlyTicket mt = monthlyTicketRepository.findById(Long.valueOf(req.getReferenceId())).orElse(null);
-                if (mt != null) plate = mt.getPlate();
+                if (mt != null) plate = mt.getPlateNumber();
             }
         } catch (Exception e) {
             // Ignore parse errors
@@ -91,8 +91,7 @@ public class RefundService {
                 .registeredName(req.getUser().getFullName() != null ? req.getUser().getFullName() : "Unknown Customer")
                 .plateNumber(plate)
                 .bookingTime(req.getCreatedAt() != null ? req.getCreatedAt().format(formatter) : "")
-                .expectedInTime(req.getCancelTime() != null ? req.getCancelTime().plusHours(1).format(formatter) : "")
-                .cancelTime(req.getCancelTime() != null ? req.getCancelTime().format(formatter) : "")
+                .expectedInTime(expectedInTime)
                 .paidAmount(req.getPaidAmount())
                 .penaltyFee(req.getPenaltyFee())
                 .refundAmount(req.getRefundAmount())
@@ -102,6 +101,8 @@ public class RefundService {
                 .accountName(req.getAccountName())
                 .rejectReason(req.getRejectReason())
                 .referenceType(req.getReferenceType())
+                .referenceId(req.getReferenceId())
+                .cancelTime(req.getCreatedAt() != null ? req.getCreatedAt().format(formatter) : "")
                 .proofUrl(req.getProofUrl())
                 .build();
     }
@@ -111,7 +112,6 @@ public class RefundService {
                 .orElseThrow(() -> new RuntimeException("Refund request not found"));
         request.setProofUrl(proofUrl);
         refundRequestRepository.save(request);
-        syncReservation(request);
     }
 }
 

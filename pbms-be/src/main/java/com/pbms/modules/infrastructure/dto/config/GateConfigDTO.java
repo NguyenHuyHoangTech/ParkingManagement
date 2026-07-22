@@ -16,7 +16,6 @@ public class GateConfigDTO {
     private String staffName;
     private String staffEmail;
     private String name;
-    private Long vehicleTypeId;
     private String type; // IN, OUT
     private String status; // IDLE, OCCUPIED, MAINTENANCE
     private Double layoutX;

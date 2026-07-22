@@ -21,7 +21,7 @@ import java.util.List;
 public class MonthlyTicketController {
 
     private final MonthlyTicketService monthlyTicketService;
-    private final com.pbms.modules.infrastructure.repository.RfidCardRepository rfidCardRepository;
+
     private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
     private final com.pbms.modules.system.repository.SystemConfigRepository configRepo;
 
@@ -51,30 +51,15 @@ public class MonthlyTicketController {
             @RequestBody java.util.Map<String, Object> payload) {
         try {
             int duration = payload.get("duration") != null ? Integer.parseInt(payload.get("duration").toString()) : 1;
-            MonthlyTicketDTO dto = monthlyTicketService.renewTicket(id, duration);
+            String paymentMethod = payload.get("paymentMethod") != null ? payload.get("paymentMethod").toString() : "CASH";
+            MonthlyTicketDTO dto = monthlyTicketService.renewTicket(id, duration, paymentMethod, null);
             return ResponseEntity.ok(ApiResponse.success(dto, "Ticket renewed successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));
         }
     }
 
-    @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "MonthlyTicket", description = "Assign RFID card to monthly ticket")
-    @PostMapping("/{id}/assign-rfid")
-    public ResponseEntity<ApiResponse<MonthlyTicketDTO>> assignRfidCard(
-            @org.springframework.web.bind.annotation.PathVariable Long id,
-            @RequestBody java.util.Map<String, String> payload) {
-        try {
-            String rfidCode = payload.get("rfidCode");
-            if (rfidCode == null || rfidCode.isBlank()) {
-                throw new IllegalArgumentException("rfidCode is required");
-            }
-            MonthlyTicketDTO dto = monthlyTicketService.assignRfidCard(id, rfidCode, rfidCardRepository);
-            return ResponseEntity.ok(ApiResponse.success(dto, "RFID card assigned successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error:" + e.getMessage()));
-        }
-    }
-
+    
     @com.pbms.common.annotation.LogAudit(action = "UPDATE", resource = "MonthlyTicket", description = "Update plate number for monthly ticket")
     @PutMapping("/{id}/plate")
     public ResponseEntity<ApiResponse<MonthlyTicketDTO>> updatePlate(

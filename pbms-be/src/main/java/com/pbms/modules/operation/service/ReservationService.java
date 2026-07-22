@@ -78,7 +78,7 @@ public class ReservationService {
 
     public BigDecimal previewPrice(Long vehicleTypeId, LocalDateTime expectedEntryTime, Integer durationMinutes) {
         LocalDateTime expectedExitTime = expectedEntryTime.plusMinutes(durationMinutes);
-        return pricingCalculatorService.calculateTotalFee(vehicleTypeId, expectedEntryTime, expectedExitTime);
+        return pricingCalculatorService.calculateParkingFee(vehicleTypeId, expectedEntryTime, expectedExitTime);
     }
 
     public void validateCreateReservation(CreateReservationRequest request) {
@@ -114,7 +114,7 @@ public class ReservationService {
             throw new IllegalStateException("Phương tiện này hiện đang ở trong bãi, không thể đặt chỗ.");
         }
         
-        boolean hasActiveTicket = monthlyTicketRepository.findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").isPresent();
+        boolean hasActiveTicket = monthlyTicketRepository.findByPlateNumberAndStatus(request.getPlateNumber(), "ACTIVE").isPresent();
         if (hasActiveTicket) {
             throw new IllegalStateException("Phương tiện này đang có vé tháng hợp lệ, không thể đặt chỗ trước.");
         }
@@ -258,10 +258,6 @@ public class ReservationService {
         BigDecimal penaltyFee = amountPaid.subtract(refundAmount);
 
         reservation.setStatus("CANCELLED");
-        reservation.setRefundAmount(refundAmount);
-        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-            reservation.setRefundStatus("PENDING");
-        }
         reservationRepository.save(reservation);
 
         if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
@@ -283,7 +279,6 @@ public class ReservationService {
                         .accountNumber(cancelRequest.getAccountNumber())
                         .accountName(cancelRequest.getAccountName())
                         .status("PENDING")
-                        .cancelTime(now)
                         .build();
                 refundRequestRepository.save(refund);
             } else {
@@ -579,6 +574,11 @@ public class ReservationService {
 
         java.util.Optional<com.pbms.modules.operation.domain.ParkingSession> psOpt = parkingSessionRepository
                 .findTopByReservationIdOrderByTimeInDesc(reservation.getId());
+        String refundStatus = null;
+        BigDecimal refundAmount = BigDecimal.ZERO;
+        Long refundRequestId = null;
+        String rejectReason = null;
+
         if (psOpt.isPresent()) {
             com.pbms.modules.operation.domain.ParkingSession ps = psOpt.get();
             java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
@@ -590,9 +590,19 @@ public class ReservationService {
         } else if ("CANCELLED".equals(reservation.getStatus())) {
             BigDecimal resFee = reservation.getReservationFee() != null ? reservation.getReservationFee()
                     : BigDecimal.ZERO;
-            BigDecimal refundAmt = reservation.getRefundAmount() != null ? reservation.getRefundAmount()
-                    : BigDecimal.ZERO;
-            penaltyFee = resFee.subtract(refundAmt);
+            
+            // Look up RefundRequest instead of using redundant columns
+            java.util.Optional<com.pbms.modules.finance.domain.RefundRequest> refundReq = 
+                    refundRequestRepository.findByReferenceTypeAndReferenceId("RESERVATION", String.valueOf(reservation.getId()));
+            
+            if (refundReq.isPresent()) {
+                com.pbms.modules.finance.domain.RefundRequest req = refundReq.get();
+                refundAmount = req.getRefundAmount() != null ? req.getRefundAmount() : BigDecimal.ZERO;
+                refundStatus = req.getStatus();
+                refundRequestId = req.getId();
+                rejectReason = req.getRejectReason();
+            }
+            penaltyFee = resFee.subtract(refundAmount);
         } else if ("COMPLETED_UNUSED".equals(reservation.getStatus())) {
             penaltyFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
         }
@@ -613,11 +623,11 @@ public class ReservationService {
                 .actualOut(actualOut)
                 .penaltyFee(penaltyFee)
                 .userEmail(userEmail)
-                .refundAmount(reservation.getRefundAmount())
-                .refundStatus(reservation.getRefundStatus())
-                .refundProofUrl(reservation.getRefundProofUrl())
-                .refundRejectReason(reservation.getRefundRejectReason())
                 .createdAt(reservation.getCreatedAt())
+                .refundStatus(refundStatus)
+                .refundAmount(refundAmount)
+                .refundRequestId(refundRequestId)
+                .rejectReason(rejectReason)
                 .build();
     }
 

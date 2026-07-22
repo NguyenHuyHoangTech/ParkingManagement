@@ -27,3 +27,8 @@
         - edit config system: lần 1 pass.
         - edit user profile: lần 1 pass.
 
+Testing các chức năng hệ thống:
+
+testing hoàn hủy booking hoàn 50% tiền đã chính xác ghi vào doanh thu khoản tiền phạt hủy booking.
+
+

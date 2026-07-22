@@ -40,11 +40,6 @@ public class IncidentTicketRequest {
     /** (Dành cho sự cố LOST_CARD) Số tiền bồi thường thẻ cần thu của khách */
     private BigDecimal fineAmount; 
 
-    /** (Dành cho sự cố ZONE_VIOLATION) ID khu vực đỗ mà xe đáng lý phải đỗ */
-    private Long expectedZoneId; 
-
-    /** (Dành cho sự cố ZONE_VIOLATION) ID khu vực đỗ thực tế mà xe đã đỗ vi phạm */
-    private Long actualZoneId; 
 
     /** (Dành cho sự cố LOST_CARD) URL của giấy tờ tùy thân khách hàng đã tải lên để xác minh */
     private String uploadedDocUrl; 

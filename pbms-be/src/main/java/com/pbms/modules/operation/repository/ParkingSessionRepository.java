@@ -21,10 +21,8 @@ import java.util.stream.Stream;
 public interface ParkingSessionRepository extends JpaRepository<ParkingSession, Long> {
     
     @Query("SELECT COUNT(ps) FROM ParkingSession ps WHERE ps.status = 'ACTIVE' AND ps.vehicleType.id = :vehicleTypeId " +
-           "AND ps.plate IN (SELECT mt.plate FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE' AND mt.validUntil > :currentTime)")
+           "AND ps.plate IN (SELECT mt.plateNumber FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE' AND mt.validUntil > :currentTime)")
     long countActiveMonthlyCarsByVehicleType(@Param("vehicleTypeId") Long vehicleTypeId, @Param("currentTime") LocalDateTime currentTime);
-    
-    long countBySuggestedZoneIdAndStatusAndSlotIsNull(Long suggestedZoneId, String status);
     
     long countByVehicleTypeIdAndStatus(Long vehicleTypeId, String status);
     
@@ -46,10 +44,11 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
     List<ParkingSession> findByStatus(String status);
     
     @Query("SELECT ps FROM ParkingSession ps WHERE ps.status = 'ACTIVE' AND ps.timeIn < :cutoffTime " +
-           "AND ps.plate NOT IN (SELECT mt.plate FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE')")
+           "AND ps.plate NOT IN (SELECT mt.plateNumber FROM MonthlyTicket mt WHERE mt.status = 'ACTIVE')")
     List<ParkingSession> findActiveSessionsOlderThan(@Param("cutoffTime") LocalDateTime cutoffTime);
 
     List<ParkingSession> findByPlateOrderByTimeInDesc(String plate);
+    List<ParkingSession> findByPlateContainingIgnoreCaseOrderByTimeInDesc(String plate);
     List<ParkingSession> findByGateInIdAndTimeInBetween(Long gateId, LocalDateTime start, LocalDateTime end);
     List<ParkingSession> findByGateOutIdAndTimeOutBetween(Long gateId, LocalDateTime start, LocalDateTime end);
     boolean existsByPlateAndTimeInGreaterThanEqual(String plate, LocalDateTime timeIn);

@@ -48,8 +48,9 @@ public class PaymentValidatorService {
     private final com.pbms.modules.system.service.SystemConfigService systemConfigService;
     private final org.springframework.context.ApplicationContext applicationContext;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     /**
      * Calculates monthly ticket total with duration-based discount from system config.
      * Mirrors the same logic used on the frontend.
@@ -147,10 +148,33 @@ public class PaymentValidatorService {
                 com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = gateOperationService.getCheckOutSessionInfo(session, com.pbms.common.utils.TimeProvider.now());
                 return gateOperationService.calculateTotalAmount(info).doubleValue();
             } else if ("RESOLVE_INCIDENT".equals(actionType)) {
-                Double parkingFee = payload.get("parkingFee") != null ? Double.parseDouble(payload.get("parkingFee").toString()) : 0.0;
-                Double penaltyFee = payload.get("penaltyFee") != null ? Double.parseDouble(payload.get("penaltyFee").toString()) : 0.0;
+                Long incidentId = Long.valueOf(payload.get("incidentId").toString());
+                com.pbms.modules.incident.domain.IncidentTicket ticket = applicationContext.getBean(com.pbms.modules.incident.repository.IncidentTicketRepository.class).findById(incidentId)
+                        .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
+                
+                Double expectedPenalty = ticket.getFineAmount() != null ? ticket.getFineAmount().doubleValue() : 0.0;
+                Double expectedParking = 0.0;
+                
+                String checkoutToken = (String) payload.get("checkoutToken");
+                if (checkoutToken != null && !checkoutToken.isEmpty()) {
+                    try {
+                        io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(checkoutToken);
+                        if (ticket.getSession() != null && !String.valueOf(ticket.getSession().getId()).equals(claims.get("sessionId", String.class))) {
+                            throw new IllegalArgumentException("Mã xác thực không khớp với phiên đỗ xe hiện tại.");
+                        }
+                        expectedParking = claims.get("expectedFee", Double.class);
+                    } catch (io.jsonwebtoken.ExpiredJwtException e) {
+                        throw new IllegalArgumentException("Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+                    }
+                } else if (ticket.getSession() != null && ("ACTIVE".equals(ticket.getSession().getStatus()) || "LOCKED".equals(ticket.getSession().getStatus()))) {
+                    com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = gateOperationService.getCheckOutSessionInfo(ticket.getSession(), com.pbms.common.utils.TimeProvider.now());
+                    expectedParking = gateOperationService.calculateTotalAmount(info).doubleValue();
+                }
+                
                 Double discount = payload.get("discountAmount") != null ? Double.parseDouble(payload.get("discountAmount").toString()) : 0.0;
-                Double total = parkingFee + penaltyFee - discount;
+                Double total = expectedParking + expectedPenalty - discount;
                 return total > 0 ? total : 0.0;
             }
         } catch (Exception e) {
@@ -247,6 +271,11 @@ public class PaymentValidatorService {
             Map<String, Object> payload = objectMapper.readValue(order.getPayload(),
                     new TypeReference<Map<String, Object>>() {
                     });
+            
+            // Inject payment details into payload for subsequent services to record Transactions
+            payload.put("paymentOrderId", order.getId());
+            payload.put("paymentMethod", order.getPaymentMethod());
+            
             Object resultData = null;
 
             org.springframework.security.core.context.SecurityContext originalContext = org.springframework.security.core.context.SecurityContextHolder.getContext();
@@ -298,7 +327,7 @@ public class PaymentValidatorService {
                 if (currentTotal.compareTo(order.getAmount()) > 0) {
                     throw new IllegalArgumentException("Giá vé tháng đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
                 }
-                resultData = monthlyTicketService.renewTicket(ticketId, duration);
+                resultData = monthlyTicketService.renewTicket(ticketId, duration, order.getPaymentMethod(), order.getId());
             } else if ("CHECKOUT".equals(order.getActionType())) {
                 // Typically Check-out updates the session
                 com.pbms.modules.operation.dto.CheckOutRequestDTO checkoutReq = objectMapper.convertValue(payload,
@@ -314,8 +343,9 @@ public class PaymentValidatorService {
                 BigDecimal penaltyFee = payload.get("penaltyFee") != null ? new BigDecimal(payload.get("penaltyFee").toString()) : null;
                 BigDecimal discountAmount = payload.get("discountAmount") != null ? new BigDecimal(payload.get("discountAmount").toString()) : null;
                 
+                String checkoutToken = payload.get("checkoutToken") != null ? payload.get("checkoutToken").toString() : null;
                 com.pbms.modules.incident.service.IncidentService incidentService = applicationContext.getBean(com.pbms.modules.incident.service.IncidentService.class);
-                resultData = incidentService.resolveIncident(incidentId, resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, order.getPaymentMethod());
+                resultData = incidentService.resolveIncident(incidentId, resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, order.getPaymentMethod(), order.getId(), checkoutToken);
             } else {
                 throw new UnsupportedOperationException("Unknown action type: " + order.getActionType());
             }
@@ -371,7 +401,6 @@ public class PaymentValidatorService {
                 .penaltyFee(BigDecimal.ZERO)
                 .refundAmount(order.getAmount())
                 .status("PENDING")
-                .cancelTime(com.pbms.common.utils.TimeProvider.now())
                 .rejectReason("System Error during execution: " + errorMessage)
                 .build();
 

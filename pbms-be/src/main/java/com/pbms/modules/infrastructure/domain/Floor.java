@@ -24,11 +24,7 @@ public class Floor {
     @Column(name = "floor_name", nullable = false, length = 100)
     private String floorName;
 
-    @Column(name = "floor_level", nullable = false)
-    private Integer floorLevel;
 
-    @Column(nullable = false)
-    private Integer capacity;
 
     @Column(name = "floor_type", length = 50)
     private String floorType; // CAR, MOTORBIKE

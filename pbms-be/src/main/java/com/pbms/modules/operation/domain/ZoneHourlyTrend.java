@@ -30,12 +30,4 @@ public class ZoneHourlyTrend {
     @Column(name = "occupancy_pct", nullable = false, precision = 5, scale = 2)
     private BigDecimal occupancyPct;
 
-    @Column(name = "revenue_generated", nullable = false, precision = 18, scale = 2)
-    private BigDecimal revenueGenerated;
-
-    @Column(name = "entries_count", nullable = false)
-    private Integer entriesCount;
-
-    @Column(name = "exits_count", nullable = false)
-    private Integer exitsCount;
 }

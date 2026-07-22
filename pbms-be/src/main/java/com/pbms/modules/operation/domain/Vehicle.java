@@ -25,11 +25,7 @@ public class Vehicle extends BaseEntity {
     @Column(name = "plate_number", nullable = false, unique = true, length = 50)
     private String plateNumber;
 
-    @Column(length = 50)
-    private String color;
 
-    @Column(length = 100)
-    private String brand;
 
     @Builder.Default
     @Column(length = 50)
@@ -38,11 +34,5 @@ public class Vehicle extends BaseEntity {
     @Builder.Default
     @Column(name = "is_blacklisted", nullable = false)
     private Boolean isBlacklisted = false;
-
-    @Column(name = "blacklist_reason", columnDefinition = "VARCHAR(MAX)")
-    private String blacklistReason;
-
-    @Column(name = "blacklist_evidence_url", columnDefinition = "VARCHAR(MAX)")
-    private String blacklistEvidenceUrl;
 }
 

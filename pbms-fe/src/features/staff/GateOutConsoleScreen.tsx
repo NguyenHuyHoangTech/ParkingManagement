@@ -282,7 +282,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         imageBase64: scanData.imageOutBase64,
         lprImageBase64: scanData.lprImageOutBase64,
         paymentMethod: paymentMethod,
-        totalFee: scanData.parkingFee || 0,
+        parkingFee: scanData.parkingFee || 0,
         checkoutToken: scanData.checkoutToken
       };
       const response = await axiosClient.post('/operation/gates/check-out', payload);
@@ -486,6 +486,18 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     const isInvalidEntry = scanData?.plateNumberIn === 'UNKNOWN' || scanData?.timeIn === '--:--';
     const isPlateMismatch = !isInvalidEntry && !!scanData?.plateNumberIn && (editablePlate.trim().toUpperCase() !== scanData.plateNumberIn.trim().toUpperCase());
 
+
+
+
+
+
+
+
+
+
+
+
+    // 
     return (
       <div className="flex h-full overflow-hidden w-full bg-slate-100 rounded-xl shadow-inner gap-4">
         {/* LEFT SIDE: 4-Way Cameras (45% width) */}

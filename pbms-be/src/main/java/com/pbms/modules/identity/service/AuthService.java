@@ -63,7 +63,7 @@ public class AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         Optional<User> existingUserOpt = userRepository.findByEmail(request.getEmail());
-        if (existingUserOpt.isPresent() && existingUserOpt.get().getIsVerified()) {
+        if (existingUserOpt.isPresent()) {
             throw new IllegalArgumentException("Email already exists");
         }
 
@@ -116,7 +116,6 @@ public class AuthService {
                 user = existingUserOpt.get();
                 user.setPasswordHash(passwordEncoder.encode(otpData.registerRequest.getPassword()));
                 user.setFullName(otpData.registerRequest.getFullName());
-                user.setIsVerified(true);
                 user.setStatus("ACTIVE");
             } else {
                 user = User.builder()
@@ -124,7 +123,6 @@ public class AuthService {
                         .passwordHash(passwordEncoder.encode(otpData.registerRequest.getPassword()))
                         .fullName(otpData.registerRequest.getFullName())
                         .role("CUSTOMER")
-                        .isVerified(true)
                         .status("ACTIVE")
                         .build();
             }
@@ -159,16 +157,6 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Email or email address"));
 
-        if (!user.getIsVerified()) {
-            // Allow SUPER_ADMIN seed accounts to bypass email verification
-            boolean isSuperAdmin = user.getRole().equals("ROLE_SUPER_ADMIN") || user.getRole().equals("SUPER_ADMIN");
-            if (!isSuperAdmin) {
-                throw new IllegalArgumentException("I'm locked to check the email address and click on the OTPe code.");
-            }
-            // Auto-verify for admin accounts
-            user.setIsVerified(true);
-            userRepository.save(user);
-        }
 
         if ("INACTIVE".equals(user.getStatus())) {
             throw new IllegalArgumentException("An error occurred");
@@ -227,7 +215,6 @@ public class AuthService {
                     .googleId(googleId)
                     .fullName(fullName)
                     .role("CUSTOMER")
-                    .isVerified(true) // Google users are pre-verified
                     .status("ACTIVE")
                     .build();
             userRepository.save(user);
@@ -293,12 +280,8 @@ public class AuthService {
 
     @Transactional
     public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
+        userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found with this email."));
-
-        if (!user.getIsVerified()) {
-            throw new IllegalArgumentException("Account is not verified yet.");
-        }
 
         String otp = generateOtp();
         String cacheKey = "OTP:FORGOT_PASSWORD:" + email;

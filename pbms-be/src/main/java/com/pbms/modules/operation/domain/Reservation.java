@@ -1,7 +1,6 @@
 package com.pbms.modules.operation.domain;
 
 import com.pbms.common.domain.BaseEntity;
-import com.pbms.modules.identity.domain.User;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -41,20 +40,6 @@ public class Reservation extends BaseEntity {
     @Column(name = "notified_early_arrival")
     private Boolean notifiedEarlyArrival;
 
-    @Column(name = "refund_status", length = 50)
-    private String refundStatus;
 
-    @Column(name = "refund_amount", precision = 18, scale = 2)
-    private BigDecimal refundAmount;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "refunded_by")
-    private User refundedBy;
-
-    @Column(name = "refund_proof_url", length = 500)
-    private String refundProofUrl;
-
-    @Column(name = "refund_reject_reason", columnDefinition = "VARCHAR(MAX)")
-    private String refundRejectReason;
 }
 

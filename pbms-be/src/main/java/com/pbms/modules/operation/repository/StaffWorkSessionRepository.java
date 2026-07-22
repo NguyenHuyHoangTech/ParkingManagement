@@ -16,7 +16,7 @@ public interface StaffWorkSessionRepository extends JpaRepository<StaffWorkSessi
 
     org.springframework.data.domain.Page<StaffWorkSession> findByStatusAndLogoutTimeBetween(String status, LocalDateTime start, LocalDateTime end, org.springframework.data.domain.Pageable pageable);
     org.springframework.data.domain.Page<StaffWorkSession> findByStatus(String status, org.springframework.data.domain.Pageable pageable);
-    org.springframework.data.domain.Page<StaffWorkSession> findByStatusAndGateGateType(String status, String gateType, org.springframework.data.domain.Pageable pageable);
-    org.springframework.data.domain.Page<StaffWorkSession> findByStatusAndLogoutTimeBetweenAndGateGateType(String status, LocalDateTime start, LocalDateTime end, String gateType, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<StaffWorkSession> findByStatusAndWorkGateType(String status, String workGateType, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<StaffWorkSession> findByStatusAndLogoutTimeBetweenAndWorkGateType(String status, LocalDateTime start, LocalDateTime end, String workGateType, org.springframework.data.domain.Pageable pageable);
 }
 

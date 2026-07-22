@@ -73,7 +73,6 @@ public class VehicleService {
         Vehicle vehicle = vehicleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Vehicle not found"));
         vehicle.setIsBlacklisted(true);
-        vehicle.setBlacklistReason(reason);
         vehicleRepository.save(vehicle);
         return mapToDTO(vehicle);
     }
@@ -88,8 +87,6 @@ public class VehicleService {
                     return newVehicle;
                 });
         vehicle.setIsBlacklisted(true);
-        vehicle.setBlacklistReason(reason);
-        vehicle.setBlacklistEvidenceUrl(evidenceUrl);
         vehicleRepository.save(vehicle);
         return mapToDTO(vehicle);
     }
@@ -100,8 +97,6 @@ public class VehicleService {
                 .orElseThrow(() -> new RuntimeException("Vehicle not found"));
         vehicle.setIsBlacklisted(false);
         // Note: keeping the reason/evidence for history, or clearing them. User said "khôi phục lại như cũ". Let's clear them.
-        vehicle.setBlacklistReason(null);
-        vehicle.setBlacklistEvidenceUrl(null);
         vehicleRepository.save(vehicle);
 
         // Find the session that was closed due to blacklist
@@ -109,7 +104,7 @@ public class VehicleService {
             .ifPresent(session -> {
                 session.setStatus("ACTIVE");
                 session.setTimeOut(null);
-                session.setTotalFee(null);
+                session.setParkingFee(null);
                 session.setGateOut(null);
                 
                 if (session.getRfidCard() != null) {
@@ -140,8 +135,6 @@ public class VehicleService {
                 .orElseThrow(() -> new RuntimeException("Vehicle not found"));
         vehicle.setIsBlacklisted(false);
         // We keep the old reason/evidence or we can clear them. Since they unblacklisted, let's keep history in the IncidentTicket instead.
-        vehicle.setBlacklistReason(null);
-        vehicle.setBlacklistEvidenceUrl(null);
         vehicleRepository.save(vehicle);
 
         if (incidentId != null) {
@@ -171,7 +164,7 @@ public class VehicleService {
         // 1. Close session -> CLOSED_BLACKLISTED
         session.setStatus("CLOSED_BLACKLISTED");
         session.setTimeOut(com.pbms.common.utils.TimeProvider.now());
-        session.setTotalFee(java.math.BigDecimal.ZERO);
+        session.setParkingFee(java.math.BigDecimal.ZERO);
         
         // 2. Card -> LOST
         if (session.getRfidCard() != null) {
@@ -193,8 +186,6 @@ public class VehicleService {
                     return newVehicle;
                 });
         vehicle.setIsBlacklisted(true);
-        vehicle.setBlacklistReason(reason);
-        vehicle.setBlacklistEvidenceUrl(evidenceUrl);
         vehicleRepository.save(vehicle);
 
         // 4. Update the IncidentTicket to record this action
@@ -264,16 +255,13 @@ public class VehicleService {
         return VehicleDTO.builder()
                 .id(vehicle.getId())
                 .plateNumber(vehicle.getPlateNumber())
-                .color(vehicle.getColor())
-                .brand(vehicle.getBrand())
+
                 .vehicleTypeName(vehicle.getVehicleType() != null ? vehicle.getVehicleType().getTypeName() : null)
                 .vehicleTypeId(vehicle.getVehicleType() != null ? vehicle.getVehicleType().getId() : null)
                 .ownerName(vehicle.getUser() != null ? vehicle.getUser().getFullName() : null)
                 .ownerId(vehicle.getUser() != null ? vehicle.getUser().getId() : null)
                 .status(vehicle.getStatus())
                 .isBlacklisted(vehicle.getIsBlacklisted())
-                .blacklistReason(vehicle.getBlacklistReason())
-                .blacklistEvidenceUrl(vehicle.getBlacklistEvidenceUrl())
                 .build();
     }
 

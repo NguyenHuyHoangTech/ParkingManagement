@@ -22,9 +22,7 @@ public class ZoneConfigDTO {
     private Double layoutX;
     private Double layoutY;
     private Integer rotation;
-    private Integer overflowThreshold;
     private Long activeReservationsCount;
     private List<String> suggestedVehicles;
     private List<SlotConfigDTO> slots;
 }
-

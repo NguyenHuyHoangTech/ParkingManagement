@@ -35,6 +35,7 @@ interface RefundRecord {
   accountName: string;
   rejectReason?: string;
   referenceType?: string;
+  referenceId?: string;
   proofUrl?: string;
 }
 
@@ -81,8 +82,8 @@ export const RefundManagementScreen = () => {
   const [rejectReason, setRejectReason] = useState('');
 
   const pendingCount = refundsData.filter((d: RefundRecord) => d.status === 'PENDING').length;
-  const totalPendingAmount = refundsData.filter((d: RefundRecord) => d.status === 'PENDING').reduce((acc: number, curr: RefundRecord) => acc + curr.refundAmount, 0);
-  const totalRefundedToday = refundsData.filter((d: RefundRecord) => d.status === 'REFUNDED').reduce((acc: number, curr: RefundRecord) => acc + curr.refundAmount, 0);
+  const totalPendingAmount = Math.round(refundsData.filter((d: RefundRecord) => d.status === 'PENDING').reduce((acc: number, curr: RefundRecord) => acc + curr.refundAmount, 0));
+  const totalRefundedToday = Math.round(refundsData.filter((d: RefundRecord) => d.status === 'REFUNDED').reduce((acc: number, curr: RefundRecord) => acc + curr.refundAmount, 0));
 
   const handleOpenDrawer = (record: RefundRecord) => {
     setSelectedRecord(record);
@@ -185,7 +186,7 @@ export const RefundManagementScreen = () => {
       title: 'Amount to be refunded',
       dataIndex: 'refundAmount',
       key: 'refundAmount',
-      render: (amount: number) => <Text strong className="text-orange-600">{amount.toLocaleString()} VND</Text>
+      render: (amount: number) => <Text strong className="text-orange-600">{Math.round(amount).toLocaleString()} VND</Text>
     },
     {
       title: 'Status',
@@ -354,10 +355,13 @@ export const RefundManagementScreen = () => {
           selectedRecord?.status === 'PENDING' && (
             <div className="flex flex-col gap-3 w-full">
               <div className="flex justify-between items-center w-full">
-                <Button danger onClick={() => setIsRejecting(!isRejecting)}>
-                  
-                                              Reject Refund
-                                            </Button>
+                {selectedRecord?.referenceType === 'RESERVATION' ? (
+                  <Button danger onClick={() => setIsRejecting(!isRejecting)}>
+                    Reject Refund
+                  </Button>
+                ) : (
+                  <div></div>
+                )}
                 <Button 
                   type="primary" 
                   className="bg-green-600 hover:bg-green-500" 
@@ -410,7 +414,12 @@ export const RefundManagementScreen = () => {
                 description={
                   <div>
                     <Text className="text-red-700 block mb-1">The customer successfully paid, but the system encountered an error while processing the booking. Please refund the full amount.</Text>
-                    <Text className="text-xs text-gray-500 font-mono bg-red-50 p-1 rounded">{selectedRecord.rejectReason}</Text>
+                    <div className="flex items-center gap-2 mt-2">
+                        <Text strong>Payment Gateway Order Code:</Text>
+                        <Tag color="cyan" className="font-mono text-base px-2 py-1">{selectedRecord.referenceId}</Tag>
+                        <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(selectedRecord.referenceId || '', 'Order Code')} />
+                    </div>
+                    <Text className="text-xs text-gray-500 font-mono bg-red-50 p-1 rounded mt-2 block">{selectedRecord.rejectReason}</Text>
                   </div>
                 }
                 type="error" 
@@ -432,18 +441,18 @@ export const RefundManagementScreen = () => {
                 ]}
               />
               <div className="bg-slate-100 p-4 rounded-lg flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <Text>Amount paid by customer:</Text>
-                  <Text strong>{selectedRecord.paidAmount.toLocaleString()}  D</Text>
+                <div className="flex justify-between items-center mb-2">
+                  <Text type="secondary">Customer Paid:</Text>
+                  <Text strong>{Math.round(selectedRecord.paidAmount).toLocaleString()} VND</Text>
                 </div>
-                <div className="flex justify-between text-red-600">
-                  <Text type="danger">Late cancellation penalty:</Text>
-                  <Text strong>- {selectedRecord.penaltyFee.toLocaleString()}  D</Text>
+                <div className="flex justify-between items-center mb-2">
+                  <Text type="secondary">Cancellation Fee (Penalty):</Text>
+                  <Text strong>- {Math.round(selectedRecord.penaltyFee).toLocaleString()} VND</Text>
                 </div>
                 <Divider className="my-2" />
-                <div className="flex justify-between items-center">
-                  <Text strong className="text-base">Actual receipt (Need to be transferred):</Text>
-                  <Text strong className="text-2xl text-red-600">{selectedRecord.refundAmount.toLocaleString()}  D</Text>
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                  <Text strong className="text-lg">Total Refund:</Text>
+                  <Text strong className="text-2xl text-red-600">{Math.round(selectedRecord.refundAmount).toLocaleString()} VND</Text>
                 </div>
               </div>
             </div>

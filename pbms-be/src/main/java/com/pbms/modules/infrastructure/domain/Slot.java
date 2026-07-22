@@ -29,8 +29,6 @@ public class Slot {
     @Builder.Default
     private String status = "AVAILABLE"; // AVAILABLE, OCCUPIED, DISABLED
 
-    @Column(name = "current_plate", length = 50)
-    private String currentPlate;
 
     @Version
     @Builder.Default

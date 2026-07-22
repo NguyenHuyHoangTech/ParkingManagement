@@ -42,6 +42,7 @@ public class ParkingSessionController {
     private final com.pbms.modules.infrastructure.repository.ZoneRepository zoneRepository;
     private final com.pbms.modules.operation.service.GateOperationService gateOperationService;
     private final com.pbms.modules.operation.repository.ReservationRepository reservationRepository;
+    private final com.pbms.modules.finance.repository.RefundRequestRepository refundRequestRepository;
 
     /**
      * GET /api/v1/operation/parking-sessions/my-active
@@ -56,12 +57,12 @@ public class ParkingSessionController {
         ParkingSession session = null;
 
         if (plate != null && !plate.isBlank() && rfid != null && !rfid.isBlank()) {
-            java.util.List<ParkingSession> list = parkingSessionRepository.findByPlateOrderByTimeInDesc(plate.trim().toUpperCase());
+            java.util.List<ParkingSession> list = parkingSessionRepository.findByPlateContainingIgnoreCaseOrderByTimeInDesc(plate.trim());
             for (ParkingSession s : list) {
                 if (("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) 
                         && s.getRfidCard() != null 
-                        && (s.getRfidCard().getCardCode().equalsIgnoreCase(rfid.trim()) 
-                            || (s.getRfidCard().getCardId() != null && s.getRfidCard().getCardId().equalsIgnoreCase(rfid.trim())))) {
+                        && (s.getRfidCard().getCardCode().toUpperCase().endsWith(rfid.trim().toUpperCase()) 
+                            || (s.getRfidCard().getCardId() != null && s.getRfidCard().getCardId().toUpperCase().endsWith(rfid.trim().toUpperCase())))) {
                     if (vehicleTypeId != null && s.getVehicleType() != null && !s.getVehicleType().getId().equals(vehicleTypeId)) {
                         continue;
                     }
@@ -70,7 +71,7 @@ public class ParkingSessionController {
                 }
             }
         } else if (plate != null && !plate.isBlank()) {
-            java.util.List<ParkingSession> list = parkingSessionRepository.findByPlateOrderByTimeInDesc(plate.trim().toUpperCase());
+            java.util.List<ParkingSession> list = parkingSessionRepository.findByPlateContainingIgnoreCaseOrderByTimeInDesc(plate.trim());
             for (ParkingSession s : list) {
                 if ("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) {
                     if (vehicleTypeId != null && s.getVehicleType() != null && !s.getVehicleType().getId().equals(vehicleTypeId)) {
@@ -137,11 +138,16 @@ public class ParkingSessionController {
                     m.put("expectedEntryTime", r.getExpectedEntryTime());
                     m.put("expectedDurationMinutes", r.getExpectedDurationMinutes());
                     m.put("reservationFee", r.getReservationFee());
-                    m.put("refundAmount", r.getRefundAmount());
-                    m.put("refundStatus", r.getRefundStatus());
+                    java.util.Optional<com.pbms.modules.finance.domain.RefundRequest> refundReq = 
+                            refundRequestRepository.findByReferenceTypeAndReferenceId("RESERVATION", String.valueOf(r.getId()));
+                    java.math.BigDecimal refundAmount = refundReq.map(req -> req.getRefundAmount()).orElse(null);
+                    String refundStatus = refundReq.map(req -> req.getStatus()).orElse(null);
+                    
+                    m.put("refundAmount", refundAmount);
+                    m.put("refundStatus", refundStatus);
                     // forfeited = fee paid - refund
                     java.math.BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : java.math.BigDecimal.ZERO;
-                    java.math.BigDecimal refund = r.getRefundAmount() != null ? r.getRefundAmount() : java.math.BigDecimal.ZERO;
+                    java.math.BigDecimal refund = refundAmount != null ? refundAmount : java.math.BigDecimal.ZERO;
                     m.put("forfeitedAmount", fee.subtract(refund));
                     return m;
                 })
@@ -227,7 +233,7 @@ public class ParkingSessionController {
                         String rfid = ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : "";
                         String gateIn = ps.getGateIn() != null ? ps.getGateIn().getGateName() : "";
                         String gateOut = ps.getGateOut() != null ? ps.getGateOut().getGateName() : "";
-                        String fee = ps.getTotalFee() != null ? ps.getTotalFee().toString() : "0";
+                        String fee = ps.getParkingFee() != null ? ps.getParkingFee().toString() : "0";
                         String overtimeFee = ps.getOvertimeFee() != null ? ps.getOvertimeFee().toString() : "0";
                         String penaltyFee = ps.getPenaltyFee() != null ? ps.getPenaltyFee().toString() : "0";
                         
@@ -286,10 +292,7 @@ public class ParkingSessionController {
         String suggestedZoneName = "N/A";
         Long suggestedZoneId = ps.getSuggestedZoneId();
         
-        if (ps.getSlot() != null && ps.getSlot().getZone() != null) {
-            suggestedZoneName = ps.getSlot().getZone().getZoneName();
-            suggestedZoneId = ps.getSlot().getZone().getId();
-        } else if (ps.getSuggestedZoneId() != null) {
+        if (ps.getSuggestedZoneId() != null) {
             if (ps.getSuggestedZoneId() == -1L) {
                 suggestedZoneName = "FREE";
             } else {
@@ -303,8 +306,8 @@ public class ParkingSessionController {
         map.put("suggestedZoneName", suggestedZoneName);
         map.put("suggestedZoneId", suggestedZoneId);
         
-        BigDecimal currentFee = ps.getTotalFee();
-        BigDecimal currentBaseFee = ps.getTotalFee() != null ? ps.getTotalFee() : BigDecimal.ZERO;
+        BigDecimal currentFee = ps.getParkingFee();
+        BigDecimal currentBaseFee = ps.getParkingFee() != null ? ps.getParkingFee() : BigDecimal.ZERO;
         BigDecimal currentOvertimeFee = ps.getOvertimeFee() != null ? ps.getOvertimeFee() : BigDecimal.ZERO;
         
         if (currentFee != null && ps.getOvertimeFee() != null) {
@@ -322,14 +325,14 @@ public class ParkingSessionController {
                     currentOvertimeFee = checkoutInfo.getOvertimeFee() != null ? checkoutInfo.getOvertimeFee() : BigDecimal.ZERO;
                     currentFee = currentBaseFee.add(currentOvertimeFee);
                 } else {
-                    currentBaseFee = pricingCalculatorService.calculateTotalFee(
+                    currentBaseFee = pricingCalculatorService.calculateParkingFee(
                         ps.getVehicleType().getId(), 
                         ps.getTimeIn(), 
                         TimeProvider.now());
                     currentFee = currentBaseFee;
                 }
             } catch (Exception e) {
-                currentBaseFee = pricingCalculatorService.calculateTotalFee(
+                currentBaseFee = pricingCalculatorService.calculateParkingFee(
                     ps.getVehicleType().getId(), 
                     ps.getTimeIn(), 
                     TimeProvider.now());

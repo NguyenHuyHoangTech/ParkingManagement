@@ -84,7 +84,6 @@ public class UserService {
             dto.setName(user.getFullName());
             dto.setEmail(user.getEmail());
             dto.setRole(user.getRole());
-            dto.setIsVerified(user.getIsVerified());
             dto.setIsActive("ACTIVE".equals(user.getStatus()));
             return dto;
         });
@@ -102,7 +101,6 @@ public class UserService {
                 .email(request.getEmail())
                 .role(request.getRole())
                 .passwordHash(passwordEncoder.encode(rawPassword))
-                .isVerified(true)
                 .status("ACTIVE")
                 .build();
         

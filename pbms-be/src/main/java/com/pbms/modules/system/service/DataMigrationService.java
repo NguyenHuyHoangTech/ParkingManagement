@@ -8,7 +8,7 @@ import com.pbms.modules.operation.domain.Vehicle;
 import com.pbms.modules.operation.repository.MonthlyTicketRepository;
 import com.pbms.modules.operation.repository.ParkingSessionRepository;
 import com.pbms.modules.operation.repository.VehicleRepository;
-import com.pbms.modules.incident.repository.IncidentTicketRepository;
+
 import com.pbms.modules.infrastructure.utils.LicensePlateUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ public class DataMigrationService {
     private final MonthlyTicketRepository monthlyTicketRepository;
     private final ParkingSessionRepository parkingSessionRepository;
     private final VehicleRepository vehicleRepository;
-    private final IncidentTicketRepository incidentTicketRepository;
+
 
     private static final String HEX_CHARS = "0123456789ABCDEF";
     private final SecureRandom random = new SecureRandom();
@@ -78,29 +78,12 @@ public class DataMigrationService {
 
         List<MonthlyTicket> monthlyTickets = monthlyTicketRepository.findAll();
         for (MonthlyTicket mt : monthlyTickets) {
-            if (mt.getPlate() != null) {
-                mt.setPlate(LicensePlateUtils.normalize(mt.getPlate()));
+            if (mt.getPlateNumber() != null) {
+                mt.setPlateNumber(LicensePlateUtils.normalize(mt.getPlateNumber()));
             }
         }
         monthlyTicketRepository.saveAll(monthlyTickets);
         log.info("Migrated {} monthly tickets.", monthlyTickets.size());
-
-        final int[] modifiedCount = {0};
-        incidentTicketRepository.findAll().forEach(it -> {
-            boolean modified = false;
-            if (it.getReportedPlate() != null) {
-                String norm = LicensePlateUtils.normalize(it.getReportedPlate());
-                if (!it.getReportedPlate().equals(norm)) {
-                    it.setReportedPlate(norm);
-                    modified = true;
-                }
-            }
-            if (modified) {
-                incidentTicketRepository.save(it);
-                modifiedCount[0]++;
-            }
-        });
-        log.info("Migrated {} incident tickets.", modifiedCount[0]);
 
         log.info("License plates normalized across all entities successfully.");
     }

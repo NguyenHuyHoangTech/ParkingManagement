@@ -38,9 +38,6 @@ public class ZoneTrendService {
                     .zone(zoneRepository.findById(zoneId).orElse(null))
                     .timeWindow(window)
                     .occupancyPct(occupancyPct)
-                    .revenueGenerated(BigDecimal.ZERO)
-                    .entriesCount(0)
-                    .exitsCount(0)
                     .build();
             zoneHourlyTrendRepository.save(trend);
         } else {

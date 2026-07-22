@@ -86,7 +86,4 @@ public class ScanEventDTO {
 
     /** Cờ báo hiệu xe đang bị đưa vào Blacklist */
     private Boolean isBlacklisted;
-
-    /** Lý do xe bị đưa vào Blacklist */
-    private String blacklistReason;
 }

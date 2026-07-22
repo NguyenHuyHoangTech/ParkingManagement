@@ -200,11 +200,9 @@ export const StaffLayout = () => {
   const { data: globalTicketsData = [] } = useQuery({
     queryKey: ['incidents_global_badge'],
     queryFn: async () => {
-      if (shiftStatus !== 'OPEN') return [];
       const res = await axiosClient.get('/incident/incidents');
       return res.data?.data || [];
     },
-    enabled: shiftStatus === 'OPEN'
   });
 
   const pendingIncidentsCount = useMemo(() => {
@@ -232,13 +230,11 @@ export const StaffLayout = () => {
               className="text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-medium px-3"
               icon={<DesktopOutlined />}
               onClick={() => navigate('/staff/gate-console')}
-              disabled={shiftStatus !== 'OPEN' || activeGateType === 'PATROL'}
+              disabled={shiftStatus !== 'OPEN'}
               title={
                 shiftStatus !== 'OPEN'
                   ? "Please start a shift to perform this action"
-                  : activeGateType === 'PATROL'
-                    ? "Patrol staff do not have access to gate booths"
-                    : "Gate Console"
+                  : "Gate Console"
               }
             >
               Gate Console
@@ -249,8 +245,7 @@ export const StaffLayout = () => {
                 icon={<AlertOutlined />}
                 onClick={() => navigate('/staff/exception-desk')}
                 className={`font-medium px-3 transition-colors ${pendingIncidentsCount > 0 ? 'text-red-600 hover:text-red-700 bg-red-50/50 hover:bg-red-100' : 'text-slate-600 hover:text-red-600 hover:bg-red-50'}`}
-                disabled={shiftStatus !== 'OPEN'}
-                title={shiftStatus !== 'OPEN' ? "Please start a shift to perform this action" : "Resolve Incident"}
+                title="Resolve Incident"
               >
                 Exception Desk
               </Button>

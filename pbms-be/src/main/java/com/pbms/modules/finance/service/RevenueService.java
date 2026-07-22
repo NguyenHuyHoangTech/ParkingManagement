@@ -39,15 +39,20 @@ public class RevenueService {
         FROM parking_sessions ps 
         LEFT JOIN vehicle_types vt ON ps.vehicle_type_id = vt.id 
         LEFT JOIN gates g ON ps.gate_out_id = g.id 
-        LEFT JOIN monthly_tickets mt ON ps.plate = mt.plate AND mt.status = 'ACTIVE' 
-        LEFT JOIN transactions t ON ps.id = t.parking_session_id AND t.status = 'SUCCESS' 
+        LEFT JOIN monthly_tickets mt ON ps.plate = mt.plate_number AND mt.status != 'CANCELLED' AND ps.time_in BETWEEN mt.valid_from AND mt.valid_until
+        OUTER APPLY (
+            SELECT TOP 1 payment_method 
+            FROM transactions trx 
+            WHERE trx.parking_session_id = ps.id AND trx.status = 'SUCCESS' 
+            ORDER BY trx.created_at DESC
+        ) t 
         CROSS APPLY (
             VALUES 
                 (CASE 
                     WHEN ps.reservation_id IS NOT NULL THEN 'Reservation' 
                     WHEN mt.id IS NOT NULL THEN 'Monthly Ticket' 
                     ELSE 'Standard Ticket' 
-                 END, ps.total_fee),
+                 END, ps.parking_fee),
                 ('Overtime Surcharge', ps.overtime_fee),
                 ('Penalty', ps.penalty_fee)
         ) AS v(revenueSource, revenueAmount)
@@ -78,6 +83,26 @@ public class RevenueService {
         GROUP BY 
             CONVERT(VARCHAR(10), t.created_at, 120), 
             t.payment_method
+        UNION ALL 
+        SELECT 
+            CONVERT(VARCHAR(10), t.created_at, 120) AS date_str, 
+            COALESCE(vt.type_name, 'Unclear') AS vehicleType,
+            N'N/A' AS gateName, 
+            'Monthly Ticket Sales' AS revenueSource, 
+            t.payment_method AS paymentMethod, 
+            SUM(t.amount) AS totalRevenue, 
+            COUNT(t.id) AS totalTransactions 
+        FROM transactions t 
+        INNER JOIN monthly_tickets mt ON t.monthly_ticket_id = mt.id
+        LEFT JOIN vehicle_types vt ON mt.vehicle_type_id = vt.id
+        WHERE t.status = 'SUCCESS' 
+          AND t.transaction_reference LIKE 'TXN-MT-%' 
+          AND CAST(t.created_at AS DATE) >= :startDate 
+          AND CAST(t.created_at AS DATE) <= :endDate 
+        GROUP BY 
+            CONVERT(VARCHAR(10), t.created_at, 120), 
+            COALESCE(vt.type_name, 'Unclear'),
+            t.payment_method
         """;
 
     private static final String TABLE_SQL = """
@@ -86,19 +111,58 @@ public class RevenueService {
             ps.plate,
             COALESCE(vt.type_name, 'Unclear') AS vehicleType,
             COALESCE(g.gate_name, 'N/A') AS gateName, 
-            COALESCE(ps.total_fee, 0) AS baseFee,
+            COALESCE(ps.parking_fee, 0) AS baseFee,
             COALESCE(ps.overtime_fee, 0) AS overtimeFee,
             COALESCE(ps.penalty_fee, 0) AS penaltyFee,
-            (COALESCE(ps.total_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) AS totalFee,
+            (COALESCE(ps.parking_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) AS totalFee,
             COALESCE(t.payment_method, 'CASH') AS paymentMethod
         FROM parking_sessions ps 
         LEFT JOIN vehicle_types vt ON ps.vehicle_type_id = vt.id 
         LEFT JOIN gates g ON ps.gate_out_id = g.id 
-        LEFT JOIN transactions t ON ps.id = t.parking_session_id AND t.status = 'SUCCESS' 
+        OUTER APPLY (
+            SELECT TOP 1 payment_method 
+            FROM transactions trx 
+            WHERE trx.parking_session_id = ps.id AND trx.status = 'SUCCESS' 
+            ORDER BY trx.created_at DESC
+        ) t
         WHERE ps.status = 'COMPLETED' 
-          AND (COALESCE(ps.total_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) > 0
+          AND (COALESCE(ps.parking_fee, 0) + COALESCE(ps.overtime_fee, 0) + COALESCE(ps.penalty_fee, 0)) > 0
           AND CAST(ps.time_out AS DATE) >= :startDate 
           AND CAST(ps.time_out AS DATE) <= :endDate 
+        UNION ALL
+        SELECT 
+            CONVERT(VARCHAR(19), t.created_at, 120) AS checkoutTime, 
+            N'N/A' AS plate,
+            'Unclear' AS vehicleType,
+            N'N/A' AS gateName, 
+            0 AS baseFee,
+            0 AS overtimeFee,
+            t.amount AS penaltyFee,
+            t.amount AS totalFee,
+            t.payment_method AS paymentMethod
+        FROM transactions t 
+        WHERE t.status = 'SUCCESS' 
+          AND t.transaction_reference LIKE 'PENALTY-RES-%' 
+          AND CAST(t.created_at AS DATE) >= :startDate 
+          AND CAST(t.created_at AS DATE) <= :endDate 
+        UNION ALL
+        SELECT 
+            CONVERT(VARCHAR(19), t.created_at, 120) AS checkoutTime, 
+            mt.plate_number AS plate,
+            COALESCE(vt.type_name, 'Unclear') AS vehicleType,
+            N'N/A' AS gateName, 
+            t.amount AS baseFee,
+            0 AS overtimeFee,
+            0 AS penaltyFee,
+            t.amount AS totalFee,
+            t.payment_method AS paymentMethod
+        FROM transactions t 
+        INNER JOIN monthly_tickets mt ON t.monthly_ticket_id = mt.id
+        LEFT JOIN vehicle_types vt ON mt.vehicle_type_id = vt.id
+        WHERE t.status = 'SUCCESS' 
+          AND t.transaction_reference LIKE 'TXN-MT-%' 
+          AND CAST(t.created_at AS DATE) >= :startDate 
+          AND CAST(t.created_at AS DATE) <= :endDate 
         """;
 
     /**

@@ -39,8 +39,6 @@ public class Zone {
 
     private Integer rotation;
 
-    @Column(name = "overflow_threshold")
-    private Integer overflowThreshold;
 
     @Column(name = "status", length = 50)
     @Builder.Default

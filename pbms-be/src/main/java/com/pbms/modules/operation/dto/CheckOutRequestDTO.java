@@ -34,10 +34,13 @@ public class CheckOutRequestDTO {
 
     /** Tổng số tiền phí cuối cùng khách hàng cần thanh toán. Đơn vị: VNĐ */
     /** Phí thanh toán thực tế (đã tính qua token hoặc UI) */
-    private java.math.BigDecimal totalFee;
+    private java.math.BigDecimal parkingFee;
 
     /** Stateless token to verify price and time */
     private String checkoutToken;
+
+    /** ID Hóa đơn Online (Payment Order) nếu thanh toán qua cổng VNPAY/PayOS */
+    private Long paymentOrderId;
 
     /**
      * Phân loại khách hàng khi ra cổng.

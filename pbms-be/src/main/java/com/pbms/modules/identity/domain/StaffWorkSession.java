@@ -45,16 +45,9 @@ public class StaffWorkSession {
     @Column(name = "expected_other_revenue")
     private java.math.BigDecimal expectedOtherRevenue;
 
-    @Column(name = "actual_revenue")
-    private java.math.BigDecimal actualRevenue;
 
-    @Column(name = "revenue_variance")
-    private java.math.BigDecimal revenueVariance;
 
-    @Column(name = "variance_reason", length = 255)
-    private String varianceReason;
-
-    @Column(name = "discrepancy_status", length = 50)
-    private String discrepancyStatus; // MATCH, SHORT, OVER
+    @Column(name = "work_gate_type", length = 50)
+    private String workGateType; // ENTRY, EXIT, PATROL
 }
 

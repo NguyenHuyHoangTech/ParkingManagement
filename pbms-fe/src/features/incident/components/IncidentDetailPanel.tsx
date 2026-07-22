@@ -125,7 +125,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     setP1FineAmount(ticket.fineAmount || 0);
   }, [ticket]);
 
-  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER'].includes(ticket.type);
+  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER', 'LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
 
   const effectivePenaltyFee = (ticket.type === 'DAMAGED_CARD') 
     ? (damageCausePhase2 === 'USER' ? getDamagedCardPenalty() : 0)
@@ -193,7 +193,8 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         resolutionImageUrl: docUrl,
         parkingFee: calculatedParkingFee,
         penaltyFee: totalPenalty,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        checkoutToken: ticket.checkoutToken
       };
       
       if (ticket.type === 'FEE_DISPUTE' && feeDiscount > 0) {
@@ -206,6 +207,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       message.success('Đã hoàn tất xử lý sự cố');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       if (onActionComplete) onActionComplete(); else onClose();
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi xác nhận thu tiền mặt. Vui lòng tải lại trang.');
     }
   });
 
@@ -228,6 +232,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                 parkingFee: calculatedParkingFee,
                 penaltyFee: totalPenalty,
                 discountAmount: (feeDiscount || ticket.discountFee || 0),
+                checkoutToken: ticket.checkoutToken
             };
             axiosClient.post('/finance/payments/initialize', { 
                 actionType: 'RESOLVE_INCIDENT',
@@ -396,7 +401,13 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
               {ticket.status}
             </Tag>
           </Title>
-          <Text type="secondary">Loại: <Tag color="blue">{ticket.type}</Tag> | BKS: <Text strong>{ticket.plate}</Text></Text>
+          <Text type="secondary">
+            Loại: <Tag color="blue">{ticket.type}</Tag>
+            {ticket.priority === 'HIGH' && <Tag color="red" className="font-semibold">Cấp bách</Tag>}
+            {ticket.priority === 'MEDIUM' && <Tag color="orange" className="font-semibold">Trung bình</Tag>}
+            {ticket.priority === 'LOW' && <Tag color="green" className="font-semibold">Thấp</Tag>}
+            | BKS: <Text strong>{ticket.plate}</Text>
+          </Text>
         </div>
         <Button onClick={onClose} type="text">Đóng</Button>
       </div>
@@ -528,7 +539,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                               )}
                             </>
                           )}
-                          {ticket.type === 'OTHER' && (
+                          {['OTHER', 'LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type) && (
                             <Form.Item label="Số tiền phạt (VND) - Bắt buộc nhập" required className="mt-4 font-medium">
                               <InputNumber 
                                 className="w-full" 

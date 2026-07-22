@@ -12,7 +12,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 @RestController
@@ -41,7 +40,7 @@ public class WorkSessionController {
                     "sessionId", session.getId(),
                     "gateId", session.getGate().getId(),
                     "gateName", session.getGate().getGateName(),
-                    "gateType", session.getGate().getGateType(),
+                    "gateType", session.getWorkGateType(),
                     "loginTime", session.getLoginTime(),
                     "status", session.getStatus()
             );
@@ -57,16 +56,10 @@ public class WorkSessionController {
      * Staff báº¥m ÄÃ³ng ca trá»±c
      */
     @PutMapping("/end")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> endSession(
-            Authentication authentication,
-            @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> endSession(Authentication authentication) {
         try {
             String email = authentication.getName();
-            BigDecimal declaredCash = body.get("declaredCash") != null
-                    ? new BigDecimal(body.get("declaredCash").toString())
-                    : BigDecimal.ZERO;
-            String varianceReason = body.get("varianceReason") != null ? body.get("varianceReason").toString() : null;
-            Map<String, Object> result = workSessionService.endSession(email, declaredCash, varianceReason);
+            Map<String, Object> result = workSessionService.endSession(email);
             return ResponseEntity.ok(ApiResponse.success(result, "Success"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

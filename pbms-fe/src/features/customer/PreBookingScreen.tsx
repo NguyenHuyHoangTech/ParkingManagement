@@ -708,25 +708,7 @@ export const PreBookingScreen = () => {
         </div>
       </Modal>
 
-      {/* Debug Panel for Payment & Webhook */}
-      <div className="fixed bottom-4 right-4 z-50 w-96 bg-black/80 backdrop-blur-md rounded-lg p-4 shadow-2xl border border-gray-700 max-h-96 flex flex-col">
-        <div className="flex justify-between items-center mb-2">
-          <Text className="text-green-400 font-mono font-bold text-xs">Payment Webhook & WS Debugger</Text>
-          <Button type="text" size="small" className="text-gray-400 hover:text-white" onClick={() => setDebugLogs([])}>Clear</Button>
-        </div>
-        <div className="flex-1 overflow-y-auto space-y-2 font-mono text-[10px]">
-          {debugLogs.map((log, i) => (
-            <div key={i} className="bg-gray-900 rounded p-2 border-l-2 border-green-500 text-gray-300">
-              <div className="flex justify-between text-gray-500 mb-1">
-                <span>{log.time}</span>
-                <span className={log.type.includes('ERROR') || log.type.includes('FAILED') ? 'text-red-400' : 'text-green-400'}>{log.type}</span>
-              </div>
-              <pre className="whitespace-pre-wrap break-all m-0">{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</pre>
-            </div>
-          ))}
-          {debugLogs.length === 0 && <div className="text-gray-500 text-center italic mt-4">Waiting for events...</div>}
-        </div>
-      </div>
+
 
     </div>
   );

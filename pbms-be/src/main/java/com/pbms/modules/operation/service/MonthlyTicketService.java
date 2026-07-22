@@ -32,6 +32,9 @@ public class MonthlyTicketService {
     private final com.pbms.modules.infrastructure.repository.SlotRepository slotRepository;
     private final com.pbms.common.service.EmailService emailService;
     private final com.pbms.modules.operation.repository.ReservationRepository reservationRepository;
+    private final com.pbms.modules.finance.repository.TransactionRepository transactionRepository;
+    private final com.pbms.modules.finance.repository.PricingPolicyRepository pricingPolicyRepository;
+    private final com.pbms.modules.operation.repository.StaffWorkSessionRepository staffWorkSessionRepository;
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Transactional(readOnly = true)
@@ -65,12 +68,12 @@ public class MonthlyTicketService {
                 }
             }
 
-            boolean hasBeenUsed = parkingSessionRepository.existsByPlateAndTimeInGreaterThanEqual(ticket.getPlate(),
+            boolean hasBeenUsed = parkingSessionRepository.existsByPlateAndTimeInGreaterThanEqual(ticket.getPlateNumber(),
                     ticket.getValidFrom());
 
             boolean inParkingLot = false;
             List<com.pbms.modules.operation.domain.ParkingSession> sessions = parkingSessionRepository
-                    .findByPlateOrderByTimeInDesc(ticket.getPlate());
+                    .findByPlateOrderByTimeInDesc(ticket.getPlateNumber());
             if (!sessions.isEmpty()
                     && ("ACTIVE".equals(sessions.get(0).getStatus()) || "LOCKED".equals(sessions.get(0).getStatus()))) {
                 inParkingLot = true;
@@ -86,7 +89,7 @@ public class MonthlyTicketService {
                     .user(ticket.getUser() != null ? ticket.getUser().getFullName() : "Guest")
                     .email(ticket.getUser() != null ? ticket.getUser().getEmail() : "")
                     .phone("") // phone doesn't exist on User
-                    .plate(ticket.getPlate())
+                    .plate(ticket.getPlateNumber())
                     .type(ticket.getVehicleType() != null ? ticket.getVehicleType().getTypeName() : "N/A")
                     .vehicleTypeId(ticket.getVehicleType() != null ? ticket.getVehicleType().getId() : null)
                     .status(derivedStatus)
@@ -183,7 +186,7 @@ public class MonthlyTicketService {
             }
         }
         
-        boolean hasActiveTicket = monthlyTicketRepository.findByPlateAndStatus(plate, "ACTIVE").isPresent();
+        boolean hasActiveTicket = monthlyTicketRepository.findByPlateNumberAndStatus(plate, "ACTIVE").isPresent();
         if (hasActiveTicket) {
             throw new IllegalArgumentException("Phương tiện này đã có vé tháng đang hoạt động. Vui lòng kiểm tra lại.");
         }
@@ -200,7 +203,7 @@ public class MonthlyTicketService {
 
         boolean isExpired = "EXPIRED".equals(ticket.getStatus())
                 || ticket.getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now());
-        if (isExpired && isVehicleInside(ticket.getPlate())) {
+        if (isExpired && isVehicleInside(ticket.getPlateNumber())) {
             throw new IllegalArgumentException(
                     "The monthly ticket is expired, and the vehicle is currently inside the parking lot. Please exit the parking lot before renewing.");
         }
@@ -239,19 +242,7 @@ public class MonthlyTicketService {
             log.warn("Could not get current user context", e);
         }
 
-        MonthlyTicket ticket = MonthlyTicket.builder()
-                .plate(plate)
-                .validFrom(com.pbms.common.utils.TimeProvider.now())
-                .validUntil(com.pbms.common.utils.TimeProvider.now().plusMonths(months))
-                .status("ACTIVE")
-                .autoRenew(false)
-                .vehicleType(vt)
-                .user(currentUser)
-                .build();
-
-        monthlyTicketRepository.save(ticket);
-        
-        // Overwrite vehicle ownership if necessary
+        // Fetch or create Vehicle first
         com.pbms.modules.operation.domain.Vehicle existingVehicle = vehicleRepository.findByPlateNumber(plate).orElse(null);
         if (existingVehicle != null && currentUser != null) {
             if (existingVehicle.getUser() == null || !existingVehicle.getUser().getId().equals(currentUser.getId())) {
@@ -259,14 +250,30 @@ public class MonthlyTicketService {
                 vehicleRepository.save(existingVehicle);
                 log.info("Overwritten ownership of vehicle {} to user {}", plate, currentUser.getEmail());
             }
-        } else if (existingVehicle == null && currentUser != null) {
-            com.pbms.modules.operation.domain.Vehicle newVehicle = com.pbms.modules.operation.domain.Vehicle.builder()
+        } else if (existingVehicle == null) {
+            existingVehicle = com.pbms.modules.operation.domain.Vehicle.builder()
                     .plateNumber(plate)
                     .vehicleType(vt)
                     .user(currentUser)
                     .build();
-            vehicleRepository.save(newVehicle);
+            existingVehicle = vehicleRepository.save(existingVehicle);
         }
+
+        MonthlyTicket ticket = MonthlyTicket.builder()
+                .validFrom(com.pbms.common.utils.TimeProvider.now())
+                .validUntil(com.pbms.common.utils.TimeProvider.now().plusMonths(months))
+                .status("ACTIVE")
+                
+                .user(currentUser)
+                .plateNumber(plate)
+                .vehicleType(vt)
+                .build();
+
+        monthlyTicketRepository.save(ticket);
+        
+        recordTransaction(ticket, months, payload.get("paymentMethod") != null ? payload.get("paymentMethod").toString() : null, payload.get("paymentOrderId") != null ? Long.parseLong(payload.get("paymentOrderId").toString()) : null);
+        
+
 
         try {
             checkMonthlyThreshold();
@@ -280,7 +287,7 @@ public class MonthlyTicketService {
 
         return MonthlyTicketDTO.builder()
                 .id("MP-" + ticket.getId())
-                .plate(ticket.getPlate())
+                .plate(ticket.getPlateNumber())
                 .status(ticket.getStatus())
                 .startDate(ticket.getValidFrom().format(FORMATTER))
                 .endDate(ticket.getValidUntil().format(FORMATTER))
@@ -288,7 +295,7 @@ public class MonthlyTicketService {
     }
 
     @Transactional
-    public MonthlyTicketDTO renewTicket(Long id, int durationMonths) {
+    public MonthlyTicketDTO renewTicket(Long id, int durationMonths, String paymentMethod, Long paymentOrderId) {
         validateRenewTicket(id, durationMonths);
 
         MonthlyTicket ticket = monthlyTicketRepository.findById(id)
@@ -305,13 +312,15 @@ public class MonthlyTicketService {
         ticket.setValidUntil(newEndDate);
         monthlyTicketRepository.save(ticket);
 
+        recordTransaction(ticket, durationMonths, paymentMethod, paymentOrderId);
+
         if (ticket.getUser() != null && ticket.getUser().getEmail() != null) {
             sendTicketEmail(ticket.getUser(), ticket, "RENEW");
         }
 
         return MonthlyTicketDTO.builder()
                 .id("MP-" + ticket.getId())
-                .plate(ticket.getPlate())
+                .plate(ticket.getPlateNumber())
                 .status(ticket.getStatus())
                 .startDate(ticket.getValidFrom().format(FORMATTER))
                 .endDate(ticket.getValidUntil().format(FORMATTER))
@@ -327,56 +336,31 @@ public class MonthlyTicketService {
             throw new IllegalArgumentException("New plate cannot be empty");
         }
 
-        boolean hasBeenUsed = parkingSessionRepository.existsByPlateAndTimeInGreaterThanEqual(ticket.getPlate(),
+        boolean hasBeenUsed = parkingSessionRepository.existsByPlateAndTimeInGreaterThanEqual(ticket.getPlateNumber(),
                 ticket.getValidFrom());
         if (hasBeenUsed) {
             throw new IllegalStateException("This pass has already been used and cannot be modified");
         }
 
-        ticket.setPlate(newPlate);
+        String oldPlate = ticket.getPlateNumber();
+        ticket.setPlateNumber(newPlate);
+        
+        vehicleRepository.findByPlateNumber(oldPlate).ifPresent(v -> {
+            v.setPlateNumber(newPlate);
+            vehicleRepository.save(v);
+        });
         monthlyTicketRepository.save(ticket);
 
         return MonthlyTicketDTO.builder()
                 .id("MP-" + ticket.getId())
-                .plate(ticket.getPlate())
+                .plate(ticket.getPlateNumber())
                 .status(ticket.getStatus())
                 .startDate(ticket.getValidFrom().format(FORMATTER))
                 .endDate(ticket.getValidUntil().format(FORMATTER))
                 .build();
     }
 
-    @Transactional
-    public MonthlyTicketDTO assignRfidCard(Long ticketId, String rfidCode,
-            com.pbms.modules.infrastructure.repository.RfidCardRepository rfidCardRepository) {
-        MonthlyTicket ticket = monthlyTicketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Monthly ticket not found"));
-
-        com.pbms.modules.infrastructure.domain.RfidCard card = rfidCardRepository.findByCardCode(rfidCode)
-                .orElseGet(() -> {
-                    com.pbms.modules.infrastructure.domain.RfidCard newCard = com.pbms.modules.infrastructure.domain.RfidCard
-                            .builder()
-                            .cardCode(rfidCode)
-                            .status("IN_USE")
-                            .build();
-                    return rfidCardRepository.save(newCard);
-                });
-
-        card.setStatus("IN_USE");
-        card.setAssignedPlate(ticket.getPlate());
-        rfidCardRepository.save(card);
-
-        ticket.setRfidCard(card);
-        monthlyTicketRepository.save(ticket);
-
-        return MonthlyTicketDTO.builder()
-                .id("MP-" + ticket.getId())
-                .plate(ticket.getPlate())
-                .status(ticket.getStatus())
-                .startDate(ticket.getValidFrom().format(FORMATTER))
-                .endDate(ticket.getValidUntil().format(FORMATTER))
-                .build();
-    }
-
+    
     private void checkMonthlyThreshold() {
         try {
             int threshold = 90; // Default
@@ -425,7 +409,7 @@ public class MonthlyTicketService {
         String thTdStyles = "border: 1px solid #ddd; padding: 8px; text-align: left;";
         
         String detailsHtml = "<table style='" + tableStyles + "'>" +
-                "<tr><th style='" + thTdStyles + "'>Biển số xe</th><td style='" + thTdStyles + "'>" + ticket.getPlate() + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Biển số xe</th><td style='" + thTdStyles + "'>" + ticket.getPlateNumber() + "</td></tr>" +
                 "<tr><th style='" + thTdStyles + "'>Loại phương tiện</th><td style='" + thTdStyles + "'>" + (ticket.getVehicleType() != null ? ticket.getVehicleType().getTypeName() : "N/A") + "</td></tr>" +
                 "<tr><th style='" + thTdStyles + "'>Ngày bắt đầu</th><td style='" + thTdStyles + "'>" + startDateStr + "</td></tr>" +
                 "<tr><th style='" + thTdStyles + "'>Ngày hết hạn</th><td style='" + thTdStyles + "'><strong>" + endDateStr + "</strong></td></tr>" +
@@ -462,5 +446,50 @@ public class MonthlyTicketService {
         }
 
         emailService.sendHtmlEmail(user.getEmail(), subject, htmlBody);
+    }
+
+    private void recordTransaction(MonthlyTicket ticket, int durationMonths, String paymentMethod, Long paymentOrderId) {
+        String method = paymentMethod != null ? paymentMethod : "CASH";
+        
+        com.pbms.modules.finance.domain.PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(ticket.getVehicleType().getId(), "ACTIVE")
+                .orElse(null);
+                
+        java.math.BigDecimal amount = java.math.BigDecimal.ZERO;
+        if (policy != null && policy.getMonthlyRate() != null) {
+            amount = policy.getMonthlyRate().multiply(new java.math.BigDecimal(durationMonths));
+        }
+
+        com.pbms.modules.identity.domain.StaffWorkSession currentSession = null;
+        if ("CASH".equalsIgnoreCase(method)) {
+            try {
+                org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null && auth.getName() != null) {
+                    com.pbms.modules.identity.domain.User u = userRepository.findByEmail(auth.getName()).orElse(null);
+                    if (u != null) {
+                        currentSession = staffWorkSessionRepository.findByStaffIdAndStatus(u.getId(), "ACTIVE").orElse(null);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not retrieve active work session for cash transaction", e);
+            }
+        }
+
+        com.pbms.modules.finance.domain.PaymentOrder po = null;
+        if (paymentOrderId != null) {
+            po = new com.pbms.modules.finance.domain.PaymentOrder();
+            po.setId(paymentOrderId);
+        }
+
+        com.pbms.modules.finance.domain.Transaction tx = com.pbms.modules.finance.domain.Transaction.builder()
+                .monthlyTicket(ticket)
+                .workSession(currentSession)
+                .paymentOrder(po)
+                .amount(amount)
+                .paymentMethod(method)
+                .status("SUCCESS")
+                .transactionReference("TXN-MT-" + ticket.getId() + "-" + com.pbms.common.utils.TimeProvider.now().toInstant(java.time.ZoneOffset.UTC).toEpochMilli())
+                .build();
+        transactionRepository.save(tx);
+        log.info("Recorded Monthly Ticket Transaction: {} via {}", amount, method);
     }
 }

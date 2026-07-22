@@ -85,8 +85,9 @@ public class IncidentTicketController {
             if (paymentMethod == null || paymentMethod.isBlank()) {
                 paymentMethod = "CASH";
             }
+            String checkoutToken = (String) requestBody.get("checkoutToken");
             com.pbms.modules.incident.dto.IncidentTicketDTO dto = incidentService.resolveIncident(id, 
-                    resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, paymentMethod);
+                    resolutionNotes, resolutionImageUrl, uploadedPicOutUrl, parkingFee, penaltyFee, discountAmount, paymentMethod, null, checkoutToken);
             return ResponseEntity.ok(ApiResponse.success(dto, "Incident resolved successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, "Error: " + e.getMessage()));

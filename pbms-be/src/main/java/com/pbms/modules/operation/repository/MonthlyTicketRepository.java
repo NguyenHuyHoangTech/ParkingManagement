@@ -8,15 +8,12 @@ import java.util.Optional;
 
 @Repository
 public interface MonthlyTicketRepository extends JpaRepository<MonthlyTicket, Long> {
-    Optional<MonthlyTicket> findByPlateAndStatus(String plate, String status);
-    Optional<MonthlyTicket> findByRfidCard_CardCodeAndStatus(String cardCode, String status);
-
-    Optional<MonthlyTicket> findTopByPlateAndStatusOrderByUpdatedAtDesc(String plate, String status);
-    Optional<MonthlyTicket> findTopByRfidCard_CardCodeAndStatusOrderByUpdatedAtDesc(String cardCode, String status);
+    Optional<MonthlyTicket> findByPlateNumberAndStatus(String plate, String status);
+    Optional<MonthlyTicket> findTopByPlateNumberAndStatusOrderByUpdatedAtDesc(String plate, String status);
 
     long countByStatus(String status);
 
-    @org.springframework.data.jpa.repository.Query("SELECT COUNT(m) FROM MonthlyTicket m JOIN ParkingSession p ON m.plate = p.plate WHERE m.status = 'ACTIVE' AND p.status = 'ACTIVE' AND m.vehicleType.id = :vehicleTypeId")
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(m) FROM MonthlyTicket m JOIN ParkingSession p ON m.plateNumber = p.plate WHERE m.status = 'ACTIVE' AND p.status = 'ACTIVE' AND m.vehicleType.id = :vehicleTypeId")
     long countActiveMonthlyTicketsInsideByVehicleType(@org.springframework.data.repository.query.Param("vehicleTypeId") Long vehicleTypeId);
 
     @org.springframework.data.jpa.repository.Query("SELECT m FROM MonthlyTicket m WHERE m.status = 'ACTIVE' AND m.validUntil < :now")

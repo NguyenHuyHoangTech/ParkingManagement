@@ -89,21 +89,7 @@ export const GateConsoleScreen = () => {
     );
   }
 
-  const isPatrolMode = sessionStorage.getItem('activeGateType') === 'PATROL';
 
-  if (isPatrolMode) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-80px)] bg-slate-100 p-4">
-        <Alert
-          message="YOU ARE ON PATROL DUTY"
-          description="Patrol duty does not require gate monitoring. Please switch to the Exception Desk tab."
-          type="info"
-          showIcon
-          className="shadow-md text-lg"
-        />
-      </div>
-    );
-  }
 
   if (!isShiftActive || !activeGate) {
     return (

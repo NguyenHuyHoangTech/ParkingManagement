@@ -13,6 +13,30 @@ import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 import { Stage, Layer, Rect, Group, Text as KonvaText, Line, Label, Tag as KonvaTag, Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
 
+/**
+ * ============================================================================
+ * MÔ TẢ TỔNG QUAN VỀ LUỒNG DỮ LIỆU & TƯƠNG TÁC CỦA GATE IN CONSOLE SCREEN
+ * ============================================================================
+ * 
+ * 1. MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
+ *    - Giao diện trực tại cổng dành riêng cho CỔNG VÀO (Entry Gate).
+ *    - Giúp nhân viên: Xem hình ảnh xe vào, kiểm tra biển số (AI nhận diện), 
+ *      biết được xe thuộc loại gì, và chọn/xem vị trí đỗ phù hợp trên sơ đồ bãi đỗ.
+ * 
+ * 2. CÁC LUỒNG DỮ LIỆU NHẬN VỀ (INPUT):
+ *    - Dữ liệu API tĩnh (useQuery): Sơ đồ bãi xe (zonesMap), cấu hình bãi đỗ (mapConfig), danh sách loại xe (vehicleTypes).
+ *    - Dữ liệu WebSocket (Real-time): 
+ *       + `map-updates`: Tín hiệu IoT cập nhật chỗ trống/đầy trên sơ đồ ngay lập tức.
+ *       + `staff/notifications`: Thông báo cho nhân viên khi có xe khách VIP/đặt trước tới.
+ *       + `gates/{gateId}/scans`: Tín hiệu từ thiết bị cổng khi có xe quét thẻ/nhận diện biển số ở cổng này.
+ * 
+ * 3. TƯƠNG TÁC GIAO DIỆN CHÍNH (OUTPUT):
+ *    - Chia làm 2 khu vực:
+ *       + Cột trái (Panel Điều khiển): Hiển thị ảnh camera, cảnh báo thẻ đen (blacklist), danh sách lỗi, thông tin xe & biển số, nút xác nhận cho xe vào.
+ *       + Cột phải (Sơ đồ Konva): Render bản đồ 2D trực quan bãi xe bằng thư viện React-Konva. Cho phép nhân viên nhìn thấy chỗ nào còn trống, và tự động Zoom tới khu vực hệ thống đề xuất (Routing).
+ * ============================================================================
+ */
+
 const { Title, Text } = Typography;
 
 const URLImage = ({ src, x, y, width, height }: { src: string, x: number, y: number, width: number, height: number }) => {
@@ -104,7 +128,19 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     },
     refetchInterval: 10000
   });
-  // WebSocket for real-time map IoT updates
+  /**
+   * MỤC ĐÍCH: 
+   * Quản lý kết nối WebSocket để cập nhật Real-time (thời gian thực) cho Sơ đồ bãi xe (Map) 
+   * và thông báo của nhân viên.
+   * 
+   * MÃ GIẢ CHI TIẾT:
+   * Chạy một lần khi component mount hoặc khi trạng thái WebSocket (stompClient) thay đổi:
+   *   1. Đăng ký kênh '/topic/map-updates' (nhận tín hiệu từ cảm biến bãi đỗ):
+   *      - Khi có xe đậu vào/ra khỏi 1 ô, update trạng thái ô đó (OCCUPIED/AVAILABLE) ngay trên RAM bằng queryClient.setQueryData (không cần gọi lại API).
+   *   2. Đăng ký kênh '/topic/staff/notifications' (nhận thông báo hệ thống):
+   *      - Nếu thông báo là 'RESERVATION_ARRIVED' (xe đặt trước đã đến), gọi lại API sơ đồ để trừ đi số lượng xe đặt trước chờ đợi.
+   * Kết thúc hàm
+   */
   useEffect(() => {
     if (stompClient && connected) {
       const sub = stompClient.subscribe('/topic/map-updates', (message) => {
@@ -172,6 +208,20 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   }, []);
 
+  /**
+   * MỤC ĐÍCH: 
+   * Lắng nghe tín hiệu WebSocket quét thẻ & chụp ảnh AI từ đúng cổng IN (activeGate) mà nhân viên đang trực.
+   * 
+   * MÃ GIẢ CHI TIẾT:
+   *   Đăng ký kênh `/topic/gates/{activeGate.id}/scans`
+   *   Khi có tin nhắn tới:
+   *      - Kiểm tra biến `isProcessingRef` để chặn tín hiệu rác (nếu đang xử lý 1 xe chưa xong, bỏ qua xe mới).
+   *      - Nếu hành động là 'OUT' (có thể thiết bị nhầm lẫn), bỏ qua.
+   *      - Nhận diện biển số (AI) từ payload và gán vào state `editablePlate` cho nhân viên sửa nếu sai.
+   *      - Phân tích và sinh ra các thông báo cảnh báo (derivedWarnings): Sai tầng, đặt trước quá sớm, biển số bị cấm (blacklist)...
+   *      - Cập nhật toàn bộ thông tin quét được (hình ảnh, rfid, loại xe, tuyến đường đề xuất) vào state `scanData` để render lên UI cột trái.
+   * Kết thúc hàm
+   */
   useEffect(() => {
     if (activeGate && stompClient && connected) {
       const destination = `/topic/gates/${activeGate.id}/scans`;
@@ -218,7 +268,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             derivedWarnings.push(`WRONG FLOOR: The vehicle reserved a spot on ${reservedZone.floorName}, but is entering via a Floor ${activeGate.floorId} gate!`);
           }
         }
-        
+
         if (payload.earlyBookingNotice) {
           derivedWarnings.push(payload.earlyBookingNotice);
         }
@@ -271,8 +321,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     message.warning('The current scanning session has been canceled. System is ready.');
   };
 
-  const handleCheckIn = async () => {
-    if (!scanData || !activeGate) return;
+  const executeCheckIn = async () => {
     setIsLoading(true);
     try {
       const payload = {
@@ -331,6 +380,37 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   };
 
+  const handleCheckIn = async () => {
+    if (!scanData || !activeGate) return;
+    
+    if (scanData.warnings && scanData.warnings.length > 0) {
+      Modal.confirm({
+        title: <span className="text-red-600 font-bold"><WarningOutlined className="mr-2" />Hệ thống ghi nhận Cảnh báo!</span>,
+        content: (
+          <div className="mt-4">
+            <p className="font-medium text-slate-700 mb-2">Phương tiện này đang có {scanData.warnings.length} cảnh báo:</p>
+            <ul className="list-disc pl-5 mb-4 space-y-1">
+              {scanData.warnings.map((w: string, idx: number) => (
+                <li key={idx} className="text-red-600">{w}</li>
+              ))}
+            </ul>
+            <p className="font-bold text-slate-800">Bạn có chắc chắn muốn bỏ qua và cho xe VÀO BÃI không?</p>
+          </div>
+        ),
+        okText: 'Bỏ qua cảnh báo & Cho vào',
+        okType: 'danger',
+        cancelText: 'Hủy bỏ',
+        width: 500,
+        onOk: () => {
+          executeCheckIn();
+        }
+      });
+      return;
+    }
+
+    executeCheckIn();
+  };
+
   const handleAutoZoom = (zone: any) => {
     if (!stageRef.current || !containerRef.current) return;
 
@@ -383,6 +463,11 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     tween.play();
   };
 
+  /**
+   * MỤC ĐÍCH:
+   * Hàm chuyên vẽ lưới nền (Grid Lines) cho bản đồ Konva 
+   * để giao diện trông giống bản thiết kế kỹ thuật, dễ phân biệt các block.
+   */
   const drawGrid = () => {
     const lines = [];
     const width = mapCols * GRID_SIZE;
@@ -410,6 +495,18 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     return lines;
   };
 
+
+
+
+  /**
+   * MỤC ĐÍCH:
+   * Chứa toàn bộ giao diện Cột Bên Trái (Action Console) của cổng IN.
+   * 
+   * Bao gồm 3 phần chính:
+   * 1. HÌNH ẢNH CAMERA (Top Zone): Hiện ảnh Panorama (toàn cảnh) và ảnh cắt Biển Số LPR.
+   * 2. THÔNG TIN VÀ CẢNH BÁO (Middle Zone): Hiện ID thẻ, Loại khách, Input cho phép nhân viên sửa biển số AI đọc sai, các cảnh báo (Booking, Blacklist), và Bảng trạng thái sức chứa các khu vực (Zone Status).
+   * 3. NÚT XỬ LÝ (Bottom Zone): Hủy bỏ phiên, hoặc Xác nhận cho xe vào.
+   */
   const renderInGatePanel = () => (
     <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden w-full bg-slate-100">
       {/* TASK 1 & 2: Top Zone (Cameras) */}
@@ -446,24 +543,24 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           </div>
         )}
 
-          <div className={`p-2 rounded-lg shadow-sm flex-none text-xs flex flex-col gap-1 overflow-hidden border ${(scanData?.warnings?.length || 0) > 0 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
-            <div className="font-bold flex items-center justify-between">
-              <div className="flex items-center">
-                {(scanData?.warnings?.length || 0) > 0 ? <WarningOutlined className="mr-1" /> : <CheckCircleOutlined className="mr-1" />}
+        <div className={`p-2 rounded-lg shadow-sm flex-none text-xs flex flex-col gap-1 overflow-hidden border ${(scanData?.warnings?.length || 0) > 0 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
+          <div className="font-bold flex items-center justify-between">
+            <div className="flex items-center">
+              {(scanData?.warnings?.length || 0) > 0 ? <WarningOutlined className="mr-1" /> : <CheckCircleOutlined className="mr-1" />}
 
-                WARNING / NOTE:
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto max-h-[100px] min-h-[30px]">
-              {(scanData?.warnings?.length || 0) > 0 ? (
-                <ul className="list-disc pl-4 m-0">
-                  {scanData!.warnings.map((w: string, idx: number) => <li key={idx} className="whitespace-normal break-words" title={w}>{w}</li>)}
-                </ul>
-              ) : (
-                <span className="text-green-600">The system does not record any warnings for this vehicle</span>
-              )}
+              WARNING / NOTE:
             </div>
           </div>
+          <div className="flex-1 overflow-y-auto max-h-[100px] min-h-[30px]">
+            {(scanData?.warnings?.length || 0) > 0 ? (
+              <ul className="list-disc pl-4 m-0">
+                {scanData!.warnings.map((w: string, idx: number) => <li key={idx} className="whitespace-normal break-words" title={w}>{w}</li>)}
+              </ul>
+            ) : (
+              <span className="text-green-600">The system does not record any warnings for this vehicle</span>
+            )}
+          </div>
+        </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-2 shadow-sm flex-none flex flex-col gap-2">
           <div className="flex justify-between items-center bg-slate-100 p-2 rounded-lg border border-slate-200 shadow-sm">
@@ -514,12 +611,12 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             <div className="bg-green-50 border-2 border-green-400 rounded-lg p-3 mb-2 flex flex-col items-center justify-center shadow-sm min-h-[80px] shrink-0 relative">
               <Text className="text-green-600 text-[12px] uppercase font-bold tracking-widest mb-1">Suggested Route:</Text>
               <div className="text-3xl font-black text-green-800 truncate w-full text-center tracking-tight">{scanData.routing || 'Free'}</div>
-              <Button 
-                size="small" 
+              <Button
+                size="small"
                 className={`absolute top-2 right-2 font-bold ${(!scanData.routing || scanData.routing === 'Free') ? '' : 'border-green-600 text-green-600'}`}
                 disabled={!scanData.routing || scanData.routing === 'Free'}
                 onClick={() => {
-                    setScanData({...scanData, routing: 'Free', suggestedZoneId: undefined});
+                  setScanData({ ...scanData, routing: 'Free', suggestedZoneId: undefined });
                 }}
               >
                 Switch to Free
@@ -532,13 +629,13 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
               const total = zone.capacity || 0;
               const disabledCount = (zone.slots || []).filter((s: any) => s.status === 'DISABLED').length;
               const occupiedCount = (zone.slots || []).filter((s: any) => s.status === 'OCCUPIED').length;
-              
+
               const effectiveCapacity = Math.max(0, total - disabledCount);
               const reserved = zone.pendingReservations || 0;
               const availableCount = Math.max(0, effectiveCapacity - occupiedCount - reserved);
-              
-              const occupancyRate = effectiveCapacity > 0 
-                ? ((occupiedCount + reserved) / effectiveCapacity) * 100 
+
+              const occupancyRate = effectiveCapacity > 0
+                ? ((occupiedCount + reserved) / effectiveCapacity) * 100
                 : 0;
 
               const isFull = availableCount <= 0;
@@ -644,7 +741,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                     label: zone.name || zone.zoneName
                   })) : []}
                 />
-                
+
                 {scanData?.warnings?.some((w: string) => w.startsWith('Notice: This vehicle has a booking at')) && (
                   <div className="bg-red-500 text-white text-xs px-2 py-1 rounded shadow flex items-center gap-1 font-bold animate-pulse">
                     <WarningOutlined /> Early Arrival

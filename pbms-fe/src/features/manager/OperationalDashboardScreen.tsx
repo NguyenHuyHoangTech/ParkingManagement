@@ -96,14 +96,6 @@ export const OperationalDashboardScreen = () => {
     staleTime: 60000
   });
 
-  const { data: activePatrolsData = [] } = useQuery({
-    queryKey: ['active-patrols'],
-    queryFn: async () => {
-      const res = await axiosClient.get('/identity/work-sessions/active/patrol');
-      return res.data.data;
-    },
-    refetchInterval: 5000
-  });
 
   // === Zone 4: HOURLY TRAFFIC FLOW ===
   const { data: hourlyTrafficData = [] } = useQuery({
@@ -439,8 +431,6 @@ export const OperationalDashboardScreen = () => {
             return 'All';
           }} />
           <Table.Column title="Current function" dataIndex="type" render={(val, r: any) => {
-            const isPatrol = val === 'PATROL' || r.name?.toLowerCase().includes('patrol') || r.name?.toLowerCase().includes('tuần tra');
-            if (isPatrol) return <Tag color="purple">PATROL</Tag>;
             if (r.status !== 'OCCUPIED') return <span className="text-gray-400 italic">Not selected yet</span>;
             if (val === 'IN' || val === 'ENTRY') return <Tag color="blue">GATE IN</Tag>;
             if (val === 'OUT' || val === 'EXIT') return <Tag color="green">GATE OUT</Tag>;
@@ -448,9 +438,8 @@ export const OperationalDashboardScreen = () => {
             return <Tag>{val}</Tag>;
           }} />
           <Table.Column title="Status" dataIndex="status" render={(val, r: any) => {
-            const isPatrol = r.type === 'PATROL' || r.name?.toLowerCase().includes('patrol') || r.name?.toLowerCase().includes('tuần tra');
-            if (val === 'OCCUPIED') return isPatrol ? <Tag color="green">ACTIVE</Tag> : <Tag color="green">OPEN</Tag>;
-            if (val === 'IDLE') return isPatrol ? <Tag color="default">INACTIVE</Tag> : <Tag color="default">CLOSE</Tag>;
+            if (val === 'OCCUPIED') return <Tag color="green">OPEN</Tag>;
+            if (val === 'IDLE') return <Tag color="default">CLOSE</Tag>;
             return <Tag color="red">Maintenance</Tag>;
           }} />
           <Table.Column title="Staff on duty" dataIndex="staffName" render={(val, record: any) => val ? (

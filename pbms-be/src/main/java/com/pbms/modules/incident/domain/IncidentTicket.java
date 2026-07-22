@@ -2,7 +2,6 @@ package com.pbms.modules.incident.domain;
 
 import com.pbms.common.domain.BaseEntity;
 import com.pbms.modules.identity.domain.User;
-import com.pbms.modules.infrastructure.domain.Zone;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -44,16 +43,7 @@ public class IncidentTicket extends BaseEntity {
     @Column(name = "uploaded_doc_url", columnDefinition = "VARCHAR(MAX)")
     private String uploadedDocUrl;
 
-    @Column(name = "uploaded_card_url", length = 255)
-    private String uploadedCardUrl;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "expected_zone_id")
-    private Zone expectedZone;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actual_zone_id")
-    private Zone actualZone;
 
     @Column(name = "resolution_notes", columnDefinition = "VARCHAR(MAX)")
     private String resolutionNotes;
@@ -67,11 +57,6 @@ public class IncidentTicket extends BaseEntity {
     @Column(name = "fine_amount")
     private java.math.BigDecimal fineAmount;
 
-    @Column(name = "fee_paused_at")
-    private LocalDateTime feePausedAt;
-
-    @Column(name = "reported_plate", length = 50)
-    private String reportedPlate;
 
     @Column(name = "cancel_type", length = 50)
     private String cancelType;

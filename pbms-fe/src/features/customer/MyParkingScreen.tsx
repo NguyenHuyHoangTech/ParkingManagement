@@ -21,6 +21,8 @@ interface Booking {
   reservationFee?: number;
   refundStatus?: string;
   refundAmount?: number;
+  refundRequestId?: number;
+  rejectReason?: string;
   vehicleTypeId?: number;
   rfid?: string;
 }
@@ -297,21 +299,50 @@ export const MyParkingScreen = () => {
     }
   });
 
+  const resubmitRefundMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number | string; data: any }) => {
+      await axiosClient.put(`/finance/refunds/${id}/resubmit`, data);
+    },
+    onSuccess: () => {
+      message.success('Refund resubmitted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['my-bookings'] });
+      setCancelDrawerVisible(false);
+      setSelectedBookingToCancel(null);
+      setIsResubmitRefund(false);
+    },
+    onError: (error: any) => {
+      message.error(error?.response?.data?.message || 'Failed to resubmit refund.');
+    }
+  });
+
   const handleCancelBooking = () => {
     if (selectedBookingToCancel) {
-      cancelBookingMutation.mutate({
-        id: selectedBookingToCancel.id,
-        data: {
-          bankName,
-          accountNumber,
-          accountName
-        }
-      });
+      if (isResubmitRefund) {
+        resubmitRefundMutation.mutate({
+          id: selectedBookingToCancel.refundRequestId || 0,
+          data: { bankName, accountNumber, accountName }
+        });
+      } else {
+        cancelBookingMutation.mutate({
+          id: selectedBookingToCancel.id,
+          data: { bankName, accountNumber, accountName }
+        });
+      }
     }
   };
 
   const calculateRefund = (booking: Booking | null) => {
     if (!booking) return { refund: 0, penalty: 0, amount: 0, percent: 0 };
+    
+    const amount = booking.reservationFee || 50000;
+
+    if (isResubmitRefund) {
+      const refund = booking.refundAmount || 0;
+      const penalty = amount - refund;
+      const percent = amount > 0 ? Math.round((refund / amount) * 100) : 0;
+      return { amount, refund, penalty, percent };
+    }
+
     const now = simulatedDayjs();
     const arrTime = simulatedDayjs(booking.expectedEntryTime);
     const diffMins = arrTime.diff(now, 'minute');
@@ -325,7 +356,6 @@ export const MyParkingScreen = () => {
       refundPercent = 0;
     }
 
-    const amount = booking.reservationFee || 50000;
     const refund = amount * refundPercent;
     const penalty = amount - refund;
 
@@ -333,6 +363,7 @@ export const MyParkingScreen = () => {
   };
 
   const [cancelDrawerVisible, setCancelDrawerVisible] = useState(false);
+  const [isResubmitRefund, setIsResubmitRefund] = useState(false);
   const [selectedBookingToCancel, setSelectedBookingToCancel] = useState<Booking | null>(null);
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -693,6 +724,7 @@ export const MyParkingScreen = () => {
             if (item.status === 'CANCELLED') {
               if (item.refundStatus === 'PENDING') displayStatus = 'PENDING_REFUND';
               else if (item.refundStatus === 'REFUNDED') displayStatus = 'CANCELLED_REFUNDED';
+              else if (item.refundStatus === 'REJECTED') displayStatus = 'REJECTED_REFUND';
               else if (item.refundAmount === 0 || !item.refundAmount) displayStatus = 'CANCELLED_NO_REFUND';
             }
 
@@ -716,7 +748,8 @@ export const MyParkingScreen = () => {
                                 displayStatus === 'COMPLETED_UNUSED' ? 'NO SHOW' :
                                   displayStatus === 'PENDING_REFUND' ? 'PENDING REFUND' :
                                     displayStatus === 'CANCELLED_REFUNDED' ? 'CANCELLED & REFUNDED' :
-                                      displayStatus === 'CANCELLED_NO_REFUND' ? 'CANCELLED (NO REFUND)' : 'CANCELLED'}
+                                      displayStatus === 'REJECTED_REFUND' ? 'REFUND REJECTED' :
+                                        displayStatus === 'CANCELLED_NO_REFUND' ? 'CANCELLED (NO REFUND)' : 'CANCELLED'}
                         </Tag>
                         <Text type="secondary" className="text-[10px] md:text-xs">ID: {item.id}</Text>
                       </div>
@@ -784,6 +817,22 @@ export const MyParkingScreen = () => {
                       )}
                       {displayStatus === 'PENDING_REFUND' && (
                         <Text type="secondary" className="text-sm italic mt-2">Expected processing: 1-2 days</Text>
+                      )}
+                      {displayStatus === 'REJECTED_REFUND' && (
+                        <div className="mt-2 text-right">
+                          <Text type="danger" className="text-xs block mb-1 font-semibold">Reason: {item.rejectReason || 'Invalid bank info'}</Text>
+                          <Button 
+                            danger 
+                            size="small" 
+                            onClick={() => {
+                              setSelectedBookingToCancel(item);
+                              setIsResubmitRefund(true);
+                              setCancelDrawerVisible(true);
+                            }}
+                          >
+                            Resubmit Refund Request
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1045,20 +1094,20 @@ export const MyParkingScreen = () => {
         </div>
 
         <Drawer
-          title={<span className="text-red-600 font-bold">CANCEL RESERVATION & REFUND</span>}
+          title={<span className="text-red-600 font-bold">{isResubmitRefund ? 'RESUBMIT REFUND REQUEST' : 'CANCEL RESERVATION & REFUND'}</span>}
           width={450}
-          onClose={() => setCancelDrawerVisible(false)}
+          onClose={() => { setCancelDrawerVisible(false); setIsResubmitRefund(false); }}
           open={cancelDrawerVisible}
           extra={
             <Space>
-              <Button onClick={() => setCancelDrawerVisible(false)}>Keep</Button>
+              <Button onClick={() => { setCancelDrawerVisible(false); setIsResubmitRefund(false); }}>Keep</Button>
               <Button
                 type="primary"
                 danger
                 onClick={handleCancelBooking}
                 disabled={Boolean(selectedBookingToCancel && calculateRefund(selectedBookingToCancel).refund > 0 && (!bankName || !accountNumber || !accountName))}
               >
-                Confirm Cancel
+                {isResubmitRefund ? 'Submit Refund Info' : 'Confirm Cancel'}
               </Button>
             </Space>
           }

@@ -372,8 +372,7 @@ const RevenueDashboardScreen: React.FC = () => {
               <option value="">All</option>
               <option value="ENTRY">ENTRY</option>
               <option value="EXIT">EXIT</option>
-              <option value="ENTRY_EXIT">ENTRY_EXIT</option>
-              <option value="PATROL">PATROL</option>
+              <option value="IN_OUT">IN_OUT</option>
             </select>
           </Space>
         }
@@ -440,42 +439,6 @@ const RevenueDashboardScreen: React.FC = () => {
               width={130}
               align="right"
               render={(val) => val != null ? <span className="text-purple-600">{val.toLocaleString()}</span> : '-'} 
-            />
-            <Table.Column 
-              title="Declared Cash (VND)" 
-              dataIndex="actualRevenue" 
-              width={150}
-              align="right"
-              render={(val) => val != null ? <strong className="text-gray-800">{val.toLocaleString()}</strong> : '-'} 
-            />
-            <Table.Column 
-              title="Difference" 
-              dataIndex="revenueVariance" 
-              width={150}
-              align="right"
-              render={(val) => {
-                if (val == null) return '-';
-                if (val === 0) return <span className="text-gray-400">0</span>;
-                return <strong className={val > 0 ? 'text-blue-600' : 'text-red-600'}>{val > 0 ? '+' : ''}{val.toLocaleString()}</strong>;
-              }} 
-            />
-            <Table.Column 
-              title="Status" 
-              dataIndex="discrepancyStatus" 
-              width={120}
-              align="center"
-              render={(val) => {
-                if (val === 'MATCH') return <span className="text-green-600 border border-green-600 px-2 py-1 rounded text-xs">Match</span>;
-                if (val === 'SHORT') return <span className="text-red-600 border border-red-600 px-2 py-1 rounded text-xs">Short</span>;
-                if (val === 'OVER') return <span className="text-blue-600 border border-blue-600 px-2 py-1 rounded text-xs">Over</span>;
-                return <span className="text-gray-600 border border-gray-600 px-2 py-1 rounded text-xs">{val || 'N/A'}</span>;
-              }} 
-            />
-            <Table.Column 
-              title="Reason" 
-              dataIndex="varianceReason" 
-              width={250}
-              render={(val) => val ? <Text type="secondary" italic>{val}</Text> : '-'} 
             />
           </Table>
       </Card>

@@ -63,21 +63,7 @@ public class MapConfigurationService {
                 .mapRows(f.getMapRows())
                 .build()).collect(Collectors.toList());
 
-        // Map active parking sessions to their slots to populate the plate field
-        Map<Long, String> slotPlateMap = parkingSessionRepository.findAll().stream()
-                .filter(ps -> ("ACTIVE".equals(ps.getStatus()) || "LOCKED".equals(ps.getStatus()))
-                        && ps.getSlot() != null)
-                .collect(Collectors.toMap(
-                        ps -> ps.getSlot().getId(),
-                        ps -> {
-                            String plate = ps.getPlate();
-                            if (plate != null && !plate.trim().isEmpty())
-                                return plate;
-                            if (ps.getRfidCard() != null)
-                                return "RFID " + ps.getRfidCard().getCardCode();
-                            return "Unknown";
-                        },
-                        (p1, p2) -> p1));
+
 
         // Group active parking sessions by suggested zone id
         Map<Long, List<String>> zoneSuggestedVehicles = parkingSessionRepository.findAll().stream()
@@ -102,7 +88,6 @@ public class MapConfigurationService {
                             .id(s.getId())
                             .name(s.getSlotName())
                             .status(s.getStatus())
-                            .plate(slotPlateMap.get(s.getId()))
                             .build())
                     .collect(Collectors.toList());
 
@@ -144,7 +129,6 @@ public class MapConfigurationService {
                     .layoutX(z.getLayoutX())
                     .layoutY(z.getLayoutY())
                     .rotation(z.getRotation())
-                    .overflowThreshold(z.getOverflowThreshold())
                     .activeReservationsCount(activeReservations)
                     .suggestedVehicles(suggested)
                     .slots(slotDTOs)
@@ -155,9 +139,7 @@ public class MapConfigurationService {
                 .id(g.getId())
                 .floorId(g.getFloor() != null ? g.getFloor().getId() : null)
                 .name(g.getGateName())
-                .type(g.getGateType())
                 .status(g.getStatus())
-                .vehicleTypeId(g.getVehicleType() != null ? g.getVehicleType().getId() : null)
                 .layoutX(g.getLayoutX())
                 .layoutY(g.getLayoutY())
                 .rotation(g.getRotation())
@@ -213,8 +195,6 @@ public class MapConfigurationService {
                 floor = Floor.builder()
                         .building(defaultBuilding)
                         .floorName(fDTO.getName())
-                        .floorLevel(1) // Default or parse from name
-                        .capacity(0)
                         .floorType(fDTO.getType())
                         .mapCols(fDTO.getMapCols())
                         .mapRows(fDTO.getMapRows())
@@ -312,7 +292,6 @@ public class MapConfigurationService {
                         .layoutX(zDTO.getLayoutX())
                         .layoutY(zDTO.getLayoutY())
                         .rotation(zDTO.getRotation())
-                        .overflowThreshold(zDTO.getOverflowThreshold())
                         .status("ACTIVE")
                         .build();
                 zone = zoneRepository.save(zone);
@@ -327,7 +306,6 @@ public class MapConfigurationService {
                 zone.setLayoutX(zDTO.getLayoutX());
                 zone.setLayoutY(zDTO.getLayoutY());
                 zone.setRotation(zDTO.getRotation());
-                zone.setOverflowThreshold(zDTO.getOverflowThreshold());
                 zone.setStatus("ACTIVE");
                 zone = zoneRepository.save(zone);
             }
@@ -411,20 +389,12 @@ public class MapConfigurationService {
                 f = floorRepository.findById(gDTO.getFloorId()).orElse(null);
             }
             
-            VehicleType gvt = null;
-            if (gDTO.getVehicleTypeId() != null) {
-                gvt = vehicleTypeRepository.findById(gDTO.getVehicleTypeId()).orElse(null);
-            }
-
             Gate gate;
             if (gDTO.getId() == null || gDTO.getId() > 1000000000L || !gateMap.containsKey(gDTO.getId())) {
                 gate = Gate.builder()
                         .floor(f)
-                        .vehicleType(gvt)
                         .gateName(gDTO.getName())
-                        .gateType(gDTO.getType())
                         .status(gDTO.getStatus() != null ? gDTO.getStatus() : "IDLE")
-                        .liveOverrideMode("NORMAL")
                         .layoutX(gDTO.getLayoutX())
                         .layoutY(gDTO.getLayoutY())
                         .rotation(gDTO.getRotation())
@@ -435,8 +405,6 @@ public class MapConfigurationService {
                 gate = gateMap.get(gDTO.getId());
                 gate.setGateName(gDTO.getName());
                 gate.setFloor(f);
-                gate.setVehicleType(gvt);
-                gate.setGateType(gDTO.getType());
                 gate.setLayoutX(gDTO.getLayoutX());
                 gate.setLayoutY(gDTO.getLayoutY());
                 gate.setRotation(gDTO.getRotation());

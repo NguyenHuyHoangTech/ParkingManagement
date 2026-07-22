@@ -47,9 +47,7 @@ public class ParkingSession {
     @JoinColumn(name = "reservation_id")
     private Reservation reservation;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "slot_id")
-    private com.pbms.modules.infrastructure.domain.Slot slot;
+
 
     @Column(name = "time_in", nullable = false)
     private LocalDateTime timeIn;
@@ -57,23 +55,21 @@ public class ParkingSession {
     @Column(name = "time_out")
     private LocalDateTime timeOut;
 
-    @Column(name = "pic_in_panorama", columnDefinition = "VARCHAR(MAX)")
+    @Column(name = "pic_in_panorama", length = 500)
     private String picInPanorama;
 
-    @Column(name = "pic_in_face", columnDefinition = "VARCHAR(MAX)")
+    @Column(name = "pic_in_face", length = 500)
     private String picInFace;
 
-    @Column(name = "pic_out_panorama", columnDefinition = "VARCHAR(MAX)")
+    @Column(name = "pic_out_panorama", length = 500)
     private String picOutPanorama;
 
-    @Column(name = "pic_out_face", columnDefinition = "VARCHAR(MAX)")
+    @Column(name = "pic_out_face", length = 500)
     private String picOutFace;
 
     @Column(name = "suggested_zone_id")
     private Long suggestedZoneId;
 
-    @Column(name = "global_base_fee", precision = 18, scale = 2)
-    private BigDecimal globalBaseFee;
 
     @Column(name = "penalty_fee", precision = 18, scale = 2)
     private BigDecimal penaltyFee;
@@ -82,8 +78,8 @@ public class ParkingSession {
     private BigDecimal discount;
 
 
-    @Column(name = "total_fee", precision = 18, scale = 2)
-    private BigDecimal totalFee;
+    @Column(name = "parking_fee", precision = 18, scale = 2)
+    private BigDecimal parkingFee;
 
     @Column(name = "overtime_minutes")
     private Long overtimeMinutes;

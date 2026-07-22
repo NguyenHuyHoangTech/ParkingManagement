@@ -3,7 +3,7 @@ package com.pbms.modules.infrastructure.domain;
 import jakarta.persistence.*;
 import lombok.*;
 
-import com.pbms.modules.operation.domain.VehicleType;
+
 
 @Entity
 @Table(name = "gates")
@@ -22,19 +22,11 @@ public class Gate {
     @JoinColumn(name = "floor_id")
     private Floor floor;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_type_id")
-    private VehicleType vehicleType;
 
     @Column(name = "gate_name", nullable = false, length = 100)
     private String gateName;
 
-    @Column(name = "gate_type", nullable = false, length = 50)
-    private String gateType; // ENTRY, EXIT
 
-    @Column(name = "live_override_mode", length = 50)
-    @Builder.Default
-    private String liveOverrideMode = "NORMAL"; // NORMAL, OPEN_ALL, CLOSE_ALL
 
     @Column(length = 50)
     @Builder.Default

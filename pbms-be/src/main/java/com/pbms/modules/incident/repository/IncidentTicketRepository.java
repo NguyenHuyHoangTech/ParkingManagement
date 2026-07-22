@@ -16,21 +16,17 @@ public interface IncidentTicketRepository extends JpaRepository<IncidentTicket, 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT i FROM IncidentTicket i LEFT JOIN i.session s " +
            "WHERE i.user.email = :email " +
            "OR EXISTS (SELECT 1 FROM Vehicle v WHERE v.user.email = :email AND v.plateNumber = s.plate AND v.vehicleType = s.vehicleType) " +
-           "OR (i.session IS NULL AND EXISTS (SELECT 1 FROM Vehicle v WHERE v.user.email = :email AND v.plateNumber = i.reportedPlate)) " +
            "ORDER BY i.id DESC")
     List<IncidentTicket> findAllByUserEmailOrVehicleOwner(@org.springframework.data.repository.query.Param("email") String email);
 
     List<IncidentTicket> findBySessionId(Long sessionId);
     List<IncidentTicket> findByUserIdAndResolvedAtBetweenAndStatus(Long userId, java.time.LocalDateTime start, java.time.LocalDateTime end, String status);
     boolean existsBySessionIdAndIssueTypeAndStatusNot(Long sessionId, String issueType, String status);
-    boolean existsByReportedPlateAndIssueTypeAndStatusNot(String reportedPlate, String issueType, String status);
     
     boolean existsBySessionIdAndIssueTypeAndStatusIn(Long sessionId, String issueType, java.util.List<String> statuses);
-    boolean existsByReportedPlateAndIssueTypeAndStatusIn(String reportedPlate, String issueType, java.util.List<String> statuses);
     boolean existsBySessionIdAndIssueTypeInAndStatusIn(Long sessionId, java.util.List<String> issueTypes, java.util.List<String> statuses);
 
     boolean existsBySessionIdAndIssueType(Long sessionId, String issueType);
-    boolean existsByReportedPlateAndIssueType(String reportedPlate, String issueType);
 
     @org.springframework.data.jpa.repository.Query("SELECT i FROM IncidentTicket i JOIN i.session s WHERE s.plate = :plate AND i.issueType = :issueType AND i.status = :status")
     List<IncidentTicket> findBySessionPlateAndIssueTypeAndStatus(@org.springframework.data.repository.query.Param("plate") String plate, @org.springframework.data.repository.query.Param("issueType") String issueType, @org.springframework.data.repository.query.Param("status") String status);

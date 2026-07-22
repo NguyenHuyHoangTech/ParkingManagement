@@ -46,13 +46,15 @@ public class AuditLogAspect {
             }
 
             String ipAddress = "";
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 ipAddress = request.getRemoteAddr();
             }
 
-            String resource = logAudit.resource().isEmpty() ? joinPoint.getSignature().getDeclaringTypeName() : logAudit.resource();
+            String resource = logAudit.resource().isEmpty() ? joinPoint.getSignature().getDeclaringTypeName()
+                    : logAudit.resource();
 
             context = AuditContext.builder()
                     .actor(actor)
@@ -64,19 +66,20 @@ public class AuditLogAspect {
                     .build();
 
             AuditContextHolder.setContext(context);
-            
+
             Object result = joinPoint.proceed();
-            
+
             if (!context.isDbModified()) {
-                // If Hibernate Listener didn't trigger, this action didn't modify the DB (e.g. SEND COMMAND)
+                // If Hibernate Listener didn't trigger, this action didn't modify the DB (e.g.
+                // SEND COMMAND)
                 // We still want to log it for audit purposes.
                 String requestPayload;
                 try {
                     Object[] args = Arrays.stream(joinPoint.getArgs())
-                            .filter(arg -> !(arg instanceof jakarta.servlet.http.HttpServletRequest || 
-                                             arg instanceof jakarta.servlet.http.HttpServletResponse ||
-                                             arg instanceof org.springframework.security.core.Authentication ||
-                                             arg instanceof org.springframework.web.multipart.MultipartFile))
+                            .filter(arg -> !(arg instanceof jakarta.servlet.http.HttpServletRequest ||
+                                    arg instanceof jakarta.servlet.http.HttpServletResponse ||
+                                    arg instanceof org.springframework.security.core.Authentication ||
+                                    arg instanceof org.springframework.web.multipart.MultipartFile))
                             .toArray();
                     requestPayload = objectMapper.writeValueAsString(args.length == 1 ? args[0] : args);
                 } catch (Exception e) {
@@ -86,12 +89,13 @@ public class AuditLogAspect {
                 AuditLog auditLog = AuditLog.builder()
                         .actor(context.getActor())
                         .action(context.getAction())
-                        .resource(context.getResource() + 
-                                 ("RoutingRule".equals(context.getResource()) || 
-                                  "PricingPolicy".equals(context.getResource()) ||
-                                  "MapConfiguration".equals(context.getResource()) ||
-                                  "RfidCard".equals(context.getResource())
-                                 ? " (Batch Update)" : " (Non-DB Action)"))
+                        .resource(context.getResource() +
+                                ("RoutingRule".equals(context.getResource()) ||
+                                        "PricingPolicy".equals(context.getResource()) ||
+                                        "MapConfiguration".equals(context.getResource()) ||
+                                        "RfidCard".equals(context.getResource())
+                                                ? " (Batch Update)"
+                                                : " (Non-DB Action)"))
                         .description(context.getDescription())
                         .ipAddress(context.getIpAddress())
                         .oldValue(context.getOldValue())
@@ -100,9 +104,9 @@ public class AuditLogAspect {
 
                 auditLogRepository.save(auditLog);
             }
-            
+
             return result;
-            
+
         } catch (Throwable e) {
             throw e;
         } finally {
@@ -110,5 +114,3 @@ public class AuditLogAspect {
         }
     }
 }
-
-

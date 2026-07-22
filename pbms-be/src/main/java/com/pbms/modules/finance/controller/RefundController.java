@@ -45,6 +45,17 @@ public class RefundController {
         refundService.rejectRefund(id, reason);
         return ResponseEntity.ok(ApiResponse.success(null, "Success"));
     }
+    @PutMapping("/{id}/resubmit")
+    @LogAudit(action = "UPDATE", resource = "Refund", description = "Resubmit refund request")
+    public ResponseEntity<ApiResponse<Void>> resubmitRefund(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String bankName = body.get("bankName");
+        String accountNumber = body.get("accountNumber");
+        String accountName = body.get("accountName");
+        refundService.resubmitRefund(id, bankName, accountNumber, accountName);
+        return ResponseEntity.ok(ApiResponse.success(null, "Resubmitted successfully"));
+    }
 
     @PostMapping("/{id}/proof")
     public ResponseEntity<ApiResponse<String>> uploadProof(

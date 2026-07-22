@@ -45,52 +45,21 @@ public class WorkSessionService {
                 + existing.get().getGate().getGateName() + ")e I'm happy to see my mother's song");
         }
 
-        Gate gate;
-        if (gateId != null && gateId == -1L && "PATROL".equals(gateType)) {
-            // Auto-Pooling Logic
-            List<Gate> patrolGates = gateRepository.findByGateType("PATROL");
-            Gate availableGate = null;
-            for (Gate g : patrolGates) {
-                if (workSessionRepository.findByGateIdAndStatus(g.getId(), "ACTIVE").isEmpty()) {
-                    availableGate = g;
-                    break;
-                }
-            }
-            if (availableGate == null) {
-                availableGate = Gate.builder()
-                        .gateName("Đi Tuần - Thiết bị " + (patrolGates.size() + 1))
-                        .gateType("PATROL")
-                        .status("INACTIVE")
-                        .build();
-                availableGate = gateRepository.save(availableGate);
-            } else if ("DELETED".equals(availableGate.getStatus())) {
-                availableGate.setStatus("INACTIVE");
-                availableGate = gateRepository.save(availableGate);
-            }
-            gate = availableGate;
-        } else {
-            gate = gateRepository.findById(gateId)
-                    .orElseThrow(() -> new IllegalArgumentException("Non-advisors:" + gateId));
+        Gate gate = gateRepository.findById(gateId)
+                .orElseThrow(() -> new IllegalArgumentException("Gate not found: " + gateId));
 
-            // Check if gate is already taken by an active session
-            Optional<StaffWorkSession> gateExisting = workSessionRepository
-                    .findByGateIdAndStatus(gate.getId(), "ACTIVE");
-            if (gateExisting.isPresent()) {
-                throw new IllegalStateException("These people are wrong." 
-                    + gateExisting.get().getStaff().getFullName() + "I'm afraid that these staff members are not theirs.");
-            }
-
-            // Update physical gate type if requested by staff to temporarily lock it for this shift
-            if (gateType != null && !gateType.trim().isEmpty() && !gateType.equals("PATROL")) {
-                gate.setGateType(gateType);
-                gate.setStatus("ACTIVE");
-                gateRepository.save(gate);
-            }
+        // Check if gate is already taken by an active session
+        Optional<StaffWorkSession> gateExisting = workSessionRepository
+                .findByGateIdAndStatus(gate.getId(), "ACTIVE");
+        if (gateExisting.isPresent()) {
+            throw new IllegalStateException("Gate is already occupied by " 
+                + gateExisting.get().getStaff().getFullName());
         }
 
         StaffWorkSession session = StaffWorkSession.builder()
                 .staff(staff)
                 .gate(gate)
+                .workGateType(gateType != null ? gateType : "IN_OUT")
                 .loginTime(com.pbms.common.utils.TimeProvider.now())
                 .status("ACTIVE")
                 .build();
@@ -99,7 +68,7 @@ public class WorkSessionService {
     }
 
     @Transactional
-    public Map<String, Object> endSession(String email, BigDecimal declaredCash, String varianceReason) {
+    public Map<String, Object> endSession(String email) {
         User staff = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Staff do not agree"));
 
@@ -135,28 +104,14 @@ public class WorkSessionService {
         session.setStatus("COMPLETED");
         session.setLogoutTime(com.pbms.common.utils.TimeProvider.now());
         
+        
         session.setExpectedRevenue(expectedRevenue);
         session.setExpectedCashRevenue(expectedCashRevenue);
         session.setExpectedOtherRevenue(expectedOtherRevenue);
-        session.setActualRevenue(declaredCash);
-        
-        // Variance is compared against Expected Cash, NOT Expected Total!
-        BigDecimal variance = declaredCash.subtract(expectedCashRevenue);
-        session.setRevenueVariance(variance);
-        
-        String status = "MATCH";
-        if (variance.compareTo(BigDecimal.ZERO) < 0) {
-            status = "SHORT";
-        } else if (variance.compareTo(BigDecimal.ZERO) > 0) {
-            status = "OVER";
-        }
-        session.setDiscrepancyStatus(status);
-        session.setVarianceReason(varianceReason);
 
         // Reset physical gate type back to generic ENTRY_EXIT after shift ends
         Gate gate = session.getGate();
-        if (gate != null && !"PATROL".equals(gate.getGateType())) {
-            gate.setGateType("ENTRY_EXIT");
+        if (gate != null && session.getWorkGateType() != null && !session.getWorkGateType().equals("PATROL")) {
             gate.setStatus("INACTIVE");
             gateRepository.save(gate);
         }
@@ -169,7 +124,6 @@ public class WorkSessionService {
         result.put("gateName", session.getGate().getGateName());
         result.put("loginTime", session.getLoginTime());
         result.put("logoutTime", session.getLogoutTime());
-        result.put("declaredCash", declaredCash);
         result.put("message", "Work session checked out successfully");
         return result;
     }
@@ -215,11 +169,13 @@ public class WorkSessionService {
         BigDecimal otherRevenue = BigDecimal.ZERO;
         long totalTransactions = 0;
 
-        if ("IN".equals(session.getGate().getGateType()) || "ENTRY".equals(session.getGate().getGateType())) {
-            totalTransactions = checkIns.size();
-        } else if ("OUT".equals(session.getGate().getGateType()) || "EXIT".equals(session.getGate().getGateType()) || "IN_OUT".equals(session.getGate().getGateType()) || "ENTRY_EXIT".equals(session.getGate().getGateType()) || "PATROL".equals(session.getGate().getGateType())) {
-            
-            if ("OUT".equals(session.getGate().getGateType()) || "EXIT".equals(session.getGate().getGateType())) {
+        String workGateType = session.getWorkGateType();
+        Map<String, Object> preview = new HashMap<>();
+        if ("IN".equals(workGateType) || "ENTRY".equals(workGateType)) {
+            preview.put("action", "Check-in processing required");
+        } else if ("OUT".equals(workGateType) || "EXIT".equals(workGateType) || "IN_OUT".equals(workGateType) || "ENTRY_EXIT".equals(workGateType) || "PATROL".equals(workGateType)) {
+            preview.put("action", "Checkout processing required");
+            if ("OUT".equals(workGateType) || "EXIT".equals(workGateType)) {
                 totalTransactions = checkOuts.size();
             } else {
                 totalTransactions = checkIns.size() + checkOuts.size();
@@ -238,11 +194,10 @@ public class WorkSessionService {
             }
         }
 
-        Map<String, Object> preview = new HashMap<>();
         preview.put("hasActiveSession", true);
         preview.put("sessionId", session.getId());
         preview.put("gateId", session.getGate().getId());
-        preview.put("gateType", session.getGate().getGateType());
+        preview.put("gateType", session.getWorkGateType());
         preview.put("staffName", staff.getFullName());
         preview.put("gateName", session.getGate().getGateName());
         preview.put("loginTime", session.getLoginTime());
@@ -266,13 +221,13 @@ public class WorkSessionService {
         Page<StaffWorkSession> sessions;
         if (startDate != null && endDate != null) {
             if (gateType != null && !gateType.isEmpty()) {
-                sessions = workSessionRepository.findByStatusAndLogoutTimeBetweenAndGateGateType("COMPLETED", startDate, endDate, gateType, pageable);
+                sessions = workSessionRepository.findByStatusAndLogoutTimeBetweenAndWorkGateType("COMPLETED", startDate, endDate, gateType, pageable);
             } else {
                 sessions = workSessionRepository.findByStatusAndLogoutTimeBetween("COMPLETED", startDate, endDate, pageable);
             }
         } else {
             if (gateType != null && !gateType.isEmpty()) {
-                sessions = workSessionRepository.findByStatusAndGateGateType("COMPLETED", gateType, pageable);
+                sessions = workSessionRepository.findByStatusAndWorkGateType("COMPLETED", gateType, pageable);
             } else {
                 sessions = workSessionRepository.findByStatus("COMPLETED", pageable);
             }
@@ -283,18 +238,14 @@ public class WorkSessionService {
             map.put("id", session.getId());
             map.put("staffName", session.getStaff().getFullName());
             map.put("gateName", session.getGate().getGateName());
-            map.put("gateType", session.getGate().getGateType());
+            map.put("gateType", session.getWorkGateType());
             map.put("loginTime", session.getLoginTime());
             map.put("logoutTime", session.getLogoutTime());
             map.put("expectedRevenue", session.getExpectedRevenue());
             map.put("expectedCashRevenue", session.getExpectedCashRevenue());
             map.put("expectedOtherRevenue", session.getExpectedOtherRevenue());
-            map.put("actualRevenue", session.getActualRevenue());
-            map.put("revenueVariance", session.getRevenueVariance());
-            map.put("discrepancyStatus", session.getDiscrepancyStatus());
-            map.put("varianceReason", session.getVarianceReason());
+            map.put("status", session.getStatus());
             return map;
         });
     }
 }
-

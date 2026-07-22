@@ -30,12 +30,13 @@ public class ReservationDTO {
     private BigDecimal penaltyFee;
     private String userEmail;
     
-    private BigDecimal refundAmount;
-    private String refundStatus;
-    private String refundProofUrl;
-    private String refundRejectReason;
-    
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
+    
+    // Refund related fields
+    private String refundStatus;
+    private BigDecimal refundAmount;
+    private Long refundRequestId;
+    private String rejectReason;
 }
 

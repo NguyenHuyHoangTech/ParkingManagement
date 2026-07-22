@@ -1,6 +1,8 @@
 
 package com.pbms.modules.operation.service;
 
+import com.pbms.modules.identity.domain.StaffWorkSession;
+
 import com.pbms.modules.finance.domain.Transaction;
 import com.pbms.modules.finance.repository.TransactionRepository;
 import com.pbms.modules.finance.service.PricingCalculatorService;
@@ -70,6 +72,21 @@ public class GateOperationService {
 
     private final com.pbms.common.service.FileStorageService fileStorageService;
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Lọc và lấy danh sách các đơn đặt chỗ (Booking/Reservation) đang ở trạng thái PENDING và còn hiệu lực (không quá trễ, không quá sớm).
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Tìm tất cả Reservation của biển số xe có trạng thái PENDING.
+     * 2. Lấy cấu hình hệ thống `RESERVATION_EARLY_MINS` (số phút cho phép xe đến sớm, mặc định 30p).
+     * 3. Duyệt qua từng đơn đặt chỗ:
+     *    - Tính thời gian hết hạn (expireTime) = Thời gian dự kiến vào + Thời lượng dự kiến.
+     *    - Tính thời gian bắt đầu cho phép vào (earlyWindow) = Thời gian dự kiến vào - windowMinutes.
+     *    - Nếu thời gian hiện tại > expireTime: Đơn đặt chỗ đã quá hạn -> Đổi trạng thái thành COMPLETED_UNUSED.
+     *    - Nếu thời gian hiện tại < earlyWindow: Xe đến quá sớm -> Không đưa vào danh sách hợp lệ.
+     *    - Ngược lại: Đơn đặt chỗ hợp lệ -> Thêm vào danh sách valid.
+     * 4. Trả về danh sách đơn đặt chỗ hợp lệ.
+     */
     private List<Reservation> getValidPendingReservations(String plate) {
         List<Reservation> pending = reservationRepository.findByVehicle_PlateNumberAndStatus(plate, "PENDING");
         List<Reservation> valid = new java.util.ArrayList<>();
@@ -95,10 +112,21 @@ public class GateOperationService {
         return valid;
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Xác định loại khách hàng (Customer Type) dựa trên Biển số, mã thẻ RFID và loại xe.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Nếu biển số xe có dữ liệu:
+     *    a. Kiểm tra xe có vé tháng (MONTHLY) còn hạn và đúng loại xe hay không. Nếu có -> Trả về "MONTHLY".
+     *    b. Kiểm tra xe có đang có đơn đặt chỗ trạng thái ACTIVE không. Nếu có -> Trả về "PREBOOKED".
+     *    c. Kiểm tra xe có đơn đặt chỗ hợp lệ (PENDING) chưa sử dụng không. Nếu có -> Trả về "PREBOOKED".
+     * 2. Nếu không thuộc các trường hợp trên -> Trả về "WALK-IN" (Khách vãng lai).
+     */
     private String determineCustomerType(String plate, String rfid, VehicleType type) {
         java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
         if (plate != null && !plate.trim().isEmpty()) {
-            Optional<MonthlyTicket> mt = monthlyTicketRepository.findByPlateAndStatus(plate, "ACTIVE");
+            Optional<MonthlyTicket> mt = monthlyTicketRepository.findByPlateNumberAndStatus(plate, "ACTIVE");
             if (mt.isPresent() && mt.get().getValidUntil().isAfter(now)) {
                 if (type == null || (mt.get().getVehicleType() != null
                         && mt.get().getVehicleType().getId().equals(type.getId()))) {
@@ -115,18 +143,25 @@ public class GateOperationService {
             if (!pendingReservations.isEmpty())
                 return "PREBOOKED";
         }
-        if (rfid != null && !rfid.trim().isEmpty()) {
-            Optional<MonthlyTicket> mt = monthlyTicketRepository.findByRfidCard_CardCodeAndStatus(rfid, "ACTIVE");
-            if (mt.isPresent() && mt.get().getValidUntil().isAfter(now)) {
-                if (type == null || (mt.get().getVehicleType() != null
-                        && mt.get().getVehicleType().getId().equals(type.getId()))) {
-                    return "MONTHLY";
-                }
-            }
-        }
+
         return "WALK-IN";
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Gửi tín hiệu quét thẻ/biển số (Check-IN) từ thiết bị cứng (Camera AI) lên giao diện Web của nhân viên (WebSocket).
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Tìm thông tin cổng (Gate) và loại xe (VehicleType) theo request.
+     * 2. Phân tích loại khách hàng (determineCustomerType).
+     * 3. Xử lý đặt chỗ (Booking): 
+     *    - Nếu có Booking: Kiểm tra loại xe có khớp không, có đến sớm không, và khu vực đậu xe còn chỗ không.
+     *    - Nếu khu vực đậu đã đầy -> Gọi AI (zoneRoutingService) tìm khu vực trống khác.
+     * 4. Kiểm tra cấu hình hệ thống `DISPLAY_ROUTING` có cho phép hiển thị tuyến đường đề xuất không.
+     * 5. Kiểm tra biển số có nằm trong danh sách đen (Blacklist) không.
+     * 6. Đóng gói dữ liệu (ScanEventDTO) và gửi qua WebSocket `/topic/gates/{gateId}/scans`.
+     * 7. Trả về kết quả thành công cho thiết bị cứng.
+     */
     public GateResponseDTO triggerScanCheckIn(CheckInRequestDTO request) {
         Gate gate = gateRepository.findById(request.getGateId())
                 .orElseThrow(() -> new IllegalArgumentException("Gate not found"));
@@ -196,12 +231,12 @@ public class GateOperationService {
         }
 
         boolean isBlacklisted = false;
-        String blacklistReason = null;
+
         if (request.getPlateNumber() != null) {
-            java.util.Optional<com.pbms.modules.operation.domain.Vehicle> vOpt = vehicleRepository.findByPlateNumber(request.getPlateNumber());
+            java.util.Optional<com.pbms.modules.operation.domain.Vehicle> vOpt = vehicleRepository
+                    .findByPlateNumber(request.getPlateNumber());
             if (vOpt.isPresent() && Boolean.TRUE.equals(vOpt.get().getIsBlacklisted())) {
                 isBlacklisted = true;
-                blacklistReason = vOpt.get().getBlacklistReason();
             }
         }
 
@@ -218,7 +253,6 @@ public class GateOperationService {
                 .customerType(customerType)
                 .earlyBookingNotice(earlyBookingNotice)
                 .isBlacklisted(isBlacklisted)
-                .blacklistReason(blacklistReason)
                 .build();
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", event);
@@ -232,6 +266,17 @@ public class GateOperationService {
                 .build();
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Gửi tín hiệu quét thẻ/biển số (Check-OUT) từ thiết bị cứng (Camera AI) lên giao diện Web của nhân viên qua WebSocket.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Tìm thông tin cổng ra (Gate) và loại xe (VehicleType).
+     * 2. Xác định loại khách hàng (Monthly, Walk-in...).
+     * 3. Đóng gói dữ liệu (ScanEventDTO) với hành động "OUT".
+     * 4. Bắn sự kiện qua WebSocket tới kênh `/topic/gates/{gateId}/scans`.
+     * 5. Trả về phản hồi cho thiết bị rằng tín hiệu đã được gửi thành công.
+     */
     @Transactional
     public GateResponseDTO triggerScanCheckOut(CheckOutRequestDTO request) {
         Gate gate = gateRepository.findById(request.getGateId())
@@ -261,29 +306,36 @@ public class GateOperationService {
                 .build();
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Xác định thời điểm bắt đầu tính phí đậu xe, đặc biệt quan trọng cho các xe sử dụng vé tháng nhưng hết hạn giữa chừng.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Mặc định thời điểm bắt đầu tính phí là Thời gian xe vào bãi (timeIn).
+     * 2. Tìm vé tháng (ACTIVE hoặc EXPIRED) của biển số xe này.
+     * 3. Nếu tìm thấy vé tháng:
+     *    - Nếu vé tháng hết hạn SAU thời gian xe vào, và TRƯỚC thời gian hiện tại (nghĩa là hết hạn lúc đang đỗ trong bãi):
+     *    - Nếu đúng loại xe -> Thời điểm bắt đầu tính phí phụ trội sẽ là Thời điểm vé tháng hết hạn.
+     * 4. Trả về thời điểm bắt đầu tính phí.
+     */
     private java.time.LocalDateTime determineFeeStartTime(ParkingSession session, String rfidCode) {
         java.time.LocalDateTime feeStartTime = session.getTimeIn();
         java.util.Optional<com.pbms.modules.operation.domain.MonthlyTicket> relevantTicket = java.util.Optional.empty();
 
         if (session.getPlate() != null && !session.getPlate().isEmpty()) {
-            relevantTicket = monthlyTicketRepository.findByPlateAndStatus(session.getPlate(), "ACTIVE");
+            relevantTicket = monthlyTicketRepository.findByPlateNumberAndStatus(session.getPlate(), "ACTIVE");
             if (relevantTicket.isEmpty()) {
-                relevantTicket = monthlyTicketRepository.findTopByPlateAndStatusOrderByUpdatedAtDesc(session.getPlate(),
+                relevantTicket = monthlyTicketRepository.findTopByPlateNumberAndStatusOrderByUpdatedAtDesc(
+                        session.getPlate(),
                         "EXPIRED");
-            }
-        }
-        if (relevantTicket.isEmpty() && rfidCode != null && !rfidCode.isEmpty()) {
-            relevantTicket = monthlyTicketRepository.findByRfidCard_CardCodeAndStatus(rfidCode, "ACTIVE");
-            if (relevantTicket.isEmpty()) {
-                relevantTicket = monthlyTicketRepository
-                        .findTopByRfidCard_CardCodeAndStatusOrderByUpdatedAtDesc(rfidCode, "EXPIRED");
             }
         }
 
         if (relevantTicket.isPresent() && relevantTicket.get().getValidUntil().isAfter(session.getTimeIn())
                 && relevantTicket.get().getValidUntil().isBefore(com.pbms.common.utils.TimeProvider.now())) {
             if (session.getVehicleType() != null && relevantTicket.get().getVehicleType() != null
-                    && session.getVehicleType().getId().equals(relevantTicket.get().getVehicleType().getId())) {
+                    && session.getVehicleType().getId()
+                            .equals(relevantTicket.get().getVehicleType().getId())) {
                 feeStartTime = relevantTicket.get().getValidUntil();
             }
         }
@@ -291,6 +343,16 @@ public class GateOperationService {
         return feeStartTime;
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Truy xuất thông tin của một phiên đỗ xe (ParkingSession) đang diễn ra bằng thẻ RFID hoặc biển số xe.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Nếu có mã RFID: Tìm ParkingSession đang ACTIVE hoặc LOCKED gắn với thẻ này.
+     * 2. Nếu không có RFID mà có Biển số: Tìm danh sách phiên của biển số, lấy phiên đang ACTIVE hoặc LOCKED.
+     * 3. Nếu không tìm thấy phiên hợp lệ -> Quăng lỗi (Throw Exception).
+     * 4. Gọi hàm getCheckOutSessionInfo(session, now) để tính toán phí tới thời điểm hiện tại.
+     */
     @Transactional(readOnly = true)
     public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(String rfid, String plate) {
         ParkingSession session = null;
@@ -303,8 +365,14 @@ public class GateOperationService {
             java.util.List<ParkingSession> list = sessionRepository.findByPlateOrderByTimeInDesc(plate);
             for (ParkingSession s : list) {
                 if ("ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus())) {
-                    session = s;
-                    break;
+                    boolean hasLostDamaged = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
+                            s.getId(),
+                            java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
+                            java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+                    if (hasLostDamaged) {
+                        session = s;
+                        break;
+                    }
                 }
             }
         }
@@ -316,7 +384,26 @@ public class GateOperationService {
         return getCheckOutSessionInfo(session, com.pbms.common.utils.TimeProvider.now());
     }
 
-    public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(ParkingSession session, java.time.LocalDateTime targetTime) {
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Hàm cốt lõi để thu thập và tính toán mọi thông tin chi phí, phạt, quá giờ... để hiển thị lên màn hình thanh toán.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Khởi tạo đối tượng InfoDTO và gán các thông tin cơ bản (Biển số, thẻ, hình ảnh...).
+     * 2. Lấy tên khu vực xe đã đỗ (Zone) dựa vào ID gợi ý hoặc Booking.
+     * 3. Xác định thời điểm bắt đầu tính phí (determineFeeStartTime) và tổng thời gian đậu xe (duration).
+     * 4. Dựa vào loại khách (MONTHLY, PREBOOKED, WALK-IN) để tính Phí đậu xe và Phí quá giờ:
+     *    - Khách vé tháng (MONTHLY) hoặc Đậu bãi vi phạm (IMPOUNDED) -> Phí = 0.
+     *    - Khách đặt trước (PREBOOKED) -> Kiểm tra nếu thời gian ra trễ hơn thời gian Booking -> Tính phí quá giờ.
+     *    - Khách vãng lai (WALK-IN) -> Gọi PricingCalculatorService tính phí theo block.
+     *    - Khách vé tháng bị hết hạn giữa chừng -> Phân tách tính phí từ lúc hết hạn.
+     * 5. Tổng hợp các phí phạt (Penalty) từ IncidentTickets.
+     * 6. Tính tổng tiền (calculateTotalAmount) = Phí đậu xe + Phí quá giờ + Phí phạt - Giảm giá.
+     * 7. Tạo mã JWT (CheckoutToken) an toàn dùng để khóa giá báo trong 5 phút.
+     * 8. Trả về đối tượng InfoDTO chứa đầy đủ báo giá.
+     */
+    public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(ParkingSession session,
+            java.time.LocalDateTime targetTime) {
         com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = new com.pbms.modules.operation.dto.CheckOutSessionInfoDTO();
         info.setPlateNumberIn(session.getPlate());
         info.setRfid(session.getRfidCard() != null ? session.getRfidCard().getCardCode() : "N/A");
@@ -329,8 +416,9 @@ public class GateOperationService {
         info.setTimeIn(session.getTimeIn());
         info.setStatus(session.getStatus());
 
-        if (session.getSlot() != null && session.getSlot().getZone() != null) {
-            info.setSuggestedZoneName(session.getSlot().getZone().getZoneName());
+        if (session.getSuggestedZoneId() != null) {
+            zoneRepository.findById(session.getSuggestedZoneId())
+                    .ifPresent(z -> info.setSuggestedZoneName(z.getZoneName()));
         } else if (session.getSuggestedZoneId() != null) {
             if (session.getSuggestedZoneId() == -1L) {
                 info.setSuggestedZoneName("Free Zone");
@@ -353,9 +441,10 @@ public class GateOperationService {
         info.setTimeOut(now);
 
         boolean isExemptZone = false;
-        if (session.getSlot() != null && session.getSlot().getZone() != null) {
-            String fType = session.getSlot().getZone().getFunctionType();
-            if ("IMPOUNDED".equalsIgnoreCase(fType)) {
+        if (session.getSuggestedZoneId() != null) {
+            com.pbms.modules.infrastructure.domain.Zone z = zoneRepository.findById(session.getSuggestedZoneId())
+                    .orElse(null);
+            if (z != null && "IMPOUNDED".equalsIgnoreCase(z.getFunctionType())) {
                 isExemptZone = true;
             }
         }
@@ -377,7 +466,7 @@ public class GateOperationService {
                 if (session.getVehicleType() != null) {
                     try {
                         java.math.BigDecimal fee = pricingCalculatorService
-                                .calculateTotalFee(session.getVehicleType().getId(), bookedOut, now);
+                                .calculateParkingFee(session.getVehicleType().getId(), bookedOut, now);
                         info.setExpectedFee(java.math.BigDecimal.ZERO);
                         info.setOvertimeFee(fee);
                     } catch (Exception e) {
@@ -395,17 +484,19 @@ public class GateOperationService {
             }
         } else if (session.getVehicleType() != null) {
             try {
-                java.math.BigDecimal fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(),
+                java.math.BigDecimal fee = pricingCalculatorService.calculateParkingFee(
+                        session.getVehicleType().getId(),
                         feeStartTime, now);
                 log.info("CALCULATED FEE: " + fee + " for duration: " + duration);
-                
-                // If feeStartTime is strictly after session timeIn, it means the Monthly ticket expired during the session
+
+                // If feeStartTime is strictly after session timeIn, it means the Monthly ticket
+                // expired during the session
                 if (feeStartTime.isAfter(session.getTimeIn())) {
                     info.setExpectedFee(java.math.BigDecimal.ZERO);
                     info.setOvertimeFee(fee);
                     info.setOvertimeMinutes(java.time.Duration.between(feeStartTime, now).toMinutes());
                     // Force UI to recognize as MONTHLY so it shows overtime nicely
-                    info.setCustomerType("MONTHLY"); 
+                    info.setCustomerType("MONTHLY");
                 } else {
                     info.setExpectedFee(fee);
                     info.setOvertimeFee(java.math.BigDecimal.ZERO);
@@ -433,23 +524,38 @@ public class GateOperationService {
         } else {
             info.setDiscountFee(java.math.BigDecimal.ZERO);
         }
-        
+
         info.setFeePenalty(penaltyFee);
 
         java.math.BigDecimal totalAmountForToken = calculateTotalAmount(info);
-        String token = jwtProvider.generateCheckoutToken(String.valueOf(session.getId()), totalAmountForToken.doubleValue());
+        String token = jwtProvider.generateCheckoutToken(String.valueOf(session.getId()),
+                totalAmountForToken.doubleValue());
         info.setCheckoutToken(token);
         info.setExpiresInSeconds(300L); // 5 minutes
 
         return info;
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Tính toán số tiền cuối cùng (Tổng hóa đơn) khách hàng phải trả dựa trên các loại phí.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Đảm bảo các giá trị phí (ExpectedFee, OvertimeFee, PenaltyFee, Discount) không bị null (mặc định là 0).
+     * 2. Công thức: Tổng tiền = (Phí dự kiến + Phí quá giờ + Phí phạt) - Giảm giá.
+     * 3. Nếu tổng tiền bị âm -> Trả về 0.
+     * 4. Trả về tổng tiền.
+     */
     public java.math.BigDecimal calculateTotalAmount(com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info) {
-        java.math.BigDecimal parkingFee = info.getExpectedFee() != null ? info.getExpectedFee() : java.math.BigDecimal.ZERO;
-        java.math.BigDecimal overtimeFee = info.getOvertimeFee() != null ? info.getOvertimeFee() : java.math.BigDecimal.ZERO;
-        java.math.BigDecimal penaltyFee = info.getFeePenalty() != null ? info.getFeePenalty() : java.math.BigDecimal.ZERO;
-        java.math.BigDecimal discount = info.getDiscountFee() != null ? info.getDiscountFee() : java.math.BigDecimal.ZERO;
-        
+        java.math.BigDecimal parkingFee = info.getExpectedFee() != null ? info.getExpectedFee()
+                : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal overtimeFee = info.getOvertimeFee() != null ? info.getOvertimeFee()
+                : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal penaltyFee = info.getFeePenalty() != null ? info.getFeePenalty()
+                : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal discount = info.getDiscountFee() != null ? info.getDiscountFee()
+                : java.math.BigDecimal.ZERO;
+
         java.math.BigDecimal finalAmount = parkingFee.add(overtimeFee).add(penaltyFee).subtract(discount);
         if (finalAmount.compareTo(java.math.BigDecimal.ZERO) < 0) {
             finalAmount = java.math.BigDecimal.ZERO;
@@ -457,7 +563,22 @@ public class GateOperationService {
         return finalAmount;
     }
 
-
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Xử lý luồng Check-IN chính thức yêu cầu lưu trữ dữ liệu xe vào DB khi nhân viên bấm "Xác nhận".
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Xác thực thông tin: Tìm Cổng (Gate), Loại xe, Ca trực của nhân viên (Active Session).
+     * 2. Nếu cổng không có người trực, loại cổng sai (phải là cổng IN), thiếu loại xe -> Quăng lỗi.
+     * 3. Kiểm tra Thẻ RFID: Thẻ phải tồn tại và đang ở trạng thái AVAILABLE (chưa dùng).
+     * 4. Ngăn chặn trùng lặp: Kiểm tra biển số xe này đã ở trong bãi chưa. Nếu có -> Lỗi.
+     * 5. Kiểm tra Biển số Đen (Blacklist): Nếu xe nằm trong sổ đen -> Ghi nhớ cờ Blacklist, và tự động gỡ cờ để xe vào (vì sẽ phạt vào phiên này).
+     * 6. Khởi tạo đối tượng ParkingSession (Lưu thời gian, hình ảnh, biển số...).
+     * 7. Cập nhật thẻ RFID sang trạng thái IN_USE. Lưu session vào Database.
+     * 8. Nếu xe bị Blacklist: Tạo mới/cập nhật các vé phạt (IncidentTicket) để truy thu khi khách ra khỏi bãi.
+     * 9. Xử lý Đặt chỗ (Booking): Nếu có Booking, đổi trạng thái sang ACTIVE, gửi thông báo báo có xe Booking tới.
+     * 10. Trả về kết quả thành công cho Client.
+     */
     @Transactional
     public GateResponseDTO processCheckIn(CheckInRequestDTO request) {
         Gate gate = gateRepository.findById(request.getGateId())
@@ -476,9 +597,7 @@ public class GateOperationService {
         List<Reservation> reservations = java.util.Collections.emptyList();
         String earlyBookingNotice = null;
 
-        if ("Free".equalsIgnoreCase(request.getSuggestedZoneName())) {
-            suggestedZone = null;
-        } else if (type != null) {
+        if (type != null) {
             reservations = getValidPendingReservations(request.getPlateNumber());
             if (!reservations.isEmpty()) {
                 if (!reservations.get(0).getVehicle().getVehicleType().getId().equals(type.getId())) {
@@ -493,13 +612,13 @@ public class GateOperationService {
                     suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
                 }
             } else {
-                  final Long targetTypeId = type.getId();
-                  List<Reservation> allPending = reservationRepository
-                          .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING")
-                          .stream()
-                          .filter(r -> r.getVehicle().getVehicleType().getId().equals(targetTypeId))
-                          .collect(java.util.stream.Collectors.toList());
-                  if (!allPending.isEmpty()) {
+                final Long targetTypeId = type.getId();
+                List<Reservation> allPending = reservationRepository
+                        .findByVehicle_PlateNumberAndStatus(request.getPlateNumber(), "PENDING")
+                        .stream()
+                        .filter(r -> r.getVehicle().getVehicleType().getId().equals(targetTypeId))
+                        .collect(java.util.stream.Collectors.toList());
+                if (!allPending.isEmpty()) {
                     Reservation earliest = allPending.stream()
                             .min(java.util.Comparator.comparing(r -> r.getExpectedEntryTime())).orElse(null);
                     if (earliest != null) {
@@ -511,6 +630,10 @@ public class GateOperationService {
                 }
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
             }
+        }
+
+        if ("Free".equalsIgnoreCase(request.getSuggestedZoneName())) {
+            suggestedZone = null;
         }
 
         if (!"Free".equalsIgnoreCase(request.getSuggestedZoneName())) {
@@ -527,13 +650,16 @@ public class GateOperationService {
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
 
-        if (!"IN".equals(gate.getGateType()) && !"ENTRY".equals(gate.getGateType())
-                && !"IN_OUT".equals(gate.getGateType())) {
+        StaffWorkSession activeSession = staffWorkSessionRepository.findByGateIdAndStatus(gate.getId(), "ACTIVE")
+                .orElse(null);
+        if (activeSession == null) {
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Invalid gate type for check-in")
+                    .message("Gate is inactive (no staff on duty)")
                     .build();
         }
+
+
 
         if (type == null) {
             return GateResponseDTO.builder()
@@ -558,10 +684,12 @@ public class GateOperationService {
         }
 
         if (!"AVAILABLE".equals(card.getStatus())) {
-            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất" : ("DAMAGED".equals(card.getStatus()) ? "Đã bị báo hỏng" : "Không hợp lệ");
+            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất"
+                    : ("DAMAGED".equals(card.getStatus()) ? "Đã bị báo hỏng" : "Không hợp lệ");
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Thẻ RFID " + statusVN + ". Không thể mở cổng. Vui lòng liên hệ Quản lý (Manager) để xử lý thẻ này!")
+                    .message("Thẻ RFID " + statusVN
+                            + ". Không thể mở cổng. Vui lòng liên hệ Quản lý (Manager) để xử lý thẻ này!")
                     .build();
         }
 
@@ -584,16 +712,13 @@ public class GateOperationService {
         }
 
         boolean[] isBlacklistedRef = { false };
-        String[] blacklistReasonRef = { "" };
         vehicleRepository.findByPlateNumber(request.getPlateNumber()).ifPresent(v -> {
             if (Boolean.TRUE.equals(v.getIsBlacklisted())) {
                 isBlacklistedRef[0] = true;
-                blacklistReasonRef[0] = v.getBlacklistReason();
 
-                // Theo yêu cầu: Tự động gỡ cờ blacklist ngay khi check-in vì đã áp phí phạt vào session
+                // Theo yêu cầu: Tự động gỡ cờ blacklist ngay khi check-in vì đã áp phí phạt vào
+                // session
                 v.setIsBlacklisted(false);
-                v.setBlacklistReason(null);
-                v.setBlacklistEvidenceUrl(null);
                 vehicleRepository.save(v);
             }
         });
@@ -624,26 +749,29 @@ public class GateOperationService {
 
         if (isBlacklistedRef[0]) {
             java.util.List<com.pbms.modules.incident.domain.IncidentTicket> oldTickets = incidentTicketRepository
-                .findBySessionPlateAndVehicleTypeIdAndStatus(request.getPlateNumber(), type.getId(), "WAITING_CHECKOUT");
-            
+                    .findBySessionPlateAndVehicleTypeIdAndStatus(request.getPlateNumber(), type.getId(),
+                            "WAITING_CHECKOUT");
+
             java.math.BigDecimal penaltyFeeToAdd = java.math.BigDecimal.ZERO;
             boolean hasBlacklistViolation = false;
-            
+
             for (com.pbms.modules.incident.domain.IncidentTicket oldTicket : oldTickets) {
                 if ("BLACKLIST_VIOLATION".equals(oldTicket.getIssueType())) {
                     hasBlacklistViolation = true;
                 }
                 oldTicket.setSession(session);
                 saveAndBroadcast(oldTicket);
-                penaltyFeeToAdd = penaltyFeeToAdd.add(oldTicket.getFineAmount() != null ? oldTicket.getFineAmount() : java.math.BigDecimal.ZERO);
+                penaltyFeeToAdd = penaltyFeeToAdd
+                        .add(oldTicket.getFineAmount() != null ? oldTicket.getFineAmount() : java.math.BigDecimal.ZERO);
             }
-            
+
             if (!hasBlacklistViolation) {
                 java.math.BigDecimal penaltyFee;
                 try {
                     boolean is2W = type != null && "TWO_WHEEL".equals(type.getCategory());
                     String configKey = is2W ? "PENALTY_BLACKLIST_UNPAID_2W" : "PENALTY_BLACKLIST_UNPAID_4W";
-                    penaltyFee = new java.math.BigDecimal(systemConfigService.getConfigByKey(configKey).getConfigValue());
+                    penaltyFee = new java.math.BigDecimal(
+                            systemConfigService.getConfigByKey(configKey).getConfigValue());
                 } catch (Exception e) {
                     penaltyFee = new java.math.BigDecimal("500000");
                 }
@@ -653,16 +781,16 @@ public class GateOperationService {
                         .session(session)
                         .issueType("BLACKLIST_VIOLATION")
                         .priority("HIGH")
-                        .description("Vehicle is blacklisted: " + blacklistReasonRef[0])
                         .status("WAITING_CHECKOUT")
                         .fineAmount(penaltyFee)
                         .build();
                 saveAndBroadcast(ticket);
                 penaltyFeeToAdd = penaltyFeeToAdd.add(penaltyFee);
             }
-            
+
             if (penaltyFeeToAdd.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                java.math.BigDecimal currentPenalty = session.getPenaltyFee() != null ? session.getPenaltyFee() : java.math.BigDecimal.ZERO;
+                java.math.BigDecimal currentPenalty = session.getPenaltyFee() != null ? session.getPenaltyFee()
+                        : java.math.BigDecimal.ZERO;
                 session.setPenaltyFee(currentPenalty.add(penaltyFeeToAdd));
                 sessionRepository.save(session);
             }
@@ -697,6 +825,22 @@ public class GateOperationService {
         return response;
     }
 
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Xử lý luồng Check-OUT chính thức, hoàn thành giao dịch thanh toán và đóng phiên đỗ xe khi nhân viên bấm "Xác nhận".
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Xác thực thông tin: Kiểm tra Gate, Ca trực của nhân viên, loại cổng (phải là cổng OUT).
+     * 2. Tìm Phiên đỗ xe (ParkingSession) bằng mã thẻ RFID.
+     * 3. Kiểm tra các sự kiện bất thường (Incident): Mất thẻ, hư thẻ chưa đóng phí phạt -> Chặn cổng, không cho ra.
+     * 4. Kiểm tra xem Token báo giá (CheckoutToken) có hợp lệ, khớp với SessionId và chưa hết hạn không. Nếu thanh toán tiền mặt mà Token hết hạn/lệch giá -> Lỗi, yêu cầu báo giá lại.
+     * 5. Cập nhật hình ảnh, thời gian ra, cổng ra vào ParkingSession.
+     * 6. Tính toán chốt phí: Lấy thông tin giá, áp dụng giảm giá (trừ tiền gốc trước, trừ phụ phí sau).
+     * 7. Đóng các vé phạt (IncidentTicket) đang chờ thanh toán sang trạng thái RESOLVED. Nếu xe từng bị Blacklist -> Gỡ Blacklist trong hồ sơ xe.
+     * 8. Tạo Transaction (Giao dịch tài chính) lưu hóa đơn.
+     * 9. Giải phóng thẻ RFID về trạng thái AVAILABLE. Đổi trạng thái Booking về COMPLETED (nếu có).
+     * 10. Bắn WebSocket thông báo cổng mở và trả về kết quả thành công.
+     */
     @Transactional
     public GateResponseDTO processCheckOut(CheckOutRequestDTO request) {
         Gate gate = gateRepository.findById(request.getGateId())
@@ -704,32 +848,42 @@ public class GateOperationService {
 
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
 
-        if (!"OUT".equals(gate.getGateType()) && !"EXIT".equals(gate.getGateType())
-                && !"IN_OUT".equals(gate.getGateType())) {
+        StaffWorkSession activeSession = staffWorkSessionRepository.findByGateIdAndStatus(gate.getId(), "ACTIVE")
+                .orElse(null);
+        if (activeSession == null) {
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Invalid gate type for check-out")
+                    .message("Gate is inactive (no staff on duty)")
                     .build();
         }
 
-        ParkingSession session = sessionRepository
-                .findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
-                .orElseThrow(() -> new IllegalArgumentException("No active session found for this card"));
+
+
+        ParkingSession session = null;
+        if (request.getRfid() != null && !request.getRfid().isEmpty()) {
+            session = sessionRepository
+                    .findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
+                    .orElse(null);
+        } else if (request.getPlateNumber() != null && !request.getPlateNumber().isEmpty()) {
+            java.util.List<ParkingSession> list = sessionRepository.findByPlateOrderByTimeInDesc(request.getPlateNumber());
+            for (ParkingSession s : list) {
+                if ("ACTIVE".equals(s.getStatus())) {
+                    boolean hasLostDamaged = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
+                            s.getId(),
+                            java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
+                            java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+                    if (hasLostDamaged) {
+                        session = s;
+                        break;
+                    }
+                }
+            }
+        }
+        if (session == null) {
+            throw new IllegalArgumentException("No active session found for this card or missing lost/damaged card report for this plate");
+        }
 
         RfidCard card = session.getRfidCard();
-        
-        boolean hasBlockingIncident = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
-                session.getId(),
-                java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
-                java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
-                
-        if (hasBlockingIncident || (card != null && ("LOST".equals(card.getStatus()) || "DAMAGED".equals(card.getStatus())))) {
-            return GateResponseDTO.builder()
-                    .sessionId(session.getId())
-                    .status("ERROR")
-                    .message("Xe đang có sự cố hoặc nợ phí phạt chưa được xử lý. Giao dịch bị khóa, Barrier không mở. Vui lòng nộp phí tại quầy!")
-                    .build();
-        }
 
         if (!session.getPlate().equals(request.getPlateNumber())) {
             return GateResponseDTO.builder()
@@ -754,9 +908,11 @@ public class GateOperationService {
             } catch (io.jsonwebtoken.ExpiredJwtException e) {
                 if (!"CASH".equalsIgnoreCase(request.getPaymentMethod())) {
                     io.jsonwebtoken.Claims claims = e.getClaims();
-                    checkOutTime = java.time.LocalDateTime.ofInstant(claims.getIssuedAt().toInstant(), java.time.ZoneId.systemDefault());
+                    checkOutTime = java.time.LocalDateTime.ofInstant(claims.getIssuedAt().toInstant(),
+                            java.time.ZoneId.systemDefault());
                 } else {
-                    throw new IllegalArgumentException("Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                    throw new IllegalArgumentException(
+                            "Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
@@ -768,7 +924,8 @@ public class GateOperationService {
         session.setPicOutFace(fileStorageService.storeBase64File(request.getLprImageBase64()));
 
         boolean isMonthlyCovered = false;
-        MonthlyTicket monthlyTicket = monthlyTicketRepository.findByPlateAndStatus(session.getPlate(), "ACTIVE")
+        MonthlyTicket monthlyTicket = monthlyTicketRepository
+                .findByPlateNumberAndStatus(session.getPlate(), "ACTIVE")
                 .orElse(null);
         if (monthlyTicket != null && monthlyTicket.getValidUntil().isAfter(com.pbms.common.utils.TimeProvider.now())) {
             if (monthlyTicket.getVehicleType().getId().equals(session.getVehicleType().getId())) {
@@ -781,17 +938,18 @@ public class GateOperationService {
         Long overtimeMinutes = 0L;
 
         if (!isMonthlyCovered) {
-            if (request.getTotalFee() != null) {
-                // If FE sends explicit fee, assume it's expectedFee (or combined). 
+            if (request.getParkingFee() != null) {
+                // If FE sends explicit fee, assume it's expectedFee (or combined).
                 // We'll recalculate exactly to properly split it.
-            } 
-            
+            }
+
             if (session.getReservation() != null) {
                 java.time.LocalDateTime bookedIn = session.getReservation().getExpectedEntryTime();
                 java.time.LocalDateTime bookedOut = bookedIn
                         .plusMinutes(session.getReservation().getExpectedDurationMinutes());
                 if (session.getTimeOut().isAfter(bookedOut)) {
-                    overtimeFee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), bookedOut,
+                    overtimeFee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(),
+                            bookedOut,
                             session.getTimeOut());
                     overtimeMinutes = java.time.Duration.between(bookedOut, session.getTimeOut()).toMinutes();
                 }
@@ -800,15 +958,16 @@ public class GateOperationService {
                         : (session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null);
 
                 java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
-                
+
                 if (feeStartTime.isAfter(session.getTimeIn())) {
                     // Monthly expired mid-session
-                    overtimeFee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime,
+                    overtimeFee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(),
+                            feeStartTime,
                             session.getTimeOut());
                     overtimeMinutes = java.time.Duration.between(feeStartTime, session.getTimeOut()).toMinutes();
                 } else {
                     // Walk-in
-                    fee = pricingCalculatorService.calculateTotalFee(session.getVehicleType().getId(), feeStartTime,
+                    fee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(), feeStartTime,
                             session.getTimeOut());
                 }
             }
@@ -830,51 +989,58 @@ public class GateOperationService {
                     : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             saveAndBroadcast(t);
-            
-            // If it was a blacklist violation, they have now paid/resolved it by checking out
+
             if ("BLACKLIST_VIOLATION".equals(t.getIssueType())) {
-                vehicleRepository.findByPlateNumber(session.getPlate()).ifPresent(v -> {
+                final String currentPlate = session.getPlate();
+                vehicleRepository.findByPlateNumber(currentPlate).ifPresent(v -> {
                     v.setIsBlacklisted(false);
-                    v.setBlacklistReason(null);
-                    v.setBlacklistEvidenceUrl(null);
                     vehicleRepository.save(v);
-                    log.info("Vehicle {} removed from blacklist upon check-out", session.getPlate());
+                    log.info("Vehicle {} removed from blacklist upon check-out", currentPlate);
                 });
             }
         }
 
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal remainingDiscount = session.getDiscount();
-                
-                // Subtract from fee first
-                if (fee.compareTo(remainingDiscount) >= 0) {
-                    fee = fee.subtract(remainingDiscount);
-                    remainingDiscount = BigDecimal.ZERO;
+            BigDecimal remainingDiscount = session.getDiscount();
+
+            // Subtract from fee first
+            if (fee.compareTo(remainingDiscount) >= 0) {
+                fee = fee.subtract(remainingDiscount);
+                remainingDiscount = BigDecimal.ZERO;
+            } else {
+                remainingDiscount = remainingDiscount.subtract(fee);
+                fee = BigDecimal.ZERO;
+            }
+
+            // Subtract from overtimeFee if any discount left
+            if (remainingDiscount.compareTo(BigDecimal.ZERO) > 0) {
+                if (overtimeFee.compareTo(remainingDiscount) >= 0) {
+                    overtimeFee = overtimeFee.subtract(remainingDiscount);
                 } else {
-                    remainingDiscount = remainingDiscount.subtract(fee);
-                    fee = BigDecimal.ZERO;
-                }
-                
-                // Subtract from overtimeFee if any discount left
-                if (remainingDiscount.compareTo(BigDecimal.ZERO) > 0) {
-                    if (overtimeFee.compareTo(remainingDiscount) >= 0) {
-                        overtimeFee = overtimeFee.subtract(remainingDiscount);
-                    } else {
-                        overtimeFee = BigDecimal.ZERO;
-                    }
+                    overtimeFee = BigDecimal.ZERO;
                 }
             }
-        
+        }
+
         BigDecimal totalParkingFee = fee.add(overtimeFee);
 
-        session.setTotalFee(fee); // Save net base fee
+        session.setParkingFee(fee); // Save net base fee
         session.setOvertimeFee(overtimeFee); // Save net overtime fee
         session.setOvertimeMinutes(overtimeMinutes);
         session.setPenaltyFee(penaltyFee);
         session.setStatus("COMPLETED");
 
         if (card != null) {
-            card.setStatus("AVAILABLE");
+            boolean isLost = waitingTickets.stream().anyMatch(t -> "LOST_CARD".equals(t.getIssueType()));
+            boolean isDamaged = waitingTickets.stream().anyMatch(t -> "DAMAGED_CARD".equals(t.getIssueType()));
+            
+            if (isLost) {
+                card.setStatus("LOST");
+            } else if (isDamaged) {
+                card.setStatus("DAMAGED");
+            } else {
+                card.setStatus("AVAILABLE");
+            }
             card.setAssignedPlate(null);
             rfidCardRepository.save(card);
         }
@@ -882,32 +1048,46 @@ public class GateOperationService {
         sessionRepository.save(session);
 
         BigDecimal totalAmount = totalParkingFee.add(penaltyFee);
-        
+
         if (request.getCheckoutToken() != null && !request.getCheckoutToken().isEmpty()) {
             if ("CASH".equalsIgnoreCase(request.getPaymentMethod())) {
                 try {
                     io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(request.getCheckoutToken());
                     Double expectedFeeDouble = claims.get("expectedFee", Double.class);
-                    if (expectedFeeDouble != null && totalAmount.subtract(BigDecimal.valueOf(expectedFeeDouble)).abs().compareTo(BigDecimal.ONE) > 0) {
-                        throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                    if (expectedFeeDouble != null && totalAmount.subtract(BigDecimal.valueOf(expectedFeeDouble)).abs()
+                            .compareTo(BigDecimal.ONE) > 0) {
+                        throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành "
+                                + String.format("%,d", totalAmount.longValue())
+                                + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
                     }
                 } catch (Exception e) {
-                     // Already caught above
+                    // Already caught above
                 }
             }
-        } else if (request.getTotalFee() != null) {
-            if ("CASH".equalsIgnoreCase(request.getPaymentMethod()) && totalAmount.subtract(request.getTotalFee()).abs().compareTo(BigDecimal.ONE) > 0) {
-                throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+        } else if (request.getParkingFee() != null) {
+            if ("CASH".equalsIgnoreCase(request.getPaymentMethod())
+                    && totalAmount.subtract(request.getParkingFee()).abs().compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalArgumentException(
+                        "Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue())
+                                + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
             }
         }
         if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             String payMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "CASH";
-            
-            com.pbms.modules.identity.domain.StaffWorkSession activeWorkSession = staffWorkSessionRepository.findByGateIdAndStatus(request.getGateId(), "ACTIVE").orElse(null);
+
+            com.pbms.modules.identity.domain.StaffWorkSession activeWorkSession = staffWorkSessionRepository
+                    .findByGateIdAndStatus(request.getGateId(), "ACTIVE").orElse(null);
+
+            com.pbms.modules.finance.domain.PaymentOrder po = null;
+            if (request.getPaymentOrderId() != null) {
+                po = new com.pbms.modules.finance.domain.PaymentOrder();
+                po.setId(request.getPaymentOrderId());
+            }
 
             Transaction transaction = Transaction.builder()
                     .parkingSession(session)
                     .workSession(activeWorkSession)
+                    .paymentOrder(po)
                     .amount(totalAmount)
                     .paymentMethod(payMethod)
                     .status("SUCCESS")
@@ -938,10 +1118,22 @@ public class GateOperationService {
         return response;
     }
 
-    private com.pbms.modules.incident.domain.IncidentTicket saveAndBroadcast(com.pbms.modules.incident.domain.IncidentTicket ticket) {
+    /**
+     * MỤC ĐÍCH CỦA HÀM:
+     * Lưu thông tin vé phạt/sự cố vào Database và thông báo cho toàn hệ thống cập nhật lại danh sách.
+     * 
+     * MÃ GIẢ CHI TIẾT:
+     * 1. Lưu đối tượng IncidentTicket vào CSDL thông qua Repository.
+     * 2. Gửi tín hiệu WebSocket '/topic/alerts' thông báo tới tất cả nhân viên.
+     * 3. Bắt và log lỗi nếu quá trình gửi WebSocket thất bại (không làm sập luồng chính).
+     * 4. Trả về IncidentTicket vừa được lưu.
+     */
+    private com.pbms.modules.incident.domain.IncidentTicket saveAndBroadcast(
+            com.pbms.modules.incident.domain.IncidentTicket ticket) {
         com.pbms.modules.incident.domain.IncidentTicket saved = incidentTicketRepository.save(ticket);
         try {
-            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+            messagingTemplate.convertAndSend("/topic/alerts",
+                    "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
         } catch (Exception e) {
             log.error("Failed to broadcast incident update", e);
         }
