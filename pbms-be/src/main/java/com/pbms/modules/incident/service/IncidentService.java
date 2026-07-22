@@ -673,14 +673,16 @@ public class IncidentService {
             throw new IllegalStateException("Ticket is already resolved or in an invalid state");
         }
 
-        if ("OTHER".equals(ticket.getIssueType()) && !"MANAGER".equals(getCurrentUser().getRole()) && !"SUPER_ADMIN".equals(getCurrentUser().getRole())) {
-            throw new IllegalStateException("Chỉ Quản lý mới có quyền duyệt sự cố hình phạt khác (Lý do khác).");
+        if ("OTHER".equals(ticket.getIssueType()) || "OTHER_FEEDBACK".equals(ticket.getIssueType())) {
+            if (!"MANAGER".equals(getCurrentUser().getRole()) && !"SUPER_ADMIN".equals(getCurrentUser().getRole())) {
+                throw new IllegalStateException("Chỉ Quản lý mới có quyền duyệt sự cố hình phạt khác hoặc góp ý.");
+            }
         }
 
         ticket.setStaff(getCurrentUser());
         
         ParkingSession ticketSession = ticket.getSession();
-        if (ticketSession != null && "COMPLETED".equals(ticketSession.getStatus())) {
+        if ("OTHER_FEEDBACK".equals(ticket.getIssueType()) || ticketSession == null || "COMPLETED".equals(ticketSession.getStatus())) {
             ticket.setStatus("RESOLVED");
             ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
         } else {

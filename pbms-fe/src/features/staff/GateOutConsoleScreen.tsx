@@ -55,7 +55,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const [editablePlate, setEditablePlate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const isProcessingRef = useRef<boolean>(false);
-  
+
   // OUT Gate states
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PAYPAL' | 'PAYOS'>('CASH');
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           });
         });
       });
-      
+
       const outSub = stompClient.subscribe(outDest, (msg) => {
         const payload = JSON.parse(msg.body);
         if (payload.status === 'SUCCESS' && isProcessingRef.current) {
@@ -132,88 +132,88 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         isProcessingRef.current = true;
 
         addLog(`Received message. Length: ${msg.body.length} bytes`);
-        
+
         const payload = JSON.parse(msg.body);
         if (payload.actionType === 'IN') {
-            isProcessingRef.current = false;
-            return;
+          isProcessingRef.current = false;
+          return;
         }
         setLastRawPayload(payload);
-        
+
         // IOT payload contains plateNumber, imageBase64, confidence
         // For UI purposes, we'll map it to our UI state shape
         setEditablePlate(payload.plateNumber || 'UNKNOWN');
-        
+
         axiosClient.get('/operation/gates/checkout-session-info', {
           params: { rfid: payload.rfid, plate: payload.plateNumber }
         }).then(res => {
-            const info = res.data.data;
-            setScanData({
-                plateNumber: payload.plateNumber,
-                imageBase64: payload.imageBase64 || '',
-                lprImageBase64: payload.lprImageBase64 || '',
-                imageInBase64: info.picInPanorama || '/placeholder_in_cam.png',
-                imageOutBase64: payload.imageBase64 || '/placeholder_out_cam.png',
-                lprImageInBase64: info.picInFace || '/placeholder_in_lpr.png',
-                lprImageOutBase64: payload.lprImageBase64 || '/placeholder_out_lpr.png',
-                plateNumberIn: info.plateNumberIn || payload.plateNumber || 'UNKNOWN',
-                timeIn: info.timeIn ? simulatedDayjs(info.timeIn).format('DD/MM/YYYY HH:mm:ss') : '--:--',
-                timeOut: info.timeOut ? simulatedDayjs(info.timeOut).format('DD/MM/YYYY HH:mm:ss') : simulatedDayjs().format('DD/MM/YYYY HH:mm:ss'),
-                duration: info.durationMinutes ? `${info.durationMinutes} minutes` : '--',
-                feeBase: info.expectedFee || 0,
-                feePenalty: info.feePenalty || 0,
-                discount: info.discountFee || 0,
-                overtimeFee: info.overtimeFee || 0,
-                expectedFee: info.expectedFee || 0,
-                parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
-                durationMinutes: info.durationMinutes || 0,
-                isBlacklisted: false,
-                warnings: [],
-                rfid: info.rfid || payload.rfid || '---',
-                customerType: info.customerType || 'Haunt',
-                vehicleType: info.vehicleType || 'UNKNOWN',
-                routing: info.suggestedZoneName || '',
-                bookedTimeIn: info.bookedTimeIn ? simulatedDayjs(info.bookedTimeIn).format('DD/MM/YYYY HH:mm:ss') : null,
-                bookedTimeOut: info.bookedTimeOut ? simulatedDayjs(info.bookedTimeOut).format('DD/MM/YYYY HH:mm:ss') : null,
-                overtimeMinutes: info.overtimeMinutes || 0,
-                status: info.status || 'ACTIVE',
-                checkoutToken: info.checkoutToken || null,
-                expiresInSeconds: info.expiresInSeconds || 0
-            });
-            if (info.expiresInSeconds && info.checkoutToken) {
-               setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
-            } else {
-               setExpiresAt(null);
-            }
+          const info = res.data.data;
+          setScanData({
+            plateNumber: payload.plateNumber,
+            imageBase64: payload.imageBase64 || '',
+            lprImageBase64: payload.lprImageBase64 || '',
+            imageInBase64: info.picInPanorama || '/placeholder_in_cam.png',
+            imageOutBase64: payload.imageBase64 || '/placeholder_out_cam.png',
+            lprImageInBase64: info.picInFace || '/placeholder_in_lpr.png',
+            lprImageOutBase64: payload.lprImageBase64 || '/placeholder_out_lpr.png',
+            plateNumberIn: info.plateNumberIn || payload.plateNumber || 'UNKNOWN',
+            timeIn: info.timeIn ? simulatedDayjs(info.timeIn).format('DD/MM/YYYY HH:mm:ss') : '--:--',
+            timeOut: info.timeOut ? simulatedDayjs(info.timeOut).format('DD/MM/YYYY HH:mm:ss') : simulatedDayjs().format('DD/MM/YYYY HH:mm:ss'),
+            duration: info.durationMinutes ? `${info.durationMinutes} minutes` : '--',
+            feeBase: info.expectedFee || 0,
+            feePenalty: info.feePenalty || 0,
+            discount: info.discountFee || 0,
+            overtimeFee: info.overtimeFee || 0,
+            expectedFee: info.expectedFee || 0,
+            parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
+            durationMinutes: info.durationMinutes || 0,
+            isBlacklisted: false,
+            warnings: [],
+            rfid: info.rfid || payload.rfid || '---',
+            customerType: info.customerType || 'Haunt',
+            vehicleType: info.vehicleType || 'UNKNOWN',
+            routing: info.suggestedZoneName || '',
+            bookedTimeIn: info.bookedTimeIn ? simulatedDayjs(info.bookedTimeIn).format('DD/MM/YYYY HH:mm:ss') : null,
+            bookedTimeOut: info.bookedTimeOut ? simulatedDayjs(info.bookedTimeOut).format('DD/MM/YYYY HH:mm:ss') : null,
+            overtimeMinutes: info.overtimeMinutes || 0,
+            status: info.status || 'ACTIVE',
+            checkoutToken: info.checkoutToken || null,
+            expiresInSeconds: info.expiresInSeconds || 0
+          });
+          if (info.expiresInSeconds && info.checkoutToken) {
+            setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
+          } else {
+            setExpiresAt(null);
+          }
         }).catch(err => {
-            message.warning(err.response?.data?.message || 'No corresponding input vehicle data found!');
-            setScanData({
-                plateNumber: payload.plateNumber,
-                imageBase64: payload.imageBase64 || '',
-                lprImageBase64: payload.lprImageBase64 || '',
-                imageInBase64: '/placeholder_in_cam.png',
-                imageOutBase64: payload.imageBase64 || '/placeholder_out_cam.png',
-                lprImageInBase64: '/placeholder_in_lpr.png',
-                lprImageOutBase64: payload.lprImageBase64 || '/placeholder_out_lpr.png',
-                plateNumberIn: 'UNKNOWN',
-                timeIn: '--:--',
-                timeOut: simulatedDayjs().format('DD/MM/YYYY HH:mm:ss'),
-                duration: '--',
-                feeBase: 0,
-                feePenalty: 0,
-                discount: 0,
-                overtimeFee: 0,
-                expectedFee: 0,
-                parkingFee: 0,
-                durationMinutes: 0,
-                isBlacklisted: false,
-                warnings: ['No vehicle information found'],
-                rfid: payload.rfid || '---',
-                customerType: payload.customerType === 'PREBOOKED' ? 'BOOK' : (payload.customerType === 'MONTHLY' ? 'Monthly Pass' : (payload.customerType || 'Haunt')),
-                vehicleType: payload.vehicleType || 'CAR',
-                routing: '',
-                status: 'UNKNOWN'
-            });
+          message.warning(err.response?.data?.message || 'No corresponding input vehicle data found!');
+          setScanData({
+            plateNumber: payload.plateNumber,
+            imageBase64: payload.imageBase64 || '',
+            lprImageBase64: payload.lprImageBase64 || '',
+            imageInBase64: '/placeholder_in_cam.png',
+            imageOutBase64: payload.imageBase64 || '/placeholder_out_cam.png',
+            lprImageInBase64: '/placeholder_in_lpr.png',
+            lprImageOutBase64: payload.lprImageBase64 || '/placeholder_out_lpr.png',
+            plateNumberIn: 'UNKNOWN',
+            timeIn: '--:--',
+            timeOut: simulatedDayjs().format('DD/MM/YYYY HH:mm:ss'),
+            duration: '--',
+            feeBase: 0,
+            feePenalty: 0,
+            discount: 0,
+            overtimeFee: 0,
+            expectedFee: 0,
+            parkingFee: 0,
+            durationMinutes: 0,
+            isBlacklisted: false,
+            warnings: ['No vehicle information found'],
+            rfid: payload.rfid || '---',
+            customerType: payload.customerType === 'PREBOOKED' ? 'BOOK' : (payload.customerType === 'MONTHLY' ? 'Monthly Pass' : (payload.customerType || 'Haunt')),
+            vehicleType: payload.vehicleType || 'CAR',
+            routing: '',
+            status: 'UNKNOWN'
+          });
         });
       });
 
@@ -251,7 +251,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         lprImageBase64: scanData.lprImageBase64
       };
       const response = await axiosClient.post('/operation/gates/check-in', payload);
-      
+
       const suggestedZone = response.data.data.suggestedZoneName || 'Free';
       message.success(`Vehicle entry confirmed! Suggested zone: ${suggestedZone}`);
       setScanData(null);
@@ -286,7 +286,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         checkoutToken: scanData.checkoutToken
       };
       const response = await axiosClient.post('/operation/gates/check-out', payload);
-      
+
       message.success(`Barrier opened for exit! Payment fee: ${(response.data.data.checkoutFee || 0).toLocaleString()} ₫`);
 
       // Auto-log LPR_MISMATCH if the staff edited the plate
@@ -325,37 +325,37 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   // Generate Payment URL when switching to digital method
   useEffect(() => {
     if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && scanData) {
-      const calculatedTotalFee = Math.max(0, 
-        (scanData.expectedFee || scanData.feeBase || 0) + 
-        (scanData.overtimeFee || 0) + 
-        (scanData.feePenalty || 0) - 
+      const calculatedTotalFee = Math.max(0,
+        (scanData.expectedFee || scanData.feeBase || 0) +
+        (scanData.overtimeFee || 0) +
+        (scanData.feePenalty || 0) -
         (scanData.discount || scanData.discountFee || 0)
       );
       const amount = calculatedTotalFee;
       if (amount > 0) {
         setIsLoading(true);
         const payload = {
-            gateId: activeGate?.id,
-            plateNumber: editablePlate,
-            rfid: scanData.rfid,
-            imageBase64: scanData.imageOutBase64,
-            lprImageBase64: scanData.lprImageOutBase64,
-            paymentMethod: paymentMethod,
-            totalFee: amount,
-            sessionId: scanData.sessionId,
-            checkoutToken: scanData.checkoutToken
+          gateId: activeGate?.id,
+          plateNumber: editablePlate,
+          rfid: scanData.rfid,
+          imageBase64: scanData.imageOutBase64,
+          lprImageBase64: scanData.lprImageOutBase64,
+          paymentMethod: paymentMethod,
+          parkingFee: amount,
+          sessionId: scanData.sessionId,
+          checkoutToken: scanData.checkoutToken
         };
-        axiosClient.post('/finance/payments/initialize', { 
-            actionType: 'CHECKOUT',
-            gateway: paymentMethod, 
-            amount: amount,
-            checkoutToken: scanData.checkoutToken,
-            payload: payload
+        axiosClient.post('/finance/payments/initialize', {
+          actionType: 'CHECKOUT',
+          gateway: paymentMethod,
+          amount: amount,
+          checkoutToken: scanData.checkoutToken,
+          payload: payload
         })
           .then(res => {
             setPaymentUrl(res.data.data.paymentUrl);
             setPaymentQrCode(res.data.data.qrCode || res.data.data.paymentUrl || '');
-            
+
             if (paymentMethod === 'PAYPAL') {
               const urlObj = new URL(res.data.data.paymentUrl);
               setPaymentOrderId(urlObj.searchParams.get('token') || '');
@@ -381,34 +381,34 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   }, [paymentMethod, scanData]);
 
   const handleRefreshPrice = useCallback(() => {
-      if (!scanData?.rfid && !scanData?.plateNumber) return;
-      setIsLoading(true);
-      axiosClient.get('/operation/gates/checkout-session-info', {
-        params: { rfid: scanData?.rfid, plate: scanData?.plateNumber }
-      }).then(res => {
-          const info = res.data.data;
-          setScanData((prev: any) => ({
-              ...prev,
-              feeBase: info.expectedFee || 0,
-              feePenalty: info.feePenalty || 0,
-              discount: info.discountFee || 0,
-              overtimeFee: info.overtimeFee || 0,
-              expectedFee: info.expectedFee || 0,
-              parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
-              checkoutToken: info.checkoutToken || null,
-              expiresInSeconds: info.expiresInSeconds || 0
-          }));
-          if (info.expiresInSeconds && info.checkoutToken) {
-             setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
-          } else {
-             setExpiresAt(null);
-          }
-          message.success("Báo giá đã được làm mới!");
-      }).catch(err => {
-          message.error(err.response?.data?.message || 'Failed to refresh price');
-      }).finally(() => {
-          setIsLoading(false);
-      });
+    if (!scanData?.rfid && !scanData?.plateNumber) return;
+    setIsLoading(true);
+    axiosClient.get('/operation/gates/checkout-session-info', {
+      params: { rfid: scanData?.rfid, plate: scanData?.plateNumber }
+    }).then(res => {
+      const info = res.data.data;
+      setScanData((prev: any) => ({
+        ...prev,
+        feeBase: info.expectedFee || 0,
+        feePenalty: info.feePenalty || 0,
+        discount: info.discountFee || 0,
+        overtimeFee: info.overtimeFee || 0,
+        expectedFee: info.expectedFee || 0,
+        parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
+        checkoutToken: info.checkoutToken || null,
+        expiresInSeconds: info.expiresInSeconds || 0
+      }));
+      if (info.expiresInSeconds && info.checkoutToken) {
+        setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
+      } else {
+        setExpiresAt(null);
+      }
+      message.success("Báo giá đã được làm mới!");
+    }).catch(err => {
+      message.error(err.response?.data?.message || 'Failed to refresh price');
+    }).finally(() => {
+      setIsLoading(false);
+    });
   }, [scanData?.rfid, scanData?.plateNumber]);
 
   useEffect(() => {
@@ -431,40 +431,40 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     if (!paymentOrderId || verifyCooldown > 0) return;
     setIsVerifying(true);
     const captureUrl = paymentMethod === 'PAYOS' ? '/finance/payments/payos/capture' : '/finance/payments/paypal/capture';
-    
+
     axiosClient.post(captureUrl, { token: paymentOrderId })
       .then(res => {
         if (res.data?.data?.status === 'COMPLETED') {
           axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
             .then(execRes => {
-                message.success(`Payment via ${paymentMethod} verified and successful!`);
-                setScanData(null);
-                setEditablePlate('');
-                setPaymentMethod('CASH');
-                setPaymentConfirmed(false);
-                setPaymentUrl(null);
-                setPaymentQrCode('');
-                setPaymentOrderId('');
-                isProcessingRef.current = false;
+              message.success(`Payment via ${paymentMethod} verified and successful!`);
+              setScanData(null);
+              setEditablePlate('');
+              setPaymentMethod('CASH');
+              setPaymentConfirmed(false);
+              setPaymentUrl(null);
+              setPaymentQrCode('');
+              setPaymentOrderId('');
+              isProcessingRef.current = false;
             })
             .catch(execErr => {
-                message.error(execErr.response?.data?.message || 'System failed to checkout. Refund queued.');
-                setPaymentConfirmed(true);
+              message.error(execErr.response?.data?.message || 'System failed to checkout. Refund queued.');
+              setPaymentConfirmed(true);
             });
         } else {
-           message.warning('Payment not yet completed on the gateway.');
+          message.warning('Payment not yet completed on the gateway.');
         }
       })
       .catch(err => {
-         if (err.response?.status === 400) {
-           message.warning('Payment not yet received. Please try again later.');
-         } else {
-           message.error('System is busy or unable to verify.');
-         }
+        if (err.response?.status === 400) {
+          message.warning('Payment not yet received. Please try again later.');
+        } else {
+          message.error('System is busy or unable to verify.');
+        }
       })
       .finally(() => {
-         setIsVerifying(false);
-         setVerifyCooldown(10);
+        setIsVerifying(false);
+        setVerifyCooldown(10);
       });
   };
 
@@ -476,10 +476,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   }, [paymentConfirmed]);
 
   const renderOutGatePanel = () => {
-    const totalFee = Math.max(0, 
-      (scanData?.expectedFee || scanData?.feeBase || 0) + 
-      (scanData?.overtimeFee || 0) + 
-      (scanData?.feePenalty || 0) - 
+    const totalFee = Math.max(0,
+      (scanData?.expectedFee || scanData?.feeBase || 0) +
+      (scanData?.overtimeFee || 0) +
+      (scanData?.feePenalty || 0) -
       (scanData?.discount || scanData?.discountFee || 0)
     );
     const duration = scanData?.durationMinutes || 0;
@@ -527,14 +527,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
         {/* RIGHT SIDE: Info, Plates, Billing, Actions (55% width) */}
         <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-hidden shadow-sm relative">
-          
+
           {/* Scrollable Detail Area (Split into 2 internal columns) */}
           <div className="flex-1 p-2 flex flex-col xl:flex-row gap-4 overflow-y-auto custom-scrollbar">
             {scanData ? (
               <>
                 {/* Internal Left: Info & Plates */}
                 <div className="w-full xl:w-1/2 flex flex-col gap-2">
-                  
+
                   {/* Identity & Slot */}
                   <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex justify-between items-center flex-none">
                     <div className="flex items-center space-x-2">
@@ -545,11 +545,11 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       {scanData.routing && <Tag color="purple" className="m-0 font-bold px-3 py-1 text-sm rounded">{scanData.routing}</Tag>}
                       <Tag color="cyan" className="m-0 font-bold px-3 py-1 text-sm rounded shadow-sm border border-transparent flex items-center">
                         {(() => {
-                           const vt = vehicleTypes?.find((v: any) => v.typeName === scanData.vehicleType);
-                           if (vt && vt.iconUrl) {
-                              return <img src={getImageUrl(vt.iconUrl)} style={{width: 16, height: 16, marginRight: 6, objectFit: 'contain'}}/>;
-                           }
-                           return null;
+                          const vt = vehicleTypes?.find((v: any) => v.typeName === scanData.vehicleType);
+                          if (vt && vt.iconUrl) {
+                            return <img src={getImageUrl(vt.iconUrl)} style={{ width: 16, height: 16, marginRight: 6, objectFit: 'contain' }} />;
+                          }
+                          return null;
                         })()}
                         {scanData.vehicleType}
                       </Tag>
@@ -563,19 +563,19 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   <div className={`p-2 rounded-lg shadow-sm flex-none flex flex-col gap-1 border overflow-hidden ${scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
                     <div className="font-bold flex items-center justify-between text-xs">
                       <div className="flex items-center">
-                        {scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' ? <WarningOutlined className="mr-1 text-sm"/> : <CheckCircleOutlined className="mr-1 text-sm"/>} 
-                         
-                                                                    WARNING / NOTE:
-                                                                  </div>
+                        {scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' ? <WarningOutlined className="mr-1 text-sm" /> : <CheckCircleOutlined className="mr-1 text-sm" />}
+
+                        WARNING / NOTE:
+                      </div>
                     </div>
                     <div className="flex-1 overflow-hidden min-h-[30px] text-xs">
                       {scanData.customerType === 'BOOK' && (
                         <div className="mb-1 font-medium">
                           <strong>Guests who book in advance:</strong><br />
-                          
-                                                                          • Estimated arrival time: {scanData.bookedTimeIn}<br />
-                          
-                                                                          • Estimated departure time: {scanData.bookedTimeOut}
+
+                          • Estimated arrival time: {scanData.bookedTimeIn}<br />
+
+                          • Estimated departure time: {scanData.bookedTimeOut}
                         </div>
                       )}
                       {scanData.warnings?.length > 0 ? (
@@ -599,17 +599,17 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   <div className="flex flex-col gap-2 flex-1 min-h-0 mt-2">
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex flex-col items-center justify-center flex-1">
                       <Text className="text-green-700 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate IN</Text>
-                      <Input 
-                        value={scanData.plateNumberIn} 
+                      <Input
+                        value={scanData.plateNumberIn}
                         disabled
                         className="w-full text-2xl h-10 font-mono text-center font-bold uppercase rounded border-green-300 bg-green-100 text-green-800"
                       />
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-inner flex-1">
                       <Text className="text-blue-700 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate Ra (Edit if wrong)</Text>
-                      <Input 
-                        value={editablePlate} 
-                        onChange={(e) => setEditablePlate(normalizePlateNumber(e.target.value))} 
+                      <Input
+                        value={editablePlate}
+                        onChange={(e) => setEditablePlate(normalizePlateNumber(e.target.value))}
                         className="w-full text-2xl h-10 font-mono text-center font-bold uppercase rounded border-2 border-blue-400 focus:border-blue-600 bg-white text-slate-900"
                       />
                     </div>
@@ -619,15 +619,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   {scanData.plateNumberIn && scanData.plateNumberIn !== 'UNKNOWN' && editablePlate && scanData.plateNumberIn.toUpperCase() !== editablePlate.toUpperCase() && (
                     <div className="mt-2 bg-red-100 border-2 border-red-500 text-red-700 px-3 py-2 rounded-lg flex items-center justify-center font-bold text-sm animate-pulse shadow-sm">
                       <WarningOutlined className="mr-2 text-lg" />
-                      
-                                                              WARNING: The Outgoing License Plate DOES NOT MATCH THE IN!
-                                                            </div>
+
+                      WARNING: The Outgoing License Plate DOES NOT MATCH THE IN!
+                    </div>
                   )}
                 </div>
 
                 {/* Internal Right: Billing & Payment */}
                 <div className="w-full xl:w-1/2 flex flex-col bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4 relative overflow-hidden">
-                  
+
                   {/* EXPIRATION OVERLAY */}
                   {isExpired && scanData && (
                     <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
@@ -653,7 +653,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                     </div>
                   )}
                   <div className="mb-4">
-                    <FeeBreakdown 
+                    <FeeBreakdown
                       durationMinutes={duration}
                       customerType={scanData.customerType}
                       expectedFee={scanData.expectedFee || scanData.feeBase || 0}
@@ -677,8 +677,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
                   {/* Payment Radio */}
                   <div className="mt-6">
-                    <Radio.Group 
-                      value={paymentMethod} 
+                    <Radio.Group
+                      value={paymentMethod}
                       onChange={(e) => {
                         setPaymentMethod(e.target.value);
                         if (handleRefreshPriceRef.current) {
@@ -707,26 +707,26 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                             )}
                             <Text type="secondary" className="font-bold text-[9px] uppercase mt-2 text-center">Customer scans {paymentMethod} code</Text>
                             {paymentUrl && paymentMethod !== 'PAYOS' && (
-                              <Button 
-                                type="primary" 
-                                size="small" 
-                                className="mt-2 bg-blue-600 w-full font-bold text-xs" 
+                              <Button
+                                type="primary"
+                                size="small"
+                                className="mt-2 bg-blue-600 w-full font-bold text-xs"
                                 onClick={() => window.open(paymentUrl, '_blank')}
                               >
                                 Open Payment Link
                               </Button>
                             )}
                             {paymentUrl && (
-                                <Button 
-                                  type="link" 
-                                  size="small"
-                                  onClick={handleManualVerify} 
-                                  loading={isVerifying}
-                                  disabled={verifyCooldown > 0}
-                                  className={`mt-1 w-full font-bold text-[10px] ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
-                                >
-                                  {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'Verify Status'}
-                                </Button>
+                              <Button
+                                type="link"
+                                size="small"
+                                onClick={handleManualVerify}
+                                loading={isVerifying}
+                                disabled={verifyCooldown > 0}
+                                className={`mt-1 w-full font-bold text-[10px] ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}
+                              >
+                                {verifyCooldown > 0 ? `Please wait ${verifyCooldown}s to verify again` : 'Verify Status'}
+                              </Button>
                             )}
                           </>
                         ) : (
@@ -745,7 +745,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                 </div>
               </>
             ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400">
+              <div className="w-full h-full flex items-center justify-center text-slate-400">
                 <Text className="font-bold tracking-widest text-lg uppercase text-slate-300">Waiting for data...</Text>
               </div>
             )}
@@ -753,36 +753,35 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
           {/* Fixed Actions Area (Fixed h-[88px]) */}
           <div className="flex-none h-[88px] px-3 pt-2 pb-3 border-t border-slate-200 bg-white flex gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] relative z-10">
-            <Button 
-              size="large" 
+            <Button
+              size="large"
               danger
               icon={<CloseCircleOutlined />}
               className="h-full flex-1 text-lg font-bold rounded-lg border-2 border-red-500 text-red-600 hover:bg-red-50 transition-colors"
               disabled={!scanData}
               onClick={handleCancel}
             >
-              
-                                      Cancel
-                                    </Button>
-            <Button 
-              type="primary" 
-              size="large" 
-              className={`h-full flex-[2] text-xl font-bold rounded-lg shadow-lg border-b-4 active:border-b-0 active:translate-y-1 transition-all ${
-                (scanData?.status === 'LOCKED') 
+
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              size="large"
+              className={`h-full flex-[2] text-xl font-bold rounded-lg shadow-lg border-b-4 active:border-b-0 active:translate-y-1 transition-all ${(scanData?.status === 'LOCKED')
                   ? 'bg-red-800 border-red-900 cursor-not-allowed opacity-80'
                   : isInvalidEntry || isPlateMismatch
                     ? 'bg-slate-600 border-slate-700 cursor-not-allowed opacity-80'
-                    : (paymentMethod !== 'CASH' && !paymentConfirmed) 
-                      ? 'bg-slate-400 border-slate-500 cursor-not-allowed' 
+                    : (paymentMethod !== 'CASH' && !paymentConfirmed)
+                      ? 'bg-slate-400 border-slate-500 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-500 border-green-800 animate-pulse'
-              }`}
+                }`}
               disabled={(!scanData) || isInvalidEntry || isPlateMismatch || (paymentMethod !== 'CASH' && !paymentConfirmed) || (scanData?.status === 'LOCKED')}
               loading={isLoading}
               onClick={handleCompletePaymentAndOpen}
             >
-              {scanData?.status === 'LOCKED' ? '🔒 LOCKED - Resolve Incident first' : 
-                (isInvalidEntry ? '❌ NO ENTRY RECORD - Use Exception Desk' : 
-                  (isPlateMismatch ? '❌ PLATE MISMATCH - Use Exception Desk' : 
+              {scanData?.status === 'LOCKED' ? '🔒 LOCKED - Resolve Incident first' :
+                (isInvalidEntry ? '❌ NO ENTRY RECORD - Use Exception Desk' :
+                  (isPlateMismatch ? '❌ PLATE MISMATCH - Use Exception Desk' :
                     (paymentMethod === 'CASH' ? 'Collect money & Open the gate' : 'Confirm & Open the gate')
                   )
                 )

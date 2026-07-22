@@ -555,7 +555,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                             <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
                           </Form.Item>
                           <Form.Item label="Tải ảnh lên (Tùy chọn)">
-                            <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture">
+                            <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
                               <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
                             </Upload>
                           </Form.Item>
@@ -770,7 +770,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                   <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p2Notes} onChange={e => setP2Notes(e.target.value)} placeholder="Ghi chú lại quá trình thu tiền & cho xe ra bãi" />
                                 </Form.Item>
                                 <Form.Item label="Tải ảnh bằng chứng (Biên lai thu tiền, CCCD,...)">
-                                  <Upload beforeUpload={f => { setP2File(f); return false; }} maxCount={1} listType="picture">
+                                  <Upload beforeUpload={f => { setP2File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
                                     <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
                                   </Upload>
                                 </Form.Item>
@@ -950,7 +950,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
             </Form.Item>
           {userRole === 'STAFF' && (
             <Form.Item label="Ảnh minh chứng (nếu có)">
-              <Upload beforeUpload={f => { setCancelFile(f); return false; }} maxCount={1} listType="picture">
+              <Upload beforeUpload={f => { setCancelFile(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
                 <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
               </Upload>
             </Form.Item>

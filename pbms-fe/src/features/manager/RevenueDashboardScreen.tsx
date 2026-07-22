@@ -478,6 +478,7 @@ const RevenueDashboardScreen: React.FC = () => {
           <Table.Column title="Biển số" dataIndex="plate" render={(val) => <span className="font-semibold text-slate-800">{val || 'N/A'}</span>} />
           <Table.Column title="Loại xe" dataIndex="vehicleType" />
           <Table.Column title="Cổng ra" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
+          <Table.Column title="Tiền đặt chỗ" dataIndex="reservationFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
           <Table.Column title="Tiền vé" dataIndex="baseFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
           <Table.Column title="Tiền lố giờ" dataIndex="overtimeFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
           <Table.Column title="Tiền phạt" dataIndex="penaltyFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />

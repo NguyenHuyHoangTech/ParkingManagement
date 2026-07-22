@@ -410,6 +410,9 @@ public class GateOperationService {
         info.setVehicleType(session.getVehicleType() != null ? session.getVehicleType().getTypeName() : "UNKNOWN");
         String rfidCode = session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null;
         String customerType = determineCustomerType(session.getPlate(), rfidCode, session.getVehicleType());
+        if (session.getReservation() != null && !"MONTHLY".equals(customerType)) {
+            customerType = "PREBOOKED";
+        }
         info.setCustomerType(customerType);
         info.setPicInPanorama(session.getPicInPanorama());
         info.setPicInFace(session.getPicInFace());

@@ -44,10 +44,12 @@ export const FeeBreakdown: React.FC<FeeBreakdownProps> = ({
 
       {customerType === 'PREBOOKED' ? (
         <>
-          <div className={`flex justify-between items-center ${labelClass}`}>
-            <span>Reservation Fee (Total):</span>
-            <span className={greenClass}>{isPaid ? 'Paid' : `${expectedFee.toLocaleString()} ₫`}</span>
-          </div>
+          {(isPaid || expectedFee > 0) && (
+            <div className={`flex justify-between items-center ${labelClass}`}>
+              <span>Reservation Fee (Total):</span>
+              <span className={greenClass}>{isPaid ? 'Paid' : `${expectedFee.toLocaleString()} ₫`}</span>
+            </div>
+          )}
           {overtimeMinutes > 0 ? (
             <div className={`flex justify-between items-center ${labelClass}`}>
               <span>Overtime fee ({overtimeMinutes} minute):</span>

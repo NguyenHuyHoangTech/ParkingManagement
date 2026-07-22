@@ -19,6 +19,7 @@ public class RevenueTransactionDTO {
     private BigDecimal baseFee;
     private BigDecimal overtimeFee;
     private BigDecimal penaltyFee;
+    private BigDecimal reservationFee;
     private BigDecimal totalFee;
     private String paymentMethod;
 }
