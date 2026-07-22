@@ -382,15 +382,27 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
   const handleCheckIn = async () => {
     if (!scanData || !activeGate) return;
+
+    const isPlateChanged = scanData.plateNumber && editablePlate && scanData.plateNumber.toUpperCase() !== editablePlate.toUpperCase();
+    const isTypeChanged = scanData.aiVehicleType && scanData.vehicleType && scanData.aiVehicleType !== scanData.vehicleType;
+
+    const dynamicWarnings = [...(scanData.warnings || [])];
+
+    if (isPlateChanged) {
+      dynamicWarnings.push(`License plate modified by staff from ${scanData.plateNumber} to ${editablePlate}`);
+    }
+    if (isTypeChanged) {
+      dynamicWarnings.push(`Vehicle type modified by staff from ${scanData.aiVehicleType} to ${scanData.vehicleType}`);
+    }
     
-    if (scanData.warnings && scanData.warnings.length > 0) {
+    if (dynamicWarnings.length > 0) {
       Modal.confirm({
         title: <span className="text-red-600 font-bold"><WarningOutlined className="mr-2" />Hệ thống ghi nhận Cảnh báo!</span>,
         content: (
           <div className="mt-4">
-            <p className="font-medium text-slate-700 mb-2">Phương tiện này đang có {scanData.warnings.length} cảnh báo:</p>
+            <p className="font-medium text-slate-700 mb-2">Phương tiện này đang có {dynamicWarnings.length} cảnh báo:</p>
             <ul className="list-disc pl-5 mb-4 space-y-1">
-              {scanData.warnings.map((w: string, idx: number) => (
+              {dynamicWarnings.map((w: string, idx: number) => (
                 <li key={idx} className="text-red-600">{w}</li>
               ))}
             </ul>
