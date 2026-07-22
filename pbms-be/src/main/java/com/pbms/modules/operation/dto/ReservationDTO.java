@@ -38,5 +38,6 @@ public class ReservationDTO {
     private BigDecimal refundAmount;
     private Long refundRequestId;
     private String rejectReason;
+    private String refundProofUrl;
 }
 

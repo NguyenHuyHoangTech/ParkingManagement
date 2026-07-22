@@ -578,6 +578,7 @@ public class ReservationService {
         BigDecimal refundAmount = BigDecimal.ZERO;
         Long refundRequestId = null;
         String rejectReason = null;
+        String refundProofUrl = null;
 
         if (psOpt.isPresent()) {
             com.pbms.modules.operation.domain.ParkingSession ps = psOpt.get();
@@ -601,6 +602,7 @@ public class ReservationService {
                 refundStatus = req.getStatus();
                 refundRequestId = req.getId();
                 rejectReason = req.getRejectReason();
+                refundProofUrl = req.getProofUrl();
             }
             penaltyFee = resFee.subtract(refundAmount);
         } else if ("COMPLETED_UNUSED".equals(reservation.getStatus())) {
@@ -628,6 +630,7 @@ public class ReservationService {
                 .refundAmount(refundAmount)
                 .refundRequestId(refundRequestId)
                 .rejectReason(rejectReason)
+                .refundProofUrl(refundProofUrl)
                 .build();
     }
 

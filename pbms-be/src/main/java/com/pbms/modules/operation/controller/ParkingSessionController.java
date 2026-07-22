@@ -142,9 +142,11 @@ public class ParkingSessionController {
                             refundRequestRepository.findByReferenceTypeAndReferenceId("RESERVATION", String.valueOf(r.getId()));
                     java.math.BigDecimal refundAmount = refundReq.map(req -> req.getRefundAmount()).orElse(null);
                     String refundStatus = refundReq.map(req -> req.getStatus()).orElse(null);
+                    String refundProofUrl = refundReq.map(req -> req.getProofUrl()).orElse(null);
                     
                     m.put("refundAmount", refundAmount);
                     m.put("refundStatus", refundStatus);
+                    m.put("refundProofUrl", refundProofUrl);
                     // forfeited = fee paid - refund
                     java.math.BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : java.math.BigDecimal.ZERO;
                     java.math.BigDecimal refund = refundAmount != null ? refundAmount : java.math.BigDecimal.ZERO;

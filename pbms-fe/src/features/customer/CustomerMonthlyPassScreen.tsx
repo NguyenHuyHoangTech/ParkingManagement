@@ -304,9 +304,10 @@ export const CustomerMonthlyPassScreen = () => {
                   size="large"
                   placeholder="Enter first and last name"
                   value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  className="rounded-lg h-12"
+                  disabled
+                  className="rounded-lg h-12 bg-slate-100 text-slate-500"
                 />
+                <Text className="text-xs text-slate-400 mt-1 block">Name is automatically taken from account. Update in Settings if needed.</Text>
               </div>
               <div>
                 <Text className="block font-bold mb-2 text-slate-700">Email to receive invoice:</Text>

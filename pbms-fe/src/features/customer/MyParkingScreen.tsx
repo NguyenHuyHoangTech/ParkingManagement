@@ -23,6 +23,7 @@ interface Booking {
   refundAmount?: number;
   refundRequestId?: number;
   rejectReason?: string;
+  refundProofUrl?: string;
   vehicleTypeId?: number;
   rfid?: string;
 }
@@ -56,6 +57,7 @@ interface HistoryRecord {
   refundAmount?: number;
   refundStatus?: string;
   forfeitedAmount?: number;
+  refundProofUrl?: string;
 }
 
 const { Title, Text } = Typography;
@@ -216,6 +218,7 @@ export const MyParkingScreen = () => {
               refundAmount: item.refundAmount || 0,
               refundStatus: item.refundStatus,
               forfeitedAmount: item.forfeitedAmount || 0,
+              refundProofUrl: item.refundProofUrl,
             };
           }
           // Normal parking session
@@ -832,6 +835,13 @@ export const MyParkingScreen = () => {
                           >
                             Resubmit Refund Request
                           </Button>
+                        </div>
+                      )}
+                      {displayStatus === 'CANCELLED_REFUNDED' && item.refundProofUrl && (
+                        <div className="mt-2 text-right">
+                          <a href={getImageUrl(item.refundProofUrl)} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm font-semibold flex items-center justify-end">
+                             <CheckCircleOutlined className="mr-1" /> Xem ảnh hoàn tiền
+                          </a>
                         </div>
                       )}
                     </div>
@@ -1528,6 +1538,13 @@ export const MyParkingScreen = () => {
                           <Text strong className={(record.refundAmount || 0) > 0 ? 'text-green-600' : 'text-slate-400'}>
                             {(record.refundAmount || 0) > 0 ? `+${(record.refundAmount || 0).toLocaleString()} VND` : 'Không có'}
                           </Text>
+                          {record.refundProofUrl && (
+                            <div className="mt-1">
+                              <a href={getImageUrl(record.refundProofUrl)} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs font-semibold">
+                                Xem ảnh hoàn tiền
+                              </a>
+                            </div>
+                          )}
                         </div>
                       </div>
                       {(record.forfeitedAmount || 0) > 0 && (
