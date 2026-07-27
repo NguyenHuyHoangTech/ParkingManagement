@@ -64,8 +64,29 @@ package com.pbms.modules.operation.controller;
  *     (ngược với Bước 3) được kích hoạt: Biến đối tượng Java thành một chuỗi JSON thuần túy 
  *     và bắn thẳng qua cáp mạng về lại cho Tool IoT. Kết thúc vòng đời luồng dữ liệu!
  * 
- * (Cấu trúc vòng đời tương tự cũng được áp dụng cho luồng Check-Out tại dòng 313, 
- *  báo cáo cảm biến tại dòng 174, tua thời gian tại dòng 228).
+ * PHỤ LỤC 1: HÀNH TRÌNH REQUEST CỦA LUỒNG CHECK-OUT (TƯƠNG TỰ BƯỚC 1 ĐẾN 5)
+ * - Minh chứng Handler: Dòng 357 `@PostMapping("/gates/checkout")`. Spring định tuyến tín hiệu xe ra vào hàm `simulateCheckOut`.
+ * - Minh chứng Deserialization: Dòng 358 `(@RequestBody CheckOutRequestDTO request)`. Jackson bóc tách JSON thành object `request` mang dữ liệu xe ra (biển số, thẻ).
+ * - Minh chứng Delegation: Dòng 363 `GateResponseDTO response = gateOperationService.triggerScanCheckOut(request);`. Controller ném cái `request` sang bộ não Service để nó tính toán giá tiền (nếu là vé lượt) rồi gán vào biến `response`.
+ * - Minh chứng Serialization: Dòng 367 `return ResponseEntity.ok(ApiResponse.success(response, ...));`. Đóng gói kết quả và trả về HTTP 200 OK cho máy quét cổng ra.
+ * 
+ * PHỤ LỤC 2: HÀNH TRÌNH REQUEST CỦA LUỒNG SENSOR UPDATE (CẬP NHẬT CHỖ TRỐNG)
+ * - Minh chứng Handler: Dòng 202 `@PostMapping("/sensors/update")`. Hứng tín hiệu từ cảm biến gắn tại từng ô đậu xe.
+ * - Minh chứng Deserialization: Dòng 203 `(@RequestBody SensorEventDto request)`. Bóc tách mã ô đỗ và trạng thái đè lên/rời đi.
+ * - Minh chứng Delegation: Dòng 205 `zoneMonitoringService.processSensorEvent(...)`. Giao việc cho Service đổi màu ô đỗ trên bản đồ.
+ * - Minh chứng Serialization: Dòng 207 `return ResponseEntity.ok(...)`. Báo lại cho cảm biến.
+ * 
+ * PHỤ LỤC 3: HÀNH TRÌNH REQUEST CỦA LUỒNG FAST FORWARD TIME (TUA THỜI GIAN)
+ * - Minh chứng Handler: Dòng 267 `@PostMapping("/time/fast-forward")`. Hứng lệnh tua thời gian từ Simulator.
+ * - Minh chứng Delegation đa tầng (Không có ở Check-In): 
+ *   + Dòng 282 `systemConfigService.saveOrUpdateConfigValue(...)`: Lưu độ lệch thời gian vào Cấu hình hệ thống.
+ *   + Dòng 288 `messagingTemplate.convertAndSend(...)`: Gọi công cụ WebSocket bắn tín hiệu Real-time bắt toàn bộ giao diện Web phải cập nhật lại đồng hồ hiển thị.
+ *   + Dòng 292 `eventPublisher.publishEvent(...)`: Dùng kiến trúc Event-Driven bắn 1 sự kiện ngầm trong nội bộ Backend (Ví dụ để đánh thức các hàm Dọn dẹp vé quá hạn).
+ * 
+ * PHỤ LỤC 4: HÀNH TRÌNH REQUEST ĐỒNG BỘ DỮ LIỆU (DATA SYNC VÀ DEBUG)
+ * - Minh chứng Handler (GET): Hàm `syncData` (dòng 382) và `debugSession` (dòng 220) khai báo `@GetMapping`. 
+ * - Minh chứng Tối ưu hóa: Dòng 383 `@Transactional(readOnly = true)`. Báo cho bộ máy Hibernate biết đây chỉ là lệnh SELECT (không có thao tác Ghi/Xóa dữ liệu) để nó tối ưu hóa RAM và khóa (Lock) của cơ sở dữ liệu.
+ * - Minh chứng Gom dữ liệu: Không có Service Delegation phức tạp. Các hàm này chỉ gọi trực tiếp các kho dữ liệu (như dòng 391 `slotRepository.findAll()`), nhét vào một cái túi bọc Hash Map khổng lồ và quăng ra bằng Jackson.
  * =========================================================================================
  */
 
@@ -132,20 +153,58 @@ import java.util.Map; // Giao diện (Interface) chung của các loại Map.
                                                   // dẫn này vào trước.
 public class IotHardwareController {
 
+    // =========================================================================
+    // NHÓM 1: CÁC "BỘ NÃO" XỬ LÝ LOGIC (SERVICES)
+    // =========================================================================
+    // Dùng để đổi màu ô đỗ trên bản đồ Web khi có xe đè lên cảm biến hồng ngoại.
     private final ZoneMonitoringService zoneMonitoringService;
+    
+    // Dịch vụ Lõi: Xử lý quy trình quẹt thẻ vào/ra, đối chiếu vé tháng, tính tiền, mở barie.
     private final GateOperationService gateOperationService;
+    
+    // =========================================================================
+    // NHÓM 2: CÁC "NHÀ KHO" TRUY VẤN DỮ LIỆU (REPOSITORIES)
+    // =========================================================================
+    // Kho chứa danh sách các ô đậu xe (để gom dữ liệu gửi cho Simulator vẽ bản đồ).
     private final SlotRepository slotRepository;
+    
+    // Kho chứa lịch sử các chuyến đỗ xe (Ai đang đậu ở đâu, mấy giờ vào, ảnh Base64).
     private final ParkingSessionRepository sessionRepository;
+    
+    // Kho chứa danh sách các khách hàng đã đặt chỗ trước trên App.
     private final ReservationRepository reservationRepository;
+    
+    // Kho chứa danh sách các cổng ra/vào (Gate In/Gate Out).
     private final GateRepository gateRepository;
+    
+    // Kho chứa danh sách các loại hình xe (Ô tô 4 chỗ, Xe máy...) để kiểm tra kích thước đỗ.
     private final VehicleTypeRepository vehicleTypeRepository;
+    
+    // Kho chứa thẻ nhựa RFID chưa ai dùng (để Simulator hiện danh sách giả lập quẹt thẻ).
     private final RfidCardRepository rfidCardRepository;
+    
+    // Kho chứa danh sách Tầng hầm/Tầng nổi (Để lấy kích thước hàng/cột cho lưới Grid 2D).
     private final FloorRepository floorRepository;
+    
+    // Kho chứa các Khu vực đỗ xe A, B, C (Để lấy tọa độ X, Y vẽ lên bản đồ).
     private final ZoneRepository zoneRepository;
+    
+    // Kho kiểm tra xem Cổng (Gate) này hiện tại có nhân viên bảo vệ nào đang trực không.
     private final StaffWorkSessionRepository staffWorkSessionRepository;
+    
+    // Kho kiểm tra xem khách này có mua vé tháng (để đi thẳng qua trạm) không.
     private final MonthlyTicketRepository monthlyTicketRepository;
+    
+    // =========================================================================
+    // NHÓM 3: CÁC CÔNG CỤ HỖ TRỢ CỦA SPRING BOOT
+    // =========================================================================
+    // Dùng để lấy và lưu cấu hình "Độ chênh lệch thời gian" khi tua nhanh (Fast-Forward).
     private final SystemConfigService systemConfigService;
+    
+    // Dùng để "bắn một phát súng" (Event) báo hiệu cho toàn hệ thống biết là giờ đã bị tua.
     private final ApplicationEventPublisher eventPublisher;
+    
+    // Dùng để bắn dữ liệu (ví dụ: giờ đồng hồ bị tua) thẳng lên màn hình Web (WebSocket Real-time).
     private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
@@ -371,23 +430,64 @@ public class IotHardwareController {
      * =========================================================================
      * API: ĐỒNG BỘ DỮ LIỆU CHUNG (DATA SYNC) CHO TOOL SIMULATOR
      * =========================================================================
-     * MỤC ĐÍCH:
-     * Vì chúng ta dùng Tool IoT giả lập để vẽ bản đồ 2D cho người test bấm,
-     * hàm này chỉ để "Gom" toàn bộ dữ liệu thô (Danh sách xe, bãi đỗ, vé tháng...)
-     * và nhét chung vào 1 cục (Map) trả về cho Tool giả lập để nó vẽ sơ đồ khởi
-     * tạo.
-     * Hàm này rất dài nhưng chỉ là Get Data bình thường, không xử lý logic phức
-     * tạp.
+     * MỤC ĐÍCH VÀ CƠ CHẾ HOẠT ĐỘNG:
+     * 
+     * 1. Ý nghĩa kinh doanh:
+     *    - Giao diện IoT Simulator (và Màn hình giám sát) là một bản đồ 2D phức tạp. 
+     *      Để vẽ được bản đồ này, nó cần biết toàn bộ thực trạng của bãi xe ngay tại giây phút này: 
+     *      có bao nhiêu ô đỗ, xe nào đang đậu ở ô nào, có bao nhiêu cổng đang mở.
+     *    - Hàm này đóng vai trò như một "Chiếc phễu khổng lồ", gom dữ liệu từ 9 bảng
+     *      Database khác nhau và trả về cho Client trong 1 lần gọi API duy nhất (Bulk Fetch) 
+     *      để giảm thiểu tối đa số lượng HTTP Request, tối ưu hóa băng thông mạng.
+     * 
+     * 2. Phân tích kỹ thuật (Tại sao phải biến đổi dữ liệu?):
+     *    - Thay vì trả về thẳng các Entity thô (ví dụ: `return slotRepository.findAll()`), 
+     *      bạn sẽ thấy code bên dưới dùng hàm `.map(...)` để tự tay bóc tách từng trường (ID, Name) 
+     *      nhét vào các `HashMap` nhỏ (kiến trúc DTO on-the-fly). Tại sao phải vất vả vậy?
+     *    - LÝ DO 1 (Tránh Infinite Recursion - Vòng lặp vô tận): 
+     *      Trong CSDL (Hibernate), bảng Slot nối với bảng Zone. Nếu quăng thẳng Entity Slot cho 
+     *      Jackson ép kiểu sang JSON, Jackson sẽ nhảy vào đọc Zone. Nhưng rủi thay, trong Zone 
+     *      lại chứa danh sách Slot... Jackson lại nhảy vào Slot, rồi lại sang Zone... Gây ra 
+     *      vòng lặp vô tận làm treo máy chủ (StackOverflow).
+     *    - LÝ DO 2 (Tránh LazyInitializationException): 
+     *      Hibernate mặc định chỉ tải dữ liệu cơ bản (Lazy Loading). Khi hàm này kết thúc, kết 
+     *      nối Database lập tức bị ngắt. Nếu lúc này Jackson mới bắt đầu cố lôi dữ liệu của bảng 
+     *      VehicleType (nằm trong Session) ra để dịch, hệ thống sẽ văng lỗi vì Database đã đóng.
+     *      Việc dùng `HashMap` ép Java phải móc dữ liệu ra ngay lập tức khi kết nối DB đang còn mở.
+     * 
+     * MÃ GIẢ CHI TIẾT TỪNG BƯỚC THỰC THI:
+     * 1. Khởi tạo một cái túi lớn `Map<String, Object> data = new HashMap<>()`.
+     * 2. Lấy Giờ hệ thống hiện tại (Có tính cả độ lệch nếu giảng viên đang dùng chức năng Fast-Forward).
+     * 3. Quét bảng Slot: Lọc bỏ các ô đỗ đã xóa, chỉ lấy các trường an toàn (id, name, status, zoneId) 
+     *    bỏ vào túi nhỏ, rồi gom nhét vào cái túi lớn.
+     * 4. Quét bảng Session (Xe đang đậu): Bóc tách biển số, ảnh chụp panorama, ID thẻ RFID... nhét vào túi lớn.
+     * 5. Quét lần lượt các bảng Reservation (Đặt chỗ), Gate (Cổng), Monthly Ticket (Vé tháng), 
+     *    Vehicle Type (Phân loại xe), Thẻ RFID rảnh, Tầng hầm, Khu vực đỗ xe...
+     * 6. Trả về toàn bộ túi dữ liệu khổng lồ đó bằng mã HTTP 200 OK.
      */
     @GetMapping("/data-sync")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Map<String, Object>>> syncData() {
         Map<String, Object> data = new HashMap<>();
 
-        // 1. Current System Time
+        /* 
+         * =========================================================
+         * PHẦN 1: ĐỒNG BỘ GIỜ HỆ THỐNG
+         * =========================================================
+         * Mục đích: Tool Simulator cần biết giờ của Backend (có thể đang bị tua nhanh).
+         * Hành động: Lấy giờ từ TimeProvider và nhét vào key "currentTime".
+         */
         data.put("currentTime", TimeProvider.now());
 
-        // 1. Slots (Mapped to Map to avoid deep nesting and lazy loading)
+        /*
+         * =========================================================
+         * PHẦN 2: DANH SÁCH Ô ĐẬU XE (SLOTS)
+         * =========================================================
+         * Hành động: Quét toàn bộ bảng Slot trong DB.
+         * Bộ lọc (Filter): Bỏ qua các Slot mồ côi (không có Zone) hoặc Zone đã bị xóa ("DELETED").
+         * Map (Ép kiểu): Nhặt ra ID, tên ô đỗ (A1, A2), trạng thái (trống, có xe).
+         * Ràng buộc: Chỉ lấy ra `zone.getId()` chứ tuyệt đối không lấy nguyên object `zone` để tránh Infinite Recursion.
+         */
         data.put("slots", slotRepository.findAll().stream()
                 .filter(s -> s.getZone() != null && !"DELETED".equals(s.getZone().getStatus()))
                 .map(s -> {
@@ -401,7 +501,18 @@ public class IotHardwareController {
                     return map;
                 }).toList());
 
-        // 3. Active Sessions (Mapped to avoid infinite recursion)
+        /*
+         * =========================================================
+         * PHẦN 3: DANH SÁCH XE ĐANG TRONG BÃI (ACTIVE SESSIONS)
+         * =========================================================
+         * Hành động: Quét bảng ParkingSession.
+         * Bộ lọc: Chỉ lấy xe đang đậu ("ACTIVE") hoặc xe bị khóa ("LOCKED"). Xe đã ra khỏi bãi (COMPLETED) thì vứt.
+         * Map (Bóc tách dữ liệu sâu):
+         * - Nhặt các trường cơ bản: Biển số, giờ vào, ảnh Base64.
+         * - Flatten (làm phẳng) dữ liệu tầng (Floor): Lấy `gateIn.getFloor().getId()`.
+         * - Làm phẳng dữ liệu Thẻ RFID: Thay vì trả object RfidCard, ta tự tạo `rfidMap` chỉ chứa 2 mã Code và ID.
+         * - Nếu không bóc tách thủ công thế này, Jackson sẽ cố đọc `GateIn` -> đọc `Floor` -> gây tràn RAM.
+         */
         data.put("activeSessions", sessionRepository.findAll().stream()
                 .filter(s -> "ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus()))
                 .map(s -> {
@@ -436,7 +547,15 @@ public class IotHardwareController {
                 })
                 .toList());
 
-        // 4. Reservations (Mapped to avoid infinite recursion)
+        /*
+         * =========================================================
+         * PHẦN 4: DANH SÁCH ĐẶT CHỖ TRƯỚC (RESERVATIONS)
+         * =========================================================
+         * Hành động: Quét bảng Reservation.
+         * Bộ lọc: Khách đang chờ ("PENDING") hoặc đang sử dụng ("ACTIVE").
+         * Map: Bóc tách thông tin khách đã đặt cọc bao nhiêu (reservationFee), biển số xe đã đăng ký (vehicle.plateNumber),
+         * và khu vực họ muốn đậu (zoneName).
+         */
         data.put("reservations", reservationRepository.findAll().stream()
                 .filter(r -> "ACTIVE".equals(r.getStatus()) || "PENDING".equals(r.getStatus()))
                 .map(r -> {
@@ -470,7 +589,16 @@ public class IotHardwareController {
                 })
                 .toList());
 
-        // 5. Gates (Mapped)
+        /*
+         * =========================================================
+         * PHẦN 5: DANH SÁCH CÁC CỔNG (GATES) - KÈM TRẠNG THÁI NHÂN VIÊN
+         * =========================================================
+         * Hành động: Quét bảng Gate.
+         * Logic nghiệp vụ quan trọng: Simulator cần biết cổng nào đang mở và có bảo vệ trực.
+         * - Gọi thêm `staffWorkSessionRepository` để dò xem có Ca làm việc nào đang "ACTIVE" tại cái cổng này không.
+         * - Nếu có (`isPresent()`), gán cờ `hasStaff = true` và báo loại cổng (Vào hay Ra).
+         * - Nếu không, gán `gateType = NONE` để vẽ cổng màu xám (tắt).
+         */
         data.put("gates", gateRepository.findAll().stream().map(g -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", g.getId());
@@ -489,7 +617,13 @@ public class IotHardwareController {
             return map;
         }).toList());
 
-        // 6. Monthly Tickets
+        /*
+         * =========================================================
+         * PHẦN 6: DANH SÁCH VÉ THÁNG (MONTHLY TICKETS)
+         * =========================================================
+         * Lấy danh sách biển số xe đã đăng ký vé tháng còn hiệu lực ("ACTIVE").
+         * Bóc tách thêm Tên khách hàng (FullName) để nếu xe này vào bãi, Frontend hiện được chữ "Xin chào anh Nguyễn Văn A".
+         */
         data.put("monthlyTickets", monthlyTicketRepository.findAll().stream()
                 .filter(m -> "ACTIVE".equals(m.getStatus()))
                 .map(m -> {
@@ -511,7 +645,13 @@ public class IotHardwareController {
                     return map;
                 }).toList());
 
-        // 7. Vehicle Types (Mapped)
+        /*
+         * =========================================================
+         * PHẦN 7: DANH SÁCH PHÂN LOẠI XE (VEHICLE TYPES)
+         * =========================================================
+         * Quét bảng VehicleType. Nhặt ra thông số kích thước ô đỗ (matrixWidth, matrixHeight) 
+         * để Simulator tính toán xem xe to (như xe khách) có nhét vừa ô đỗ nhỏ (xe máy) hay không.
+         */
         data.put("vehicleTypes", vehicleTypeRepository.findAll().stream().map(v -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", v.getId());
@@ -522,12 +662,25 @@ public class IotHardwareController {
             return map;
         }).toList());
 
-        // 7. Available RFID Cards
+        /*
+         * =========================================================
+         * PHẦN 8: DANH SÁCH THẺ RFID ĐANG RẢNH (AVAILABLE CARDS)
+         * =========================================================
+         * Mục đích: Simulator cần 1 danh sách Dropdown chứa các thẻ nhựa chưa ai dùng 
+         * để người test chọn và giả lập quẹt thẻ cho khách vãng lai.
+         * Dùng hàm `.map(c -> c.getCardCode())` để biến một Object cồng kềnh thành 1 Mảng chuỗi (String Array) đơn giản.
+         */
         data.put("availableCards", rfidCardRepository.findByStatus("AVAILABLE").stream()
                 .map(c -> c.getCardCode())
                 .toList());
 
-        // 8. Floors
+        /*
+         * =========================================================
+         * PHẦN 9: DANH SÁCH TẦNG (FLOORS) VÀ KÍCH THƯỚC BẢN ĐỒ
+         * =========================================================
+         * Nhặt ra số lượng Cột (mapCols) và Hàng (mapRows).
+         * Đây là số liệu cực kỳ quan trọng để Frontend vẽ một cái lưới Grid 2D (ví dụ 10x20 ô) để thả các Slot vào.
+         */
         data.put("floors", floorRepository.findAll().stream().map(f -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", f.getId());
@@ -538,7 +691,13 @@ public class IotHardwareController {
             return map;
         }).toList());
 
-        // 9. Zones
+        /*
+         * =========================================================
+         * PHẦN 10: DANH SÁCH KHU VỰC (ZONES) VÀ TỌA ĐỘ BẢN ĐỒ
+         * =========================================================
+         * Nhặt ra Tọa độ X (layoutX), Tọa độ Y (layoutY) và Góc xoay (rotation).
+         * Dữ liệu này dùng để Frontend đặt chính xác khu vực A, B, C vào đúng tọa độ trên lưới Grid 2D.
+         */
         data.put("zones", zoneRepository.findAll().stream()
                 .filter(z -> !"DELETED".equals(z.getStatus()))
                 .map(z -> {
