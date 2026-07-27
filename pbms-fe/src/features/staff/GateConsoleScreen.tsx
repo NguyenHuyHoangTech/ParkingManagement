@@ -9,8 +9,8 @@ import { GateOutConsoleScreen } from './GateOutConsoleScreen';
 
 const { Title } = Typography;
 
-class InlineErrorBoundary extends React.Component<{children: any}, {hasError: boolean, error: any, info: any}> {
-  state: {hasError: boolean, error: any, info: any} = { hasError: false, error: null, info: null };
+class InlineErrorBoundary extends React.Component<{ children: any }, { hasError: boolean, error: any, info: any }> {
+  state: { hasError: boolean, error: any, info: any } = { hasError: false, error: null, info: null };
   static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
   componentDidCatch(error: any, errorInfo: any) { this.setState({ error, info: errorInfo }); console.error("GateConsoleScreen Error:", String(error), (errorInfo as any).componentStack); }
   render() {
@@ -37,7 +37,7 @@ export const GateConsoleScreen = () => {
   const [isShiftActive, setIsShiftActive] = useState(false);
   const [activeGate, setActiveGate] = useState<any>(null);
 
-    const { connected, stompClient } = useWebSocket();
+  const { connected, stompClient } = useWebSocket();
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
   const setAuthShiftStatus = useAuthStore((state) => state.setShiftStatus);
 
@@ -116,10 +116,10 @@ export const GateConsoleScreen = () => {
   }
 
   const selectedGateType = sessionStorage.getItem('activeGateType');
-  const isEntryMode = ['ENTRY', 'IN'].includes(selectedGateType || '') 
-    ? true 
-    : ['EXIT', 'OUT'].includes(selectedGateType || '') 
-      ? false 
+  const isEntryMode = ['ENTRY', 'IN'].includes(selectedGateType || '')
+    ? true
+    : ['EXIT', 'OUT'].includes(selectedGateType || '')
+      ? false
       : activeGate.type === 'IN';
 
   return (
