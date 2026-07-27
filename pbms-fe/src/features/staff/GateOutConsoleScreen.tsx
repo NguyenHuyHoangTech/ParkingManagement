@@ -168,7 +168,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
             durationMinutes: info.durationMinutes || 0,
             isBlacklisted: false,
-            warnings: [],
+            warnings: info.warnings || [],
             rfid: info.rfid || payload.rfid || '---',
             customerType: info.customerType || 'Haunt',
             vehicleType: info.vehicleType || 'UNKNOWN',
@@ -568,7 +568,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                         WARNING / NOTE:
                       </div>
                     </div>
-                    <div className="flex-1 overflow-hidden min-h-[30px] text-xs">
+                    <div className="flex-1 overflow-y-auto max-h-[80px] min-h-[30px] text-xs custom-scrollbar">
                       {scanData.customerType === 'BOOK' && (
                         <div className="mb-1 font-medium">
                           <strong>Guests who book in advance:</strong><br />
@@ -580,7 +580,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       )}
                       {scanData.warnings?.length > 0 ? (
                         <ul className="list-disc pl-6 m-0">
-                          {(scanData.warnings || []).map((w: string, idx: number) => <li key={idx} className="font-medium truncate" title={w}>{w}</li>)}
+                          {(scanData.warnings || []).map((w: string, idx: number) => <li key={idx} className="font-medium" title={w}>{w}</li>)}
                         </ul>
                       ) : (
                         scanData.customerType !== 'BOOK' && <span className="text-green-600 font-medium">The car does not have any fines or warnings</span>

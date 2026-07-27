@@ -81,4 +81,7 @@ public class CheckOutSessionInfoDTO {
 
     /** Trạng thái hiện tại của phiên đỗ xe (Ví dụ: ACTIVE, LOCKED, COMPLETED) */
     private String status;
+
+    /** Danh sách các cảnh báo (VD: Thẻ mất, Thẻ hỏng, Vi phạm khu vực, v.v...) */
+    private java.util.List<String> warnings;
 }

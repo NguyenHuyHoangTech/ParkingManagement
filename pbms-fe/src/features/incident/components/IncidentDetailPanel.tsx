@@ -33,6 +33,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const [p1File, setP1File] = useState<any>(null);
   const [p1FineAmount, setP1FineAmount] = useState<number | undefined>(ticket.fineAmount || 0);
   const [p1DiscountAmount, setP1DiscountAmount] = useState<number>(0);
+  const [damageCausePhase1, setDamageCausePhase1] = useState<'USER' | 'NATURAL'>('NATURAL');
 
   // Phase 2 Staff States
   const [p2Notes, setP2Notes] = useState('');
@@ -109,7 +110,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       const res = await axiosClient.get('/system/configs');
       return res.data.data;
     },
-    enabled: ticket.type === 'DAMAGED_CARD' && ticket.phase === 2
+    enabled: ['DAMAGED_CARD', 'LOST_CARD'].includes(ticket.type)
   });
 
   const getDamagedCardPenalty = () => {
@@ -118,12 +119,34 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     return cfg ? Number(cfg.configValue) : 50000;
   };
 
+  const getLostCardPenalty = () => {
+    if (!systemConfigs) return 200000;
+    const cfg = systemConfigs.find((c: any) => c.configKey === 'PENALTY_LOST_CARD');
+    return cfg ? Number(cfg.configValue) : 200000;
+  };
+
   useEffect(() => {
-    if (ticket && ticket.type === 'DAMAGED_CARD' && ticket.fineAmount > 0) {
-      setDamageCausePhase2('USER');
+    if (ticket && ticket.type === 'DAMAGED_CARD') {
+      if (ticket.phase === 2 && ticket.fineAmount > 0) {
+        setDamageCausePhase2('USER');
+      }
+      if (ticket.phase === 1) {
+        setDamageCausePhase1(ticket.fineAmount > 0 ? 'USER' : 'NATURAL');
+      }
     }
-    setP1FineAmount(ticket.fineAmount || 0);
-  }, [ticket]);
+    
+    if (ticket && ticket.phase === 1) {
+      if (ticket.type === 'LOST_CARD') {
+        setP1FineAmount(ticket.fineAmount > 0 ? ticket.fineAmount : getLostCardPenalty());
+      } else if (ticket.type === 'DAMAGED_CARD') {
+        setP1FineAmount(ticket.fineAmount || 0);
+      } else {
+        setP1FineAmount(ticket.fineAmount || 0);
+      }
+    } else {
+      setP1FineAmount(ticket.fineAmount || 0);
+    }
+  }, [ticket, systemConfigs]);
 
   const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER', 'LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
 
@@ -142,7 +165,8 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     // Reset states when ticket changes
     setP1Notes('');
     setP1File(null);
-    setP1FineAmount(ticket.fineAmount || 0);
+    setP1FineAmount(ticket.type === 'LOST_CARD' ? getLostCardPenalty() : (ticket.fineAmount || 0));
+    setDamageCausePhase1('NATURAL');
     setP2Notes('');
     setP2File(null);
     setFeeDiscount(0);
@@ -539,7 +563,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                               )}
                             </>
                           )}
-                          {['OTHER', 'LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type) && (
+                          {ticket.type === 'OTHER' && (
                             <Form.Item label="Số tiền phạt (VND) - Bắt buộc nhập" required className="mt-4 font-medium">
                               <InputNumber 
                                 className="w-full" 
@@ -551,7 +575,32 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                               />
                             </Form.Item>
                           )}
-                          <Form.Item label="Ghi chú (gửi cho khách)">
+                          
+                          {ticket.type === 'LOST_CARD' && (
+                            <Form.Item label="Số tiền phạt (VND)" className="mt-4 font-medium">
+                              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                                <span className="text-red-600 font-bold text-lg">{getLostCardPenalty().toLocaleString()} đ</span>
+                                <span className="text-gray-500 text-sm ml-2">(Mức phạt cố định theo hệ thống)</span>
+                              </div>
+                            </Form.Item>
+                          )}
+
+                          {ticket.type === 'DAMAGED_CARD' && (
+                            <Form.Item label="Xác nhận nguyên nhân hỏng thẻ (Cập nhật phí phạt)" className="mt-4 font-medium">
+                              <Radio.Group 
+                                value={damageCausePhase1} 
+                                onChange={(e) => {
+                                  setDamageCausePhase1(e.target.value);
+                                  setP1FineAmount(e.target.value === 'USER' ? getDamagedCardPenalty() : 0);
+                                }}
+                                className="flex flex-col gap-3"
+                              >
+                                <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên (0 đ)</span></Radio>
+                                <Radio value="USER"><span className="text-base text-red-600 font-medium">Do khách hàng (Thu phí: {getDamagedCardPenalty().toLocaleString()} đ)</span></Radio>
+                              </Radio.Group>
+                            </Form.Item>
+                          )}
+                          <Form.Item label="Ghi chú (gửi cho khách)" className="mt-4">
                             <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
                           </Form.Item>
                           <Form.Item label="Tải ảnh lên (Tùy chọn)">
@@ -914,7 +963,10 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
 
       {/* Footer - Hủy */}
       {(() => {
-        const canCancel = (ticket.status === 'PENDING' || (ticket.status === 'WAITING_CHECKOUT' && isManager)) && ticket.type !== 'LPR_MISMATCH';
+        const isMismatch = ['LPR_MISMATCH', 'TYPE_MISMATCH', 'MULTIPLE_MISMATCH'].includes(ticket.type);
+        const isCardIncident = ['LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
+        const isActive = ticket.status === 'PENDING' || ticket.status === 'WAITING_CHECKOUT';
+        const canCancel = !isMismatch && isActive && (isCardIncident || ticket.status === 'PENDING' || isManager);
         if (!canCancel) return null;
         return (
           <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">

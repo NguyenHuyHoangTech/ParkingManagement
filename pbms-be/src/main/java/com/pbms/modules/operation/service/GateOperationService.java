@@ -517,10 +517,20 @@ public class GateOperationService {
             info.setOvertimeMinutes(0L);
         }
 
+        java.util.List<String> warnings = new java.util.ArrayList<>();
         java.math.BigDecimal penaltyFee = incidentTicketRepository.findBySessionId(session.getId()).stream()
-                .map(ticket -> ticket.getFineAmount())
+                .map(ticket -> {
+                    if ("LOST_CARD".equals(ticket.getIssueType())) warnings.add("Thẻ đã bị báo mất");
+                    else if ("DAMAGED_CARD".equals(ticket.getIssueType())) warnings.add("Thẻ đã bị báo hỏng");
+                    else if ("ZONE_VIOLATION".equals(ticket.getIssueType())) warnings.add("Vi phạm khu vực đỗ");
+                    else if ("BLACKLIST_VIOLATION".equals(ticket.getIssueType())) warnings.add("Xe nằm trong danh sách đen");
+                    else warnings.add("Sự cố: " + ticket.getIssueType());
+                    return ticket.getFineAmount();
+                })
                 .filter(java.util.Objects::nonNull)
                 .reduce(java.math.BigDecimal.ZERO, (a, b) -> a.add(b));
+
+        info.setWarnings(warnings);
 
         if (session.getDiscount() != null) {
             info.setDiscountFee(session.getDiscount());
