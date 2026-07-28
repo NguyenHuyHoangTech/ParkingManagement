@@ -207,6 +207,23 @@ public class IotHardwareController {
     // Dùng để bắn dữ liệu (ví dụ: giờ đồng hồ bị tua) thẳng lên màn hình Web (WebSocket Real-time).
     private final SimpMessagingTemplate messagingTemplate;
 
+    /**
+     * =========================================================================
+     * CONSTRUCTOR INJECTION (KỸ THUẬT TIÊM PHỤ THUỘC)
+     * =========================================================================
+     * Bối cảnh: Khi đọc code, bạn có thể thắc mắc "Tại sao không dùng từ khóa `new` 
+     * (ví dụ: `new GateOperationService()`) mà lại phải truyền tham số dài dằng dặc thế này?"
+     * 
+     * Giải thích: 
+     * - Khối code này thể hiện cơ chế Dependency Injection (DI) - xương sống của Spring Boot. 
+     * - Annotation `@Autowired` là mệnh lệnh gửi tới Spring Container: "Khi khởi động Server, 
+     *   hãy đúc (instantiate) sẵn 15 cái Service và Repository kia để trên RAM, sau đó tự động 
+     *   'tiêm' (bơm) chúng vào cái Constructor này cho tôi".
+     * - Lợi ích (Best Practice): Việc viết Constructor như thế này kết hợp với từ khóa `final` 
+     *   ở trên giúp đảm bảo rằng 15 món đồ nghề này một khi đã tiêm vào là dính chặt, không 
+     *   bị một hàm rác nào đó vô tình đổi giá trị làm sập hệ thống (Thread-safe). Đồng thời, 
+     *   nó giúp việc viết Unit Test cực kỳ dễ dàng (chỉ việc tạo Mock Object truyền vào).
+     */
     @Autowired
     public IotHardwareController(ZoneMonitoringService zoneMonitoringService,
             GateOperationService gateOperationService,

@@ -33,6 +33,94 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * =========================================================================================
+ * CHI TIẾT VÒNG ĐỜI VÀ KIẾN TRÚC XỬ LÝ REQUEST CỦA HỆ THỐNG (KÈM MINH CHỨNG CODE)
+ * (Trình bày chi tiết luồng dữ liệu ánh xạ trực tiếp vào các dòng code trong file này)
+ * 
+ * LƯU Ý QUAN TRỌNG: File này thiết kế theo kiến trúc "Human-in-the-loop" (Có nhân viên xác nhận). 
+ * Hệ thống KHÔNG tự động mở cổng ngay khi Camera AI quét xong, mà chia làm 2 giai đoạn: 
+ * Giai đoạn Trigger (Bắn nháp lên màn hình) và Giai đoạn Process (Lưu thật vào DB).
+ * =========================================================================================
+ * 
+ * BƯỚC 1: KHỞI TẠO BỘ NÃO VÀ TIÊM PHỤ THUỘC (DEPENDENCY INJECTION)
+ * - Minh chứng 1: Dòng 90 có khai báo `@Service`. Báo cho Spring Boot biết đây là một Bộ não 
+ *   (Service Bean) xử lý nghiệp vụ lõi, cần được đúc sẵn trên RAM.
+ * - Minh chứng 2: Dòng 91 có `@RequiredArgsConstructor`. Lệnh của Lombok giúp tự động sinh ra 
+ *   Constructor để tiêm (Inject) 14 cái "Nhà kho". Đây chính là cách Service 
+ *   móc nối với Database (như `gateRepository`, `sessionRepository`) mà không cần dùng từ khóa `new`.
+ * 
+ * BƯỚC 2: TIẾP NHẬN YÊU CẦU TỪ LỄ TÂN (DELEGATION & BINDING)
+ * - Minh chứng: Tại dòng 234, hàm `public GateResponseDTO triggerScanCheckIn(CheckInRequestDTO request)` 
+ *   được gọi từ Controller. Dữ liệu xe cộ (biển số, ảnh chụp) đã được bóc tách sẵn nằm gọn trong biến `request`.
+ * 
+ * BƯỚC 3: TRUY VẤN DỮ LIỆU THỰC TRẠNG (DATA FETCHING)
+ * - Minh chứng: Dòng 235 `Gate gate = gateRepository.findById(request.getGateId())`. Bộ não bắt đầu 
+ *   chọc vào CSDL để lấy thông tin chiếc cổng mà xe đang đứng chờ.
+ * 
+ * BƯỚC 4: THỰC THI LOGIC NGHIỆP VỤ LÕI (CORE BUSINESS LOGIC) - LÀM NHÁP
+ * - (Không lưu ngay vào Database, hệ thống sẽ tính toán toàn bộ kịch bản trước)
+ * - Minh chứng 1 (Phân loại khách): Dòng 247 `String customerType = determineCustomerType(...)`. 
+ *   Bộ não suy luận xem đây là khách có vé tháng, khách đã đặt chỗ hay khách vãng lai.
+ * - Minh chứng 2 (Tìm bãi thông minh): Dòng 256 gọi `suggestedZone = zoneRoutingService.suggestZone(...)`. 
+ *   Gọi trí tuệ nhân tạo (AI) tìm bãi trống phù hợp nhất (dựa trên loại xe và loại khách) để dẫn đường.
+ * - Minh chứng 3 (Kiểm tra danh sách đen): Dòng 305 chứa `vehicleRepository.findByPlateNumber(...)`. 
+ *   Quét xem biển số xe này có đang nợ tiền phạt hoặc bị cấm vào bãi không.
+ * 
+ * BƯỚC 5: GIAO TIẾP NGOẠI VI (WEB-SOCKET REALTIME)
+ * - Minh chứng: Dòng 327 `messagingTemplate.convertAndSend("/topic/gates/...", event);`. 
+ * - Khác với Controller là trả về HTTP 200, Service ở pha này đẩy thẳng kết quả nháp (event) qua WebSocket 
+ *   để bắn lên 2 file Frontend: `GateInConsoleScreen.tsx` (Màn hình cổng vào) và `GateOutConsoleScreen.tsx` 
+ *   (Màn hình cổng ra). (Kiến trúc Human-in-the-loop).
+ * 
+ * BƯỚC 6: NHÂN VIÊN XÁC NHẬN & LƯU DATABASE CHÍNH THỨC (PERSISTENCE)
+ * - Minh chứng 1 (Xác nhận): Dòng 677 `public GateResponseDTO processCheckIn(...)`. Hàm này CHỈ 
+ *   được kích hoạt khi nhân viên lấy mắt thường kiểm tra ảnh đúng biển số và bấm nút "Xác nhận" trên UI.
+ * - Minh chứng 2 (Chống trùng lặp): Dòng 797 `sessionRepository.findByPlateAndVehicleTypeIdAndStatus(...)`. 
+ *   Ngăn chặn lỗi xe ảo (Ví dụ 1 xe đang nằm trong bãi nhưng bị Camera cổng khác quét nhầm biển).
+ * - Minh chứng 3 (Lưu lịch sử): Dòng 823 `ParkingSession session = ParkingSession.builder()...` và 
+ *   ngay sau đó (dòng 840) là lệnh `sessionRepository.save(session)`. Đây là lúc dữ liệu chính thức khắc xuống ổ cứng.
+ * - Minh chứng 4 (Trả lệnh mở cổng): Cuối hàm (dòng 882), trả về lệnh `OPEN_BARRIER` cho IoT.
+ * PHỤ LỤC 1: LUỒNG CHECK-OUT (XE RA) ÁP DỤNG KIẾN TRÚC TƯƠNG TỰ
+ * - Tính toán nháp (Trigger): Hàm `triggerScanCheckOut(...)` (Bắn hóa đơn thu tiền lên màn hình).
+ * - Thu tiền thật (Process): Hàm `processCheckOut(...)` (Đóng Session, giải phóng ô đỗ và Mở cổng).
+ * 
+ * =========================================================================================
+ * PHỤ LỤC 2: DANH MỤC CÁC HÀM (METHODS) VÀ NƠI KÍCH HOẠT (CALLERS)
+ * =========================================================================================
+ * 
+ * [NHÓM 1: CÁC HÀM TRIGGER (LÀM NHÁP VÀ BẮN WEBSOCKET)]
+ * 1. triggerScanCheckIn(CheckInRequestDTO)
+ *    - Chức năng: Xử lý logic nháp lúc xe vào, tìm bãi trống, đẩy hình ảnh lên UI.
+ *    - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController (dòng 408).
+ * 2. triggerScanCheckOut(CheckOutRequestDTO)
+ *    - Chức năng: Xử lý logic nháp lúc xe ra, tạm tính tiền, đẩy hóa đơn lên UI.
+ *    - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController (dòng 439).
+ * 
+ * [NHÓM 2: CÁC HÀM PROCESS (CHỐT DATABASE SAU KHI NHÂN VIÊN XÁC NHẬN)]
+ * 3. processCheckIn(CheckInRequestDTO)
+ *    - Chức năng: Tạo mới ParkingSession, cập nhật trạng thái thẻ RFID, tạo vé phạt nếu cần.
+ *    - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng 31).
+ * 4. processCheckOut(CheckOutRequestDTO)
+ *    - Chức năng: Đóng ParkingSession, tính lại tiền lần cuối, giải phóng Zone, lưu Transaction.
+ *    - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng 37).
+ * 
+ * [NHÓM 3: CÁC HÀM TÀI CHÍNH & TRUY VẤN (TÍNH TOÁN, KHÔNG SỬA ĐỔI DB CHÍNH)]
+ * 5. getCheckOutSessionInfo(...) (2 hàm Overload)
+ *    - Chức năng: Truy xuất thông tin phiên đỗ xe hiện tại và tính toán tiền phí.
+ *    - Nơi gọi: Được gọi nội bộ và gọi từ GateConsoleController để lấy lại bảng giá trên màn hình.
+ * 6. calculateTotalAmount(CheckOutSessionInfoDTO)
+ *    - Chức năng: Phép cộng tổng (Phí đỗ + Phí quá giờ + Phí phạt - Giảm giá).
+ *    - Nơi gọi: Được gọi từ PaymentValidatorService (khi khách hàng thanh toán online bằng ví MoMo).
+ * 
+ * [NHÓM 4: CÁC HÀM HỖ TRỢ NỘI BỘ (PRIVATE HELPERS)]
+ * 7. determineCustomerType(): Xác định khách hàng là MONTHLY, PREBOOKED hay WALK-IN.
+ * 8. determineFeeStartTime(): Tính mốc thời gian bắt đầu tính tiền (quan trọng khi vé tháng hết hạn giữa chừng).
+ * 9. getValidPendingReservations(): Tìm xem khách này có đang đặt chỗ trước không.
+ * 10. saveAndBroadcast(IncidentTicket): Lưu sự cố (Ví dụ: khách đi lố giờ) và báo chuông cho màn hình bảo vệ.
+ * =========================================================================================
+ * 
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -74,17 +162,23 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Lọc và lấy danh sách các đơn đặt chỗ (Booking/Reservation) đang ở trạng thái PENDING và còn hiệu lực (không quá trễ, không quá sớm).
+     * Lọc và lấy danh sách các đơn đặt chỗ (Booking/Reservation) đang ở trạng thái
+     * PENDING và còn hiệu lực (không quá trễ, không quá sớm).
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Tìm tất cả Reservation của biển số xe có trạng thái PENDING.
-     * 2. Lấy cấu hình hệ thống `RESERVATION_EARLY_MINS` (số phút cho phép xe đến sớm, mặc định 30p).
+     * 2. Lấy cấu hình hệ thống `RESERVATION_EARLY_MINS` (số phút cho phép xe đến
+     * sớm, mặc định 30p).
      * 3. Duyệt qua từng đơn đặt chỗ:
-     *    - Tính thời gian hết hạn (expireTime) = Thời gian dự kiến vào + Thời lượng dự kiến.
-     *    - Tính thời gian bắt đầu cho phép vào (earlyWindow) = Thời gian dự kiến vào - windowMinutes.
-     *    - Nếu thời gian hiện tại > expireTime: Đơn đặt chỗ đã quá hạn -> Đổi trạng thái thành COMPLETED_UNUSED.
-     *    - Nếu thời gian hiện tại < earlyWindow: Xe đến quá sớm -> Không đưa vào danh sách hợp lệ.
-     *    - Ngược lại: Đơn đặt chỗ hợp lệ -> Thêm vào danh sách valid.
+     * - Tính thời gian hết hạn (expireTime) = Thời gian dự kiến vào + Thời lượng dự
+     * kiến.
+     * - Tính thời gian bắt đầu cho phép vào (earlyWindow) = Thời gian dự kiến vào -
+     * windowMinutes.
+     * - Nếu thời gian hiện tại > expireTime: Đơn đặt chỗ đã quá hạn -> Đổi trạng
+     * thái thành COMPLETED_UNUSED.
+     * - Nếu thời gian hiện tại < earlyWindow: Xe đến quá sớm -> Không đưa vào danh
+     * sách hợp lệ.
+     * - Ngược lại: Đơn đặt chỗ hợp lệ -> Thêm vào danh sách valid.
      * 4. Trả về danh sách đơn đặt chỗ hợp lệ.
      */
     private List<Reservation> getValidPendingReservations(String plate) {
@@ -114,13 +208,17 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Xác định loại khách hàng (Customer Type) dựa trên Biển số, mã thẻ RFID và loại xe.
+     * Xác định loại khách hàng (Customer Type) dựa trên Biển số, mã thẻ RFID và
+     * loại xe.
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Nếu biển số xe có dữ liệu:
-     *    a. Kiểm tra xe có vé tháng (MONTHLY) còn hạn và đúng loại xe hay không. Nếu có -> Trả về "MONTHLY".
-     *    b. Kiểm tra xe có đang có đơn đặt chỗ trạng thái ACTIVE không. Nếu có -> Trả về "PREBOOKED".
-     *    c. Kiểm tra xe có đơn đặt chỗ hợp lệ (PENDING) chưa sử dụng không. Nếu có -> Trả về "PREBOOKED".
+     * a. Kiểm tra xe có vé tháng (MONTHLY) còn hạn và đúng loại xe hay không. Nếu
+     * có -> Trả về "MONTHLY".
+     * b. Kiểm tra xe có đang có đơn đặt chỗ trạng thái ACTIVE không. Nếu có -> Trả
+     * về "PREBOOKED".
+     * c. Kiểm tra xe có đơn đặt chỗ hợp lệ (PENDING) chưa sử dụng không. Nếu có ->
+     * Trả về "PREBOOKED".
      * 2. Nếu không thuộc các trường hợp trên -> Trả về "WALK-IN" (Khách vãng lai).
      */
     private String determineCustomerType(String plate, String rfid, VehicleType type) {
@@ -149,17 +247,22 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Gửi tín hiệu quét thẻ/biển số (Check-IN) từ thiết bị cứng (Camera AI) lên giao diện Web của nhân viên (WebSocket).
+     * Gửi tín hiệu quét thẻ/biển số (Check-IN) từ thiết bị cứng (Camera AI) lên
+     * giao diện Web của nhân viên (WebSocket).
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Tìm thông tin cổng (Gate) và loại xe (VehicleType) theo request.
      * 2. Phân tích loại khách hàng (determineCustomerType).
-     * 3. Xử lý đặt chỗ (Booking): 
-     *    - Nếu có Booking: Kiểm tra loại xe có khớp không, có đến sớm không, và khu vực đậu xe còn chỗ không.
-     *    - Nếu khu vực đậu đã đầy -> Gọi AI (zoneRoutingService) tìm khu vực trống khác.
-     * 4. Kiểm tra cấu hình hệ thống `DISPLAY_ROUTING` có cho phép hiển thị tuyến đường đề xuất không.
+     * 3. Xử lý đặt chỗ (Booking):
+     * - Nếu có Booking: Kiểm tra loại xe có khớp không, có đến sớm không, và khu
+     * vực đậu xe còn chỗ không.
+     * - Nếu khu vực đậu đã đầy -> Gọi AI (zoneRoutingService) tìm khu vực trống
+     * khác.
+     * 4. Kiểm tra cấu hình hệ thống `DISPLAY_ROUTING` có cho phép hiển thị tuyến
+     * đường đề xuất không.
      * 5. Kiểm tra biển số có nằm trong danh sách đen (Blacklist) không.
-     * 6. Đóng gói dữ liệu (ScanEventDTO) và gửi qua WebSocket `/topic/gates/{gateId}/scans`.
+     * 6. Đóng gói dữ liệu (ScanEventDTO) và gửi qua WebSocket
+     * `/topic/gates/{gateId}/scans`.
      * 7. Trả về kết quả thành công cho thiết bị cứng.
      */
     public GateResponseDTO triggerScanCheckIn(CheckInRequestDTO request) {
@@ -268,7 +371,8 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Gửi tín hiệu quét thẻ/biển số (Check-OUT) từ thiết bị cứng (Camera AI) lên giao diện Web của nhân viên qua WebSocket.
+     * Gửi tín hiệu quét thẻ/biển số (Check-OUT) từ thiết bị cứng (Camera AI) lên
+     * giao diện Web của nhân viên qua WebSocket.
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Tìm thông tin cổng ra (Gate) và loại xe (VehicleType).
@@ -308,14 +412,17 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Xác định thời điểm bắt đầu tính phí đậu xe, đặc biệt quan trọng cho các xe sử dụng vé tháng nhưng hết hạn giữa chừng.
+     * Xác định thời điểm bắt đầu tính phí đậu xe, đặc biệt quan trọng cho các xe sử
+     * dụng vé tháng nhưng hết hạn giữa chừng.
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Mặc định thời điểm bắt đầu tính phí là Thời gian xe vào bãi (timeIn).
      * 2. Tìm vé tháng (ACTIVE hoặc EXPIRED) của biển số xe này.
      * 3. Nếu tìm thấy vé tháng:
-     *    - Nếu vé tháng hết hạn SAU thời gian xe vào, và TRƯỚC thời gian hiện tại (nghĩa là hết hạn lúc đang đỗ trong bãi):
-     *    - Nếu đúng loại xe -> Thời điểm bắt đầu tính phí phụ trội sẽ là Thời điểm vé tháng hết hạn.
+     * - Nếu vé tháng hết hạn SAU thời gian xe vào, và TRƯỚC thời gian hiện tại
+     * (nghĩa là hết hạn lúc đang đỗ trong bãi):
+     * - Nếu đúng loại xe -> Thời điểm bắt đầu tính phí phụ trội sẽ là Thời điểm vé
+     * tháng hết hạn.
      * 4. Trả về thời điểm bắt đầu tính phí.
      */
     private java.time.LocalDateTime determineFeeStartTime(ParkingSession session, String rfidCode) {
@@ -345,13 +452,17 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Truy xuất thông tin của một phiên đỗ xe (ParkingSession) đang diễn ra bằng thẻ RFID hoặc biển số xe.
+     * Truy xuất thông tin của một phiên đỗ xe (ParkingSession) đang diễn ra bằng
+     * thẻ RFID hoặc biển số xe.
      * 
      * MÃ GIẢ CHI TIẾT:
-     * 1. Nếu có mã RFID: Tìm ParkingSession đang ACTIVE hoặc LOCKED gắn với thẻ này.
-     * 2. Nếu không có RFID mà có Biển số: Tìm danh sách phiên của biển số, lấy phiên đang ACTIVE hoặc LOCKED.
+     * 1. Nếu có mã RFID: Tìm ParkingSession đang ACTIVE hoặc LOCKED gắn với thẻ
+     * này.
+     * 2. Nếu không có RFID mà có Biển số: Tìm danh sách phiên của biển số, lấy
+     * phiên đang ACTIVE hoặc LOCKED.
      * 3. Nếu không tìm thấy phiên hợp lệ -> Quăng lỗi (Throw Exception).
-     * 4. Gọi hàm getCheckOutSessionInfo(session, now) để tính toán phí tới thời điểm hiện tại.
+     * 4. Gọi hàm getCheckOutSessionInfo(session, now) để tính toán phí tới thời
+     * điểm hiện tại.
      */
     @Transactional(readOnly = true)
     public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(String rfid, String plate) {
@@ -386,19 +497,26 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Hàm cốt lõi để thu thập và tính toán mọi thông tin chi phí, phạt, quá giờ... để hiển thị lên màn hình thanh toán.
+     * Hàm cốt lõi để thu thập và tính toán mọi thông tin chi phí, phạt, quá giờ...
+     * để hiển thị lên màn hình thanh toán.
      * 
      * MÃ GIẢ CHI TIẾT:
-     * 1. Khởi tạo đối tượng InfoDTO và gán các thông tin cơ bản (Biển số, thẻ, hình ảnh...).
+     * 1. Khởi tạo đối tượng InfoDTO và gán các thông tin cơ bản (Biển số, thẻ, hình
+     * ảnh...).
      * 2. Lấy tên khu vực xe đã đỗ (Zone) dựa vào ID gợi ý hoặc Booking.
-     * 3. Xác định thời điểm bắt đầu tính phí (determineFeeStartTime) và tổng thời gian đậu xe (duration).
-     * 4. Dựa vào loại khách (MONTHLY, PREBOOKED, WALK-IN) để tính Phí đậu xe và Phí quá giờ:
-     *    - Khách vé tháng (MONTHLY) hoặc Đậu bãi vi phạm (IMPOUNDED) -> Phí = 0.
-     *    - Khách đặt trước (PREBOOKED) -> Kiểm tra nếu thời gian ra trễ hơn thời gian Booking -> Tính phí quá giờ.
-     *    - Khách vãng lai (WALK-IN) -> Gọi PricingCalculatorService tính phí theo block.
-     *    - Khách vé tháng bị hết hạn giữa chừng -> Phân tách tính phí từ lúc hết hạn.
+     * 3. Xác định thời điểm bắt đầu tính phí (determineFeeStartTime) và tổng thời
+     * gian đậu xe (duration).
+     * 4. Dựa vào loại khách (MONTHLY, PREBOOKED, WALK-IN) để tính Phí đậu xe và Phí
+     * quá giờ:
+     * - Khách vé tháng (MONTHLY) hoặc Đậu bãi vi phạm (IMPOUNDED) -> Phí = 0.
+     * - Khách đặt trước (PREBOOKED) -> Kiểm tra nếu thời gian ra trễ hơn thời gian
+     * Booking -> Tính phí quá giờ.
+     * - Khách vãng lai (WALK-IN) -> Gọi PricingCalculatorService tính phí theo
+     * block.
+     * - Khách vé tháng bị hết hạn giữa chừng -> Phân tách tính phí từ lúc hết hạn.
      * 5. Tổng hợp các phí phạt (Penalty) từ IncidentTickets.
-     * 6. Tính tổng tiền (calculateTotalAmount) = Phí đậu xe + Phí quá giờ + Phí phạt - Giảm giá.
+     * 6. Tính tổng tiền (calculateTotalAmount) = Phí đậu xe + Phí quá giờ + Phí
+     * phạt - Giảm giá.
      * 7. Tạo mã JWT (CheckoutToken) an toàn dùng để khóa giá báo trong 5 phút.
      * 8. Trả về đối tượng InfoDTO chứa đầy đủ báo giá.
      */
@@ -410,9 +528,6 @@ public class GateOperationService {
         info.setVehicleType(session.getVehicleType() != null ? session.getVehicleType().getTypeName() : "UNKNOWN");
         String rfidCode = session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null;
         String customerType = determineCustomerType(session.getPlate(), rfidCode, session.getVehicleType());
-        if (session.getReservation() != null && !"MONTHLY".equals(customerType)) {
-            customerType = "PREBOOKED";
-        }
         info.setCustomerType(customerType);
         info.setPicInPanorama(session.getPicInPanorama());
         info.setPicInFace(session.getPicInFace());
@@ -517,20 +632,10 @@ public class GateOperationService {
             info.setOvertimeMinutes(0L);
         }
 
-        java.util.List<String> warnings = new java.util.ArrayList<>();
         java.math.BigDecimal penaltyFee = incidentTicketRepository.findBySessionId(session.getId()).stream()
-                .map(ticket -> {
-                    if ("LOST_CARD".equals(ticket.getIssueType())) warnings.add("Thẻ đã bị báo mất");
-                    else if ("DAMAGED_CARD".equals(ticket.getIssueType())) warnings.add("Thẻ đã bị báo hỏng");
-                    else if ("ZONE_VIOLATION".equals(ticket.getIssueType())) warnings.add("Vi phạm khu vực đỗ");
-                    else if ("BLACKLIST_VIOLATION".equals(ticket.getIssueType())) warnings.add("Xe nằm trong danh sách đen");
-                    else warnings.add("Sự cố: " + ticket.getIssueType());
-                    return ticket.getFineAmount();
-                })
+                .map(ticket -> ticket.getFineAmount())
                 .filter(java.util.Objects::nonNull)
                 .reduce(java.math.BigDecimal.ZERO, (a, b) -> a.add(b));
-
-        info.setWarnings(warnings);
 
         if (session.getDiscount() != null) {
             info.setDiscountFee(session.getDiscount());
@@ -551,10 +656,12 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Tính toán số tiền cuối cùng (Tổng hóa đơn) khách hàng phải trả dựa trên các loại phí.
+     * Tính toán số tiền cuối cùng (Tổng hóa đơn) khách hàng phải trả dựa trên các
+     * loại phí.
      * 
      * MÃ GIẢ CHI TIẾT:
-     * 1. Đảm bảo các giá trị phí (ExpectedFee, OvertimeFee, PenaltyFee, Discount) không bị null (mặc định là 0).
+     * 1. Đảm bảo các giá trị phí (ExpectedFee, OvertimeFee, PenaltyFee, Discount)
+     * không bị null (mặc định là 0).
      * 2. Công thức: Tổng tiền = (Phí dự kiến + Phí quá giờ + Phí phạt) - Giảm giá.
      * 3. Nếu tổng tiền bị âm -> Trả về 0.
      * 4. Trả về tổng tiền.
@@ -578,18 +685,26 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Xử lý luồng Check-IN chính thức yêu cầu lưu trữ dữ liệu xe vào DB khi nhân viên bấm "Xác nhận".
+     * Xử lý luồng Check-IN chính thức yêu cầu lưu trữ dữ liệu xe vào DB khi nhân
+     * viên bấm "Xác nhận".
      * 
      * MÃ GIẢ CHI TIẾT:
-     * 1. Xác thực thông tin: Tìm Cổng (Gate), Loại xe, Ca trực của nhân viên (Active Session).
-     * 2. Nếu cổng không có người trực, loại cổng sai (phải là cổng IN), thiếu loại xe -> Quăng lỗi.
-     * 3. Kiểm tra Thẻ RFID: Thẻ phải tồn tại và đang ở trạng thái AVAILABLE (chưa dùng).
-     * 4. Ngăn chặn trùng lặp: Kiểm tra biển số xe này đã ở trong bãi chưa. Nếu có -> Lỗi.
-     * 5. Kiểm tra Biển số Đen (Blacklist): Nếu xe nằm trong sổ đen -> Ghi nhớ cờ Blacklist, và tự động gỡ cờ để xe vào (vì sẽ phạt vào phiên này).
+     * 1. Xác thực thông tin: Tìm Cổng (Gate), Loại xe, Ca trực của nhân viên
+     * (Active Session).
+     * 2. Nếu cổng không có người trực, loại cổng sai (phải là cổng IN), thiếu loại
+     * xe -> Quăng lỗi.
+     * 3. Kiểm tra Thẻ RFID: Thẻ phải tồn tại và đang ở trạng thái AVAILABLE (chưa
+     * dùng).
+     * 4. Ngăn chặn trùng lặp: Kiểm tra biển số xe này đã ở trong bãi chưa. Nếu có
+     * -> Lỗi.
+     * 5. Kiểm tra Biển số Đen (Blacklist): Nếu xe nằm trong sổ đen -> Ghi nhớ cờ
+     * Blacklist, và tự động gỡ cờ để xe vào (vì sẽ phạt vào phiên này).
      * 6. Khởi tạo đối tượng ParkingSession (Lưu thời gian, hình ảnh, biển số...).
      * 7. Cập nhật thẻ RFID sang trạng thái IN_USE. Lưu session vào Database.
-     * 8. Nếu xe bị Blacklist: Tạo mới/cập nhật các vé phạt (IncidentTicket) để truy thu khi khách ra khỏi bãi.
-     * 9. Xử lý Đặt chỗ (Booking): Nếu có Booking, đổi trạng thái sang ACTIVE, gửi thông báo báo có xe Booking tới.
+     * 8. Nếu xe bị Blacklist: Tạo mới/cập nhật các vé phạt (IncidentTicket) để truy
+     * thu khi khách ra khỏi bãi.
+     * 9. Xử lý Đặt chỗ (Booking): Nếu có Booking, đổi trạng thái sang ACTIVE, gửi
+     * thông báo báo có xe Booking tới.
      * 10. Trả về kết quả thành công cho Client.
      */
     @Transactional
@@ -671,8 +786,6 @@ public class GateOperationService {
                     .message("Gate is inactive (no staff on duty)")
                     .build();
         }
-
-
 
         if (type == null) {
             return GateResponseDTO.builder()
@@ -840,18 +953,26 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Xử lý luồng Check-OUT chính thức, hoàn thành giao dịch thanh toán và đóng phiên đỗ xe khi nhân viên bấm "Xác nhận".
+     * Xử lý luồng Check-OUT chính thức, hoàn thành giao dịch thanh toán và đóng
+     * phiên đỗ xe khi nhân viên bấm "Xác nhận".
      * 
      * MÃ GIẢ CHI TIẾT:
-     * 1. Xác thực thông tin: Kiểm tra Gate, Ca trực của nhân viên, loại cổng (phải là cổng OUT).
+     * 1. Xác thực thông tin: Kiểm tra Gate, Ca trực của nhân viên, loại cổng (phải
+     * là cổng OUT).
      * 2. Tìm Phiên đỗ xe (ParkingSession) bằng mã thẻ RFID.
-     * 3. Kiểm tra các sự kiện bất thường (Incident): Mất thẻ, hư thẻ chưa đóng phí phạt -> Chặn cổng, không cho ra.
-     * 4. Kiểm tra xem Token báo giá (CheckoutToken) có hợp lệ, khớp với SessionId và chưa hết hạn không. Nếu thanh toán tiền mặt mà Token hết hạn/lệch giá -> Lỗi, yêu cầu báo giá lại.
+     * 3. Kiểm tra các sự kiện bất thường (Incident): Mất thẻ, hư thẻ chưa đóng phí
+     * phạt -> Chặn cổng, không cho ra.
+     * 4. Kiểm tra xem Token báo giá (CheckoutToken) có hợp lệ, khớp với SessionId
+     * và chưa hết hạn không. Nếu thanh toán tiền mặt mà Token hết hạn/lệch giá ->
+     * Lỗi, yêu cầu báo giá lại.
      * 5. Cập nhật hình ảnh, thời gian ra, cổng ra vào ParkingSession.
-     * 6. Tính toán chốt phí: Lấy thông tin giá, áp dụng giảm giá (trừ tiền gốc trước, trừ phụ phí sau).
-     * 7. Đóng các vé phạt (IncidentTicket) đang chờ thanh toán sang trạng thái RESOLVED. Nếu xe từng bị Blacklist -> Gỡ Blacklist trong hồ sơ xe.
+     * 6. Tính toán chốt phí: Lấy thông tin giá, áp dụng giảm giá (trừ tiền gốc
+     * trước, trừ phụ phí sau).
+     * 7. Đóng các vé phạt (IncidentTicket) đang chờ thanh toán sang trạng thái
+     * RESOLVED. Nếu xe từng bị Blacklist -> Gỡ Blacklist trong hồ sơ xe.
      * 8. Tạo Transaction (Giao dịch tài chính) lưu hóa đơn.
-     * 9. Giải phóng thẻ RFID về trạng thái AVAILABLE. Đổi trạng thái Booking về COMPLETED (nếu có).
+     * 9. Giải phóng thẻ RFID về trạng thái AVAILABLE. Đổi trạng thái Booking về
+     * COMPLETED (nếu có).
      * 10. Bắn WebSocket thông báo cổng mở và trả về kết quả thành công.
      */
     @Transactional
@@ -870,15 +991,14 @@ public class GateOperationService {
                     .build();
         }
 
-
-
         ParkingSession session = null;
         if (request.getRfid() != null && !request.getRfid().isEmpty()) {
             session = sessionRepository
                     .findByRfidCard_CardCodeAndStatusIn(request.getRfid(), java.util.Arrays.asList("ACTIVE"))
                     .orElse(null);
         } else if (request.getPlateNumber() != null && !request.getPlateNumber().isEmpty()) {
-            java.util.List<ParkingSession> list = sessionRepository.findByPlateOrderByTimeInDesc(request.getPlateNumber());
+            java.util.List<ParkingSession> list = sessionRepository
+                    .findByPlateOrderByTimeInDesc(request.getPlateNumber());
             for (ParkingSession s : list) {
                 if ("ACTIVE".equals(s.getStatus())) {
                     boolean hasLostDamaged = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
@@ -893,7 +1013,8 @@ public class GateOperationService {
             }
         }
         if (session == null) {
-            throw new IllegalArgumentException("No active session found for this card or missing lost/damaged card report for this plate");
+            throw new IllegalArgumentException(
+                    "No active session found for this card or missing lost/damaged card report for this plate");
         }
 
         RfidCard card = session.getRfidCard();
@@ -1046,7 +1167,7 @@ public class GateOperationService {
         if (card != null) {
             boolean isLost = waitingTickets.stream().anyMatch(t -> "LOST_CARD".equals(t.getIssueType()));
             boolean isDamaged = waitingTickets.stream().anyMatch(t -> "DAMAGED_CARD".equals(t.getIssueType()));
-            
+
             if (isLost) {
                 card.setStatus("LOST");
             } else if (isDamaged) {
@@ -1133,12 +1254,14 @@ public class GateOperationService {
 
     /**
      * MỤC ĐÍCH CỦA HÀM:
-     * Lưu thông tin vé phạt/sự cố vào Database và thông báo cho toàn hệ thống cập nhật lại danh sách.
+     * Lưu thông tin vé phạt/sự cố vào Database và thông báo cho toàn hệ thống cập
+     * nhật lại danh sách.
      * 
      * MÃ GIẢ CHI TIẾT:
      * 1. Lưu đối tượng IncidentTicket vào CSDL thông qua Repository.
      * 2. Gửi tín hiệu WebSocket '/topic/alerts' thông báo tới tất cả nhân viên.
-     * 3. Bắt và log lỗi nếu quá trình gửi WebSocket thất bại (không làm sập luồng chính).
+     * 3. Bắt và log lỗi nếu quá trình gửi WebSocket thất bại (không làm sập luồng
+     * chính).
      * 4. Trả về IncidentTicket vừa được lưu.
      */
     private com.pbms.modules.incident.domain.IncidentTicket saveAndBroadcast(

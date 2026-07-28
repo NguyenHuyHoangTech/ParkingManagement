@@ -1,3 +1,19 @@
+/**
+ * ============================================================================
+ * IMPORT CÁC THƯ VIỆN & TÀI NGUYÊN (DEPENDENCIES)
+ * ============================================================================
+ * 1. React & Hooks: Quản lý vòng đời, trạng thái (useState, useEffect) và tham chiếu (useRef).
+ * 2. Store & Fetching:
+ *    - useAuthStore: Trạng thái ca làm việc (Zustand).
+ *    - useQuery, useQueryClient: Lấy và quản lý cache dữ liệu (React Query).
+ * 3. Thư viện UI (Ant Design): Vẽ giao diện như Card, Button, Modal, Input... và các Icon.
+ * 4. WebSocket (useWebSocket): Hook để kết nối, nhận tín hiệu IoT thời gian thực.
+ * 5. Tiện ích (Utils): 
+ *    - simulatedDayjs, dayjs: Xử lý thời gian thực hoặc giả lập.
+ *    - axiosClient: Thư viện gọi HTTP API (Backend).
+ *    - getImageUrl, normalizePlateNumber: Xử lý hiển thị ảnh gốc và chuẩn hóa biển số.
+ * 6. React-Konva: Engine vẽ đồ họa 2D (Stage, Layer, Rect, Line, Image...) để mô phỏng bãi đỗ xe.
+ */
 import { simulatedDayjs } from '../../core/utils/timeProvider';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../core/store/useAuthStore';
@@ -18,22 +34,37 @@ import Konva from 'konva';
  * MÔ TẢ TỔNG QUAN VỀ LUỒNG DỮ LIỆU & TƯƠNG TÁC CỦA GATE IN CONSOLE SCREEN
  * ============================================================================
  * 
- * 1. MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
+ * [PHẦN 1] MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
  *    - Giao diện trực tại cổng dành riêng cho CỔNG VÀO (Entry Gate).
- *    - Giúp nhân viên: Xem hình ảnh xe vào, kiểm tra biển số (AI nhận diện), 
- *      biết được xe thuộc loại gì, và chọn/xem vị trí đỗ phù hợp trên sơ đồ bãi đỗ.
+ *    - Component này bị gọi (được render) từ `GateConsoleScreen.tsx` sau khi cảnh sát 
+ *      giao thông ở đó xác nhận nhân viên đã mở ca và đang gác đúng cổng vào.
  * 
- * 2. CÁC LUỒNG DỮ LIỆU NHẬN VỀ (INPUT):
- *    - Dữ liệu API tĩnh (useQuery): Sơ đồ bãi xe (zonesMap), cấu hình bãi đỗ (mapConfig), danh sách loại xe (vehicleTypes).
- *    - Dữ liệu WebSocket (Real-time): 
- *       + `map-updates`: Tín hiệu IoT cập nhật chỗ trống/đầy trên sơ đồ ngay lập tức.
- *       + `staff/notifications`: Thông báo cho nhân viên khi có xe khách VIP/đặt trước tới.
- *       + `gates/{gateId}/scans`: Tín hiệu từ thiết bị cổng khi có xe quét thẻ/nhận diện biển số ở cổng này.
+ * [PHẦN 2] GIẢI PHẪU VÒNG ĐỜI DỮ LIỆU (DATA FLOW LIFECYCLE) KÈM MINH CHỨNG:
  * 
- * 3. TƯƠNG TÁC GIAO DIỆN CHÍNH (OUTPUT):
- *    - Chia làm 2 khu vực:
- *       + Cột trái (Panel Điều khiển): Hiển thị ảnh camera, cảnh báo thẻ đen (blacklist), danh sách lỗi, thông tin xe & biển số, nút xác nhận cho xe vào.
- *       + Cột phải (Sơ đồ Konva): Render bản đồ 2D trực quan bãi xe bằng thư viện React-Konva. Cho phép nhân viên nhìn thấy chỗ nào còn trống, và tự động Zoom tới khu vực hệ thống đề xuất (Routing).
+ * BƯỚC 1: BÀN GIAO CA TRỰC (KHỞI TẠO DỮ LIỆU NỀN)
+ * - Minh chứng 1 (Gọi API tĩnh): Từ dòng 80 đến 100, hệ thống dùng `useQuery` để bí mật 
+ *   kéo về toàn bộ Bản đồ bãi xe (mapData) và Cấu hình bãi đỗ (mapConfigData).
+ * - Minh chứng 2 (Vẽ bản đồ ảo): Dữ liệu này được nhồi vào thư viện React-Konva (từ dòng 770) 
+ *   để vẽ ra sơ đồ bãi đỗ 2D bên góc phải màn hình.
+ * - Minh chứng 3 (Cắm Ăng-ten): Ở dòng 259 `stompClient.subscribe(destination, ...)` 
+ *   Component chính thức đăng ký tần số `/topic/gates/{gateId}/scans` và ngồi im chờ đợi.
+ * 
+ * BƯỚC 2: XE TỚI CỔNG (HỨNG DỮ LIỆU THỜI GIAN THỰC)
+ * - Minh chứng 1 (Nhận sóng IoT): Khi có xe tới quét Camera, Backend bắn gói tin JSON qua WebSocket. 
+ *   Dây Ăng-ten ở dòng 259 hứng được và lập tức gọi `setScanData(payload)` ở dòng 297.
+ * - Minh chứng 2 (Giao diện lột xác): Vì State `scanData` thay đổi, React tự động Re-render. 
+ *   Khung bên trái lập tức hiện Ảnh xe và Biển số tự điền.
+ * - Minh chứng 3 (Cameraman tự động): Nếu AI xúi đỗ ở Zone A, hàm `handleAutoZoom(zone)` 
+ *   ở dòng 443 sẽ âm thầm tính toán tọa độ X,Y và Scale để phóng to bản đồ đúng vào Zone đó.
+ * 
+ * BƯỚC 3: NHÂN VIÊN RA QUYẾT ĐỊNH (PHẢN HỒI & CHỐT HẠ)
+ * - Minh chứng 1 (Kẻ gác cổng): Khi nhân viên bấm nút [Cho xe vào] (dòng 716), hàm `handleCheckIn()` 
+ *   ở dòng 400 được kích hoạt. Nó soi xem biển số nhân viên gõ tay có khác biển số AI đọc không. 
+ *   Nếu khác, nó dựng Popup màu đỏ bắt xác nhận lại.
+ * - Minh chứng 2 (Cỗ máy chốt hạ): Nếu nhân viên bấm "Bỏ qua & Cho vào", hàm `executeCheckIn()` 
+ *   ở dòng 341 chạy. Nó gọi API `axiosClient.post('/operation/gates/check-in')` bắn vèo dữ liệu về Backend.
+ * - Minh chứng 3 (Dọn dẹp): Cuối cùng, hàm `setScanData(null)` (dòng 389) chạy để xóa sạch màn hình, 
+ *   đưa hệ thống quay lại Bước 1 đón xe tiếp theo!
  * ============================================================================
  */
 
@@ -60,6 +91,15 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  /**
+   * ============================================================================
+   * 1. TRUY VẤN DỮ LIỆU BẢN ĐỒ VÀ PHƯƠNG TIỆN (STATIC DATA FETCHING)
+   * ============================================================================
+   * Sử dụng React Query để kéo các dữ liệu tĩnh từ server về cache.
+   * - mapData: Chứa danh sách các khu vực (Zone) hiện tại trong bãi xe.
+   * - mapConfigData: Cấu hình kích thước bãi xe (số hàng, số cột) để vẽ Konva.
+   * - vehicleTypes: Danh sách các loại xe được phép ra vào hệ thống.
+   */
   const { data: mapData } = useQuery({
     queryKey: ['zonesMap'],
     queryFn: async () => {
@@ -104,6 +144,14 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
 
+  /**
+   * ============================================================================
+   * 2. TRUY VẤN ĐỘNG THEO TỪNG XE (DYNAMIC DATA FETCHING)
+   * ============================================================================
+   * - routingStatusList: Tính toán đường đi tối ưu cho xe hiện tại (nếu có).
+   *   Phụ thuộc vào thông tin xe đang quét (scanData) và tầng hiện tại (activeGate.floorId).
+   * - overstayCount: API định kỳ (10 giây/lần) đếm số lượng xe ở quá giờ để thông báo.
+   */
   const { data: routingStatusList } = useQuery({
     queryKey: ['routingStatus', scanData?.vehicleType, scanData?.customerType, activeGate?.floorId],
     queryFn: async () => {
@@ -314,6 +362,17 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   }, [activeGate, stompClient, connected]);
 
+  /**
+   * ============================================================================
+   * 3. LOGIC HÀNH ĐỘNG CỦA NHÂN VIÊN GÁC CỔNG (STAFF ACTIONS)
+   * ============================================================================
+   */
+
+  /**
+   * Xử lý Hủy bỏ (Cancel):
+   * Nhân viên từ chối cho xe vào (hoặc thiết bị nhận diện nhầm).
+   * Sẽ xóa sạch dữ liệu quét hiện tại trên màn hình và giải phóng biến khóa (isProcessing).
+   */
   const handleCancel = () => {
     isProcessingRef.current = false;
     setScanData(null);
@@ -321,6 +380,11 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     message.warning('The current scanning session has been canceled. System is ready.');
   };
 
+  /**
+   * Xử lý thực thi Check-in (Execute Check-In):
+   * Bắn API về Backend để chính thức ghi nhận xe vào bãi.
+   * Đồng thời tự động sinh cảnh báo (Incident) nếu nhân viên đã sửa biển số hoặc loại xe (AI đọc sai).
+   */
   const executeCheckIn = async () => {
     setIsLoading(true);
     try {
@@ -380,6 +444,13 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   };
 
+  /**
+   * Xử lý Xác nhận Check-in (Confirm Check-In):
+   * Đây là luồng bọc bên ngoài `executeCheckIn()`. 
+   * Nó đóng vai trò "kiểm tra lại lần cuối" (Double Check).
+   * Nếu có bất kỳ cảnh báo nguy hiểm nào (sai biển, sai loại xe, blacklist, overbook...),
+   * nó sẽ hiện 1 popup (Modal) đỏ chót để ép nhân viên phải xác nhận thủ công trước khi đi tiếp.
+   */
   const handleCheckIn = async () => {
     if (!scanData || !activeGate) return;
 
@@ -423,6 +494,11 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     executeCheckIn();
   };
 
+  /**
+   * Zoom tự động vào khu vực (Auto Zoom):
+   * Khi nhân viên hoặc AI chọn 1 khu (Zone), hàm này dùng thư viện Konva.Tween
+   * để tạo hiệu ứng mượt mà (animation) di chuyển bản đồ đến đúng tọa độ của khu vực đó.
+   */
   const handleAutoZoom = (zone: any) => {
     if (!stageRef.current || !containerRef.current) return;
 

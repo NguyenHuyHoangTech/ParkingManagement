@@ -12,7 +12,45 @@ import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
 import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 import Konva from 'konva';
-
+/**
+ * ============================================================================
+ * MÔ TẢ TỔNG QUAN VỀ LUỒNG DỮ LIỆU & TƯƠNG TÁC CỦA GATE OUT CONSOLE SCREEN
+ * ============================================================================
+ * 
+ * [PHẦN 1] MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
+ *    - Giao diện trực tại cổng dành riêng cho CỔNG RA (Exit Gate). Nơi giao cắt giữa Vận hành và Tài chính.
+ *    - Chịu trách nhiệm: Hứng tín hiệu xe ra, hiển thị bảng kê chi phí (Fee Breakdown), 
+ *      chờ khách hàng thanh toán (Tiền mặt hoặc Quét QR MoMo) và ra lệnh mở Barie.
+ * 
+ * [PHẦN 2] GIẢI PHẪU VÒNG ĐỜI DỮ LIỆU (DATA FLOW LIFECYCLE) KÈM MINH CHỨNG:
+ * 
+ * BƯỚC 1: BÀN GIAO CA TRỰC (KHỞI TẠO DỮ LIỆU NỀN)
+ * - Minh chứng (Gọi API tĩnh): Dòng 27 và 35, dùng `useQuery` để kéo về sơ đồ bãi đỗ 
+ *   (mapData) và loại xe (vehicleTypes) để hiển thị lịch sử đỗ xe.
+ * 
+ * BƯỚC 2: XE RA ĐẾN CỔNG (HỨNG TÍN HIỆU IOT & TÍNH TIỀN)
+ * - Minh chứng 1 (Ăng-ten IoT): Dòng 127 `stompClient.subscribe`. Component vểnh tai nghe tần số 
+ *   `/topic/gates/{gateId}/scans`. Khi có xe ra quẹt thẻ, WebSocket nổ dữ liệu.
+ * - Minh chứng 2 (Gửi yêu cầu tính tiền): Khác với Cổng Vào, ngay khi nhận được tín hiệu IoT, 
+ *   Component TỰ ĐỘNG gọi API `axiosClient.get('/.../checkout-session-info')` ở dòng 147. 
+ *   Mục đích: Báo cho Backend chạy máy tính tiền (PricingCalculator) và trả về Hóa đơn chi tiết.
+ * - Minh chứng 3 (Render Hóa đơn): Hàm `setScanData` ở dòng 151 đẩy hóa đơn vào State, làm giao diện 
+ *   Component con `<FeeBreakdown>` bung ra ngay giữa màn hình.
+ * 
+ * BƯỚC 3A: LUỒNG THANH TOÁN KHÔNG TIỀN MẶT (QR MOMO / VNPAY)
+ * - Minh chứng 1 (Ăng-ten Webhook): Dòng 101, Component cắm thêm 1 ống nghe `/topic/payments/...`. 
+ *   Nếu khách hàng quẹt MoMo trên điện thoại, máy chủ MoMo bắn Webhook về Backend, Backend bắn 
+ *   tiếp chữ "SUCCESS" lên ống nghe này. Màn hình Frontend lập tức chớp xanh!
+ * - Minh chứng 2 (Auto-Open): Dòng 112, nghe tiếp tần số `/topic/gates/{gateId}/out`. Nếu báo 
+ *   `Checkout thành công`, Barie sẽ tự động mở mà nhân viên KHÔNG CẦN CHẠM TAY VÀO CHUỘT!
+ * 
+ * BƯỚC 3B: LUỒNG THANH TOÁN TIỀN MẶT (CASH)
+ * - Minh chứng 1 (Nút Xác nhận): Khách đưa tiền mặt, nhân viên đếm tiền và bấm nút [Hoàn tất thanh toán].
+ * - Minh chứng 2 (Chốt hạ): Hàm `handleCompletePaymentAndOpen()` ở dòng 274 kích hoạt. 
+ *   Nó gói ghém `checkoutToken` (dòng 286) gửi POST Request ép Backend đóng phiên đỗ xe, 
+ *   trừ đi số xe trong Zone và mở cổng.
+ * ============================================================================
+ */
 const { Title, Text } = Typography;
 
 const GRID_SIZE = 50;
@@ -24,6 +62,21 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  /**
+   * ============================================================================
+   * [API 1] LẤY SƠ ĐỒ BÃI ĐỖ XE (ZONES MAP)
+   * ============================================================================
+   * MỤC ĐÍCH: Kéo dữ liệu tọa độ và tình trạng của các khu vực đỗ xe (Zones) từ Backend.
+   * 
+   * CƠ CHẾ KIẾN TRÚC: Ở đây không dùng `fetch()` hay `axios` thông thường, mà bọc nó 
+   * trong siêu thư viện `useQuery` (React Query). 
+   * -> Lợi ích: React Query tự động lưu đệm (Cache) dữ liệu vào RAM với định danh là `['zonesMap']`. 
+   * Nếu nhân viên bấm sang trang khác rồi quay lại, nó lấy từ RAM ra xài ngay lập tức, không thèm 
+   * gọi lại Server, giúp giảm tải Backend cực tốt!
+   * 
+   * ỨNG DỤNG: Biến `mapData` sẽ chứa mảng các Zone để ném vào thư viện Konva vẽ bản đồ 2D.
+   * ============================================================================
+   */
   const { data: mapData } = useQuery({
     queryKey: ['zonesMap'],
     queryFn: async () => {
@@ -32,6 +85,18 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   });
 
+  /**
+   * ============================================================================
+   * [API 2] LẤY DANH SÁCH LOẠI XE (VEHICLE TYPES)
+   * ============================================================================
+   * MỤC ĐÍCH: Lấy danh sách các loại xe bãi đang hỗ trợ (Ví dụ: Xe đạp, Xe máy, Ô tô 4 chỗ...).
+   * 
+   * ỨNG DỤNG THỰC TẾ: Dùng để ánh xạ (Mapping) chữ hiển thị trên màn hình. 
+   * Ví dụ: Camera AI nhận diện ra loại xe có ID là `CAR`. Hệ thống sẽ dùng biến `vehicleTypes` 
+   * này để dò tìm và dịch ID `CAR` thành chữ "Ô tô 4-7 chỗ" cho nhân viên thu ngân dễ đọc 
+   * trên Bảng Hóa đơn Tính Tiền.
+   * ============================================================================
+   */
   const { data: vehicleTypes } = useQuery({
     queryKey: ['vehicleTypes'],
     queryFn: async () => {
@@ -91,6 +156,24 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
   const shiftStatus = useAuthStore((state) => state.shiftStatus);
 
+  /**
+   * ============================================================================
+   * [TRẠM THU SÓNG WEBSOCKET] - Lắng nghe các biến động từ IoT và Thanh toán
+   * ============================================================================
+   * MỤC ĐÍCH: Hứng dữ liệu tức thời mà không cần reload trang.
+   * 
+   * MÃ GIẢ (PSEUDO-CODE LÕI):
+   * B1: Đăng ký 3 kênh vệ tinh:
+   *     - Kênh 1 (`notifDest`): Nghe báo động có khách đặt chỗ sắp ra.
+   *     - Kênh 2 (`outDest`): Hứng tín hiệu "Đã thanh toán MoMo thành công" từ Backend -> Auto Mở Cổng.
+   *     - Kênh 3 (`destination`): Nghe tín hiệu Camera IoT báo có xe vừa quẹt thẻ ra.
+   * 
+   * B2: Khi Camera IoT báo có xe (Kênh 3 nổ):
+   *     - Chặn cửa: Nếu đang xử lý dở xe trước (`isProcessingRef`), thì bỏ qua tin nhắn mới.
+   *     - Gọi Thu Ngân: Bắn API GET `/operation/gates/checkout-session-info` về Backend.
+   *     - Hiển thị: Lấy Bảng giá (Hóa đơn) Backend trả về, nhồi vào state `scanData` để bung lên màn hình.
+   * ============================================================================
+   */
   useEffect(() => {
     if (activeGate && stompClient && connected) {
       const destination = `/topic/gates/${activeGate.id}/scans`;
@@ -271,6 +354,20 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     message.success('Payment recorded successfully!');
   };
 
+  /**
+   * ============================================================================
+   * [CỖ MÁY CHỐT HẠ TIỀN MẶT] - Gửi lệnh trừ tiền và mở Barie
+   * ============================================================================
+   * MỤC ĐÍCH: Xử lý quy trình thanh toán thủ công (CASH) và giải phóng chỗ đỗ.
+   * 
+   * MÃ GIẢ (PSEUDO-CODE LÕI):
+   * B1: Gói ghém dữ liệu: Lấy `checkoutToken` (Thẻ bài hóa đơn) đang hiện trên màn hình 
+   *     cùng với thông tin thanh toán (Tiền mặt).
+   * B2: Bắn API POST: Gửi cục dữ liệu về Backend `/operation/gates/checkout` (Tới GateConsoleController).
+   * B3: Nhận gật đầu (Success 200): Xóa trắng màn hình, reset State, sẵn sàng đón xe tiếp theo.
+   * B4: Nhận báo lỗi (Fail 400): Đập Alert báo lỗi (Ví dụ: Thanh toán thiếu tiền, hoặc AI đọc sai biển số).
+   * ============================================================================
+   */
   const handleCompletePaymentAndOpen = async () => {
     if (!scanData || !activeGate) return;
     setIsLoading(true);
@@ -380,6 +477,19 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   }, [paymentMethod, scanData]);
 
+  /**
+   * ============================================================================
+   * [NÚT LÀM MỚI BÁO GIÁ] - Chống gian lận thời gian đỗ xe
+   * ============================================================================
+   * MỤC ĐÍCH: Dành cho trường hợp khách chần chừ cãi nhau ở cổng quá lâu, 
+   * khiến Hóa đơn cũ bị hết hạn (Ví dụ: Đỗ lố sang block giờ tiếp theo, phí từ 10.000đ nhảy lên 20.000đ).
+   * 
+   * MÃ GIẢ (PSEUDO-CODE LÕI):
+   * B1: Bắn lại API `/operation/gates/checkout-session-info` y hệt như lúc xe mới ra.
+   * B2: Lấy Bảng giá mới cập nhật đè lên Hóa đơn cũ (`setScanData`).
+   * B3: Reset lại đồng hồ đếm ngược (Ví dụ: Cho khách thêm 5 phút nữa để quét mã MoMo).
+   * ============================================================================
+   */
   const handleRefreshPrice = useCallback(() => {
     if (!scanData?.rfid && !scanData?.plateNumber) return;
     setIsLoading(true);
