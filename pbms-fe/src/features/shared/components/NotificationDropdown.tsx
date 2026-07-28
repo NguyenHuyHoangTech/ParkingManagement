@@ -158,7 +158,7 @@ export const NotificationDropdown: React.FC = () => {
           label: (
             <div style={{ padding: '16px', textAlign: 'center', width: '300px' }}>
               <div style={{ fontSize: '28px', marginBottom: '4px' }}>🔔</div>
-              <Text type="secondary">Không có thông báo nào</Text>
+              <Text type="secondary">No notifications</Text>
             </div>
           ),
           disabled: true,
@@ -169,13 +169,13 @@ export const NotificationDropdown: React.FC = () => {
           key: 'header',
           label: (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '320px' }}>
-              <Text strong>Thông báo <Text type="secondary" style={{ fontSize: '12px' }}>({notifications.length})</Text></Text>
+              <Text strong>Notifications <Text type="secondary" style={{ fontSize: '12px' }}>({notifications.length})</Text></Text>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <Button type="link" size="small" onClick={handleMarkAllAsRead}>
-                  Đọc tất cả
+                  Mark all as read
                 </Button>
                 <Button type="link" size="small" danger onClick={handleClearAll} icon={<DeleteOutlined />}>
-                  Xóa
+                  Clear all
                 </Button>
               </div>
             </div>

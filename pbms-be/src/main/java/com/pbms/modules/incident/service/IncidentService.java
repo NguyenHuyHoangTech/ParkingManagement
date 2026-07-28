@@ -1117,7 +1117,7 @@ public class IncidentService {
     private IncidentTicket saveAndBroadcast(IncidentTicket ticket) {
         IncidentTicket saved = incidentTicketRepository.save(ticket);
         try {
-            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+            messagingTemplate.convertAndSend("/topic/alerts", "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Incident list has been updated.\"}");
         } catch (Exception e) {
             log.error("Failed to broadcast incident update", e);
         }

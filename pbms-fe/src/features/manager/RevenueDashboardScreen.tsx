@@ -474,21 +474,21 @@ const RevenueDashboardScreen: React.FC = () => {
           bordered
           size="middle"
         >
-          <Table.Column title="Ngày giờ ra" dataIndex="checkoutTime" render={(val) => <strong>{dayjs(val).format('DD/MM/YYYY HH:mm')}</strong>} />
-          <Table.Column title="Biển số" dataIndex="plate" render={(val) => <span className="font-semibold text-slate-800">{val || 'N/A'}</span>} />
-          <Table.Column title="Loại xe" dataIndex="vehicleType" />
-          <Table.Column title="Cổng ra" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
-          <Table.Column title="Tiền đặt chỗ" dataIndex="reservationFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
-          <Table.Column title="Tiền vé" dataIndex="baseFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
-          <Table.Column title="Tiền lố giờ" dataIndex="overtimeFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
-          <Table.Column title="Tiền phạt" dataIndex="penaltyFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Exit Time" dataIndex="checkoutTime" render={(val) => <strong>{dayjs(val).format('DD/MM/YYYY HH:mm')}</strong>} />
+          <Table.Column title="License Plate" dataIndex="plate" render={(val) => <span className="font-semibold text-slate-800">{val || 'N/A'}</span>} />
+          <Table.Column title="Vehicle Type" dataIndex="vehicleType" />
+          <Table.Column title="Exit Gate" dataIndex="gateName" render={(val) => <span className="text-gray-600 font-medium">{val || 'N/A'}</span>} />
+          <Table.Column title="Reservation Fee" dataIndex="reservationFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Base Fee" dataIndex="baseFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Overtime Fee" dataIndex="overtimeFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
+          <Table.Column title="Penalty Fee" dataIndex="penaltyFee" align="right" render={(val) => <span>{val?.toLocaleString()} ₫</span>} />
           <Table.Column 
-            title="Tổng thu" 
+            title="Total Revenue" 
             dataIndex="totalFee" 
             align="right"
             render={(val) => <span className="font-bold text-blue-600">{val?.toLocaleString()} ₫</span>}
           />
-          <Table.Column title="Thanh toán" dataIndex="paymentMethod" align="center" />
+          <Table.Column title="Payment Method" dataIndex="paymentMethod" align="center" />
         </Table>
           </Card>
     </div>

@@ -90,21 +90,21 @@ export const LoginScreen = () => {
   // --- REGISTER ---
   const registerMutation = useMutation({
     mutationFn: async () => (await axiosClient.post('/identity/auth/register', { email, password, confirmPassword, fullName })).data,
-    onSuccess: () => { setSuccessMsg('Registration Success! OTP sent to emaile'); setError(''); setRegStep(2); },
-    onError: (err: any) => { setError(err.response?.data?.message || 'Failede Registration'); setSuccessMsg(''); }
+    onSuccess: () => { setSuccessMsg('Registration Success! OTP sent to email'); setError(''); setRegStep(2); },
+    onError: (err: any) => { setError(err.response?.data?.message || 'Registration Failed'); setSuccessMsg(''); }
   });
 
   const verifyRegisterOtpMutation = useMutation({
     mutationFn: async () => (await axiosClient.post('/identity/auth/verify-otp', { email, otpCode, purpose: 'REGISTER' })).data,
-    onSuccess: (data) => { setSuccessMsg('authentication Success! Go to Logine page'); setError(''); setTimeout(() => goToLogin(), 1500); },
+    onSuccess: (data) => { setSuccessMsg('Authentication Success! Go to Login page'); setError(''); setTimeout(() => goToLogin(), 1500); },
     onError: (err: any) => { setError(err.response?.data?.message || 'Invalid OTP code'); }
   });
 
   // --- FORGOT PASSWORD ---
   const forgotMutation = useMutation({
     mutationFn: async () => (await axiosClient.post('/identity/auth/forgot-password', { email })).data,
-    onSuccess: () => { setForgotStep(2); setSuccessMsg('OTP sent to emaile'); setError(''); },
-    onError: (err: any) => { setError(err.response?.data?.message || 'Accounte not found'); setSuccessMsg(''); }
+    onSuccess: () => { setForgotStep(2); setSuccessMsg('OTP sent to email'); setError(''); },
+    onError: (err: any) => { setError(err.response?.data?.message || 'Account not found'); setSuccessMsg(''); }
   });
 
   const verifyForgotOtpMutation = useMutation({
@@ -115,22 +115,22 @@ export const LoginScreen = () => {
       setOtpCode('');
       setPassword('');
       setConfirmPassword('');
-      setSuccessMsg('authentication Success! Enter new Passworde'); setError('');
+      setSuccessMsg('Authentication Success! Enter new Password'); setError('');
     },
     onError: (err: any) => { setError(err.response?.data?.message || 'Invalid OTP code'); setSuccessMsg(''); }
   });
 
   const resetPasswordMutation = useMutation({
     mutationFn: async () => (await axiosClient.post('/identity/auth/reset-password', { newPassword: password, confirmPassword }, { headers: { Authorization: `Bearer ${resetToken}` } })).data,
-    onSuccess: () => { setSuccessMsg('Change Password Success! Please Logine'); setError(''); setTimeout(() => goToLogin(), 1500); },
-    onError: (err: any) => { setError(err.response?.data?.message || 'Change Password Failede'); setSuccessMsg(''); }
+    onSuccess: () => { setSuccessMsg('Change Password Success! Please Login'); setError(''); setTimeout(() => goToLogin(), 1500); },
+    onError: (err: any) => { setError(err.response?.data?.message || 'Change Password Failed'); setSuccessMsg(''); }
   });
 
   // --- SEND OTP (resend) ---
   const sendOtpMutation = useMutation({
     mutationFn: async (purpose: string) => (await axiosClient.post('/identity/auth/send-otp', { email, purpose })).data,
-    onSuccess: () => { setSuccessMsg('New OTP has been sent to emaile'); setError(''); },
-    onError: (err: any) => { setError(err.response?.data?.message || 'Send OTP Failede'); }
+    onSuccess: () => { setSuccessMsg('New OTP has been sent to email'); setError(''); },
+    onError: (err: any) => { setError(err.response?.data?.message || 'Send OTP Failed'); }
   });
 
   // --- GOOGLE LOGIN ---
@@ -149,7 +149,7 @@ export const LoginScreen = () => {
       setSuccessMsg('Set up Password Success!');
       setTimeout(() => navigateByRole(useAuthStore.getState().role || ''), 1000);
     },
-    onError: (err: any) => { setError(err.response?.data?.message || 'Password Failede Settings'); }
+    onError: (err: any) => { setError(err.response?.data?.message || 'Password Settings Failed'); }
   });
 
   const goToLogin = () => { setView('login'); setEmail(''); setPassword(''); setConfirmPassword(''); setOtpCode(''); setRegStep(1); setForgotStep(1); setIsOtpMode(false); clearMessages(); };
@@ -157,7 +157,7 @@ export const LoginScreen = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); clearMessages();
     if (view === 'login') {
-      if (!email || !password) return setError('Please enter your full email and Passworde');
+      if (!email || !password) return setError('Please enter your full email and password');
       loginMutation.mutate();
     } else if (view === 'register') {
       if (regStep === 1) {
@@ -179,7 +179,7 @@ export const LoginScreen = () => {
         if (!otpCode) return setError('Please enter code,');
         verifyForgotOtpMutation.mutate();
       } else {
-        if (!password || !confirmPassword) return setError('Please enter a new Passworde');
+        if (!password || !confirmPassword) return setError('Please enter a new Password');
         if (password !== confirmPassword) return setError('Password Confirm unavailable');
         if (!/^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!_]).{8,20}$/.test(password)) {
           return setError('Password must be between 8-20 characters, including uppercase, lowercase, numeric, and special characters');
@@ -187,7 +187,7 @@ export const LoginScreen = () => {
         resetPasswordMutation.mutate();
       }
     } else if (view === 'setup-password') {
-      if (!password || !confirmPassword) return setError('Please enter Passworde');
+      if (!password || !confirmPassword) return setError('Please enter Password');
       if (password !== confirmPassword) return setError('Password Confirm unavailable');
       if (!/^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!_]).{8,20}$/.test(password)) {
         return setError('Password must be between 8-20 characters, including uppercase, lowercase, numeric, and special characters');
@@ -249,15 +249,15 @@ export const LoginScreen = () => {
                   </button>
                 </div>
                 <div className="flex justify-end mt-1">
-                  <button type="button" onClick={() => { setView('forgot-password'); setForgotStep(1); clearMessages(); }} className="text-xs text-blue-600 hover:underline">Forgot Passwordo</button>
+                  <button type="button" onClick={() => { setView('forgot-password'); setForgotStep(1); clearMessages(); }} className="text-xs text-blue-600 hover:underline">Forgot Password</button>
                 </div>
               </div>
-              <button type="submit" disabled={isAnyPending} className={btnPrimary}>{loginMutation.isPending ? 'Logineee in progress' : 'Login'}</button>
+              <button type="submit" disabled={isAnyPending} className={btnPrimary}>{loginMutation.isPending ? 'Logging in...' : 'Login'}</button>
               <div className="relative my-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"/></div><div className="relative flex justify-center text-sm"><span className="px-3 bg-white text-gray-400">Or</span></div></div>
               <div className="flex justify-center">
                 <GoogleLogin onSuccess={cr => { if (cr.credential) googleLoginMutation.mutate(cr.credential); }} onError={() => setError('Login Google Failed.')} useOneTap theme="outline" size="large" text="signin_with" shape="rectangular" />
               </div>
-              <p className="text-center mt-4 text-sm text-gray-500">None Account? <button type="button" onClick={() => { setView('register'); clearMessages(); setRegStep(1); }} className={btnSecondary}>Apply Now</button></p>
+              <p className="text-center mt-4 text-sm text-gray-500">No Account? <button type="button" onClick={() => { setView('register'); clearMessages(); setRegStep(1); }} className={btnSecondary}>Apply Now</button></p>
             </>
           )}
 
@@ -285,7 +285,7 @@ export const LoginScreen = () => {
                 </div>
               </div>
 
-              {regStep === 1 && <button type="submit" disabled={isAnyPending} className={btnPrimary}>{registerMutation.isPending ? 'Sending OTPeee code' : 'Register & Obtain OTP'}</button>}
+              {regStep === 1 && <button type="submit" disabled={isAnyPending} className={btnPrimary}>{registerMutation.isPending ? 'Sending OTP code...' : 'Register & Obtain OTP'}</button>}
 
               {regStep === 2 && (
                 <div className="pt-4 border-t border-gray-200 space-y-3">
@@ -294,15 +294,15 @@ export const LoginScreen = () => {
                     <div className="flex gap-2">
                       <input type="text" value={otpCode} onChange={e => setOtpCode(e.target.value)} className={`${inputCls} flex-1 tracking-widest text-center text-lg font-bold`} placeholder="123456" maxLength={6} autoFocus />
                       <button type="button" onClick={() => sendOtpMutation.mutate('REGISTER')} disabled={sendOtpMutation.isPending} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium rounded-lg whitespace-nowrap disabled:opacity-50">
-                        {sendOtpMutation.isPending ? 'Sendingieee' : 'Deliver Again'}
+                        {sendOtpMutation.isPending ? 'Sending...' : 'Send Again'}
                       </button>
                     </div>
                   </div>
-                  <button type="submit" disabled={isAnyPending} className={`${btnPrimary} !bg-green-600 hover:!bg-green-700`}>{verifyRegisterOtpMutation.isPending ? 'Confirmeee in progress' : 'Confirm & Finish'}</button>
+                  <button type="submit" disabled={isAnyPending} className={`${btnPrimary} !bg-green-600 hover:!bg-green-700`}>{verifyRegisterOtpMutation.isPending ? 'Confirming...' : 'Confirm & Finish'}</button>
                   <div className="text-center"><button type="button" onClick={() => { setRegStep(1); clearMessages(); }} className={btnGhost}>← Edit Info</button></div>
                 </div>
               )}
-              <p className="text-center text-sm text-gray-500">Already have an accounto <button type="button" onClick={() => goToLogin()} className={btnSecondary}>Login</button></p>
+              <p className="text-center text-sm text-gray-500">Already have an account? <button type="button" onClick={() => goToLogin()} className={btnSecondary}>Login</button></p>
             </>
           )}
 
@@ -312,7 +312,7 @@ export const LoginScreen = () => {
               {forgotStep === 1 && (
                 <>
                   <div><label className={labelCls}>Email Account</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputCls} placeholder="user@example.com" disabled={isAnyPending} /></div>
-                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{forgotMutation.isPending ? 'Sending OTPeee' : 'Send Confirmation Code'}</button>
+                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{forgotMutation.isPending ? 'Sending OTP...' : 'Send Confirmation Code'}</button>
                 </>
               )}
               {forgotStep === 2 && (
@@ -322,11 +322,11 @@ export const LoginScreen = () => {
                     <div className="flex gap-2">
                       <input type="text" value={otpCode} onChange={e => setOtpCode(e.target.value)} className={`${inputCls} flex-1 tracking-widest text-center text-lg font-bold`} placeholder="123456" maxLength={6} autoFocus />
                       <button type="button" onClick={() => sendOtpMutation.mutate('FORGOT_PASSWORD')} disabled={sendOtpMutation.isPending} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-medium rounded-lg whitespace-nowrap disabled:opacity-50">
-                        {sendOtpMutation.isPending ? 'Sendingieee' : 'Deliver Again'}
+                        {sendOtpMutation.isPending ? 'Sending...' : 'Send Again'}
                       </button>
                     </div>
                   </div>
-                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{verifyForgotOtpMutation.isPending ? 'Validatingceee' : 'Authentication OTP'}</button>
+                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{verifyForgotOtpMutation.isPending ? 'Validating...' : 'Authentication OTP'}</button>
                   <div className="text-center"><button type="button" onClick={() => { setForgotStep(1); setOtpCode(''); clearMessages(); }} className={btnGhost}>Change email</button></div>
                 </>
               )}
@@ -350,7 +350,7 @@ export const LoginScreen = () => {
                       </button>
                     </div>
                   </div>
-                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{resetPasswordMutation.isPending ? 'Ongoingueee' : 'Confirm Password Change'}</button>
+                  <button type="submit" disabled={isAnyPending} className={btnPrimary}>{resetPasswordMutation.isPending ? 'Saving...' : 'Confirm Password Change'}</button>
                 </>
               )}
               <div className="text-center"><button type="button" onClick={() => goToLogin()} className={btnGhost}>← Back to Login</button></div>
@@ -378,7 +378,7 @@ export const LoginScreen = () => {
                   </button>
                 </div>
               </div>
-              <button type="submit" disabled={isAnyPending} className={btnPrimary}>{setupPasswordMutation.isPending ? 'Setting upeee' : 'Password Settings'}</button>
+              <button type="submit" disabled={isAnyPending} className={btnPrimary}>{setupPasswordMutation.isPending ? 'Setting up...' : 'Password Settings'}</button>
               <div className="text-center">
                 <button type="button" onClick={() => navigateByRole(useAuthStore.getState().role || '')} className={btnGhost}>Skip, go to System →</button>
               </div>

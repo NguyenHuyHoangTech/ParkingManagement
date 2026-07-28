@@ -106,29 +106,29 @@ export const StaffLayout = () => {
             if (msg.includes('expired') || msg.includes('Reservation expired')) {
               // No-show: reservation slot released, don't show misleading "reserved" toast
               notification.info({
-                message: '⏰ Đặt chỗ đã hết hạn',
-                description: plate ? `Đặt chỗ cho xe ${plate} (khu ${zoneName}) đã hết giờ. Chỗ đỗ đã được giải phóng.` : 'Một đặt chỗ đã hết giờ và được giải phóng.',
+                message: '⏰ Reservation expired',
+                description: plate ? `Reservation for ${plate} (zone ${zoneName}) has expired. Slot released.` : 'A reservation has expired and the slot is released.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
                 duration: 5
               });
             } else if (msg.includes('arriving')) {
               notification.info({
-                message: '⏱️ Xe sắp đến',
-                description: plate ? `Xe ${plate} dự kiến sẽ đến khu ${zoneName} trong ít phút nữa.` : 'Một xe đặt chỗ sắp đến.',
+                message: '⏱️ Vehicle arriving',
+                description: plate ? `Vehicle ${plate} is arriving at zone ${zoneName} shortly.` : 'A reserved vehicle is arriving.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
                 duration: 5
               });
             } else if (msg.includes('arrived')) {
               notification.success({
-                message: '🚗 Xe đặt chỗ đã đến!',
-                description: plate ? `Xe ${plate} đã đến và được dẫn vào khu ${zoneName}.` : 'Xe đặt chỗ đã đến.',
+                message: '🚗 Reserved vehicle arrived!',
+                description: plate ? `Vehicle ${plate} has arrived and is routed to zone ${zoneName}.` : 'Reserved vehicle arrived.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
                 duration: 5
               });
             } else {
               notification.success({
-                message: '✅ Đặt chỗ thành công!',
-                description: plate ? `Đặt chỗ cho xe ${plate} tại khu ${zoneName} đã được xác nhận.` : 'Đặt chỗ đã được xác nhận.',
+                message: '✅ Reservation confirmed!',
+                description: plate ? `Reservation for ${plate} at zone ${zoneName} is confirmed.` : 'Reservation confirmed.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
                 duration: 5
               });
@@ -137,10 +137,10 @@ export const StaffLayout = () => {
               window.dispatchEvent(new CustomEvent('add-notification', {
                 detail: {
                   message: msg.includes('expired')
-                    ? `[Hết hạn] Đặt chỗ xe ${plate} khu ${zoneName} đã hết giờ.`
+                    ? `[Expired] Reservation for ${plate} at zone ${zoneName} expired.`
                     : msg.includes('arriving') 
-                      ? `[Sắp đến] Xe ${plate} dự kiến sắp đến khu ${zoneName}.` 
-                      : `[Đặt chỗ] ${plate} tại khu ${zoneName} đã được xác nhận.`,
+                      ? `[Arriving] ${plate} is arriving at zone ${zoneName}.` 
+                      : `[Reserved] ${plate} at zone ${zoneName} is confirmed.`,
                   type: msg.includes('expired') ? 'warning' : 'success'
                 }
               }));
@@ -187,8 +187,8 @@ export const StaffLayout = () => {
   const userMenu: any = {
     items: [
       { key: 'shift', icon: <ClockCircleOutlined />, label: 'Shift Management', onClick: () => navigate('/staff/shift-management') },
-      { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
-      { key: 'rules', icon: <ReadOutlined />, label: 'Nội Quy', onClick: () => setIsRulesOpen(true) },
+      { key: 'settings', icon: <SettingOutlined />, label: 'Settings', onClick: () => setIsSettingsOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Rules', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],
@@ -280,11 +280,11 @@ export const StaffLayout = () => {
                       <div className="flex flex-col gap-2 p-2 w-64">
                         <span className="font-bold text-red-600 border-b border-red-100 pb-1">🚨 Monthly Zone Status</span>
                         {violations.length === 0 && (
-                          <div className="text-sm text-center text-slate-500 py-2">0 xe đỗ sai zone</div>
+                          <div className="text-sm text-center text-slate-500 py-2">0 wrongly parked vehicles</div>
                         )}
                         {violations.map((v: any, idx: number) => (
                           <div key={idx} className={`p-2 rounded border ${v.diff > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="text-sm text-center"><b>{v.name}</b>: <span className={v.diff > 0 ? 'text-red-600 font-bold' : 'text-slate-500'}>{v.diff} xe đỗ sai zone</span></div>
+                            <div className="text-sm text-center"><b>{v.name}</b>: <span className={v.diff > 0 ? 'text-red-600 font-bold' : 'text-slate-500'}>{v.diff} wrongly parked vehicles</span></div>
                           </div>
                         ))}
                       </div>

@@ -406,8 +406,8 @@ export const ShiftManagementScreen = () => {
               ) : (
                 <div className="text-center p-6 bg-green-50 rounded-lg border border-green-200">
                   <SafetyCertificateOutlined className="text-4xl text-green-500 mb-4" />
-                  <Title level={4} className="m-0 text-green-700">Confirm Close Ca</Title>
-                  <Text className="text-green-600 block mt-2">Location ({activeGateName}) does not generate cash revenuee Can close shifts directlye</Text>
+                  <Title level={4} className="m-0 text-green-700">Confirm Close Shift</Title>
+                  <Text className="text-green-600 block mt-2">Location ({activeGateName}) does not generate cash revenue. Can close shift directly.</Text>
                 </div>
               )}
             </div>

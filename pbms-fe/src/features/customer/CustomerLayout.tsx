@@ -53,17 +53,17 @@ export const CustomerLayout = () => {
   };
 
   const navLinks = [
-    { key: '/customer/home', label: 'Trang chủ' },
-    { key: '/customer/pre-booking', label: 'Đặt chỗ (Booking)' },
-    { key: '/customer/monthly-pass', label: 'Vé tháng' },
-    { key: '/customer/my-parking', label: 'Quản lý dịch vụ' },
-    { key: '/customer/helpdesk', label: 'Hỗ trợ (e-KYC)' },
+    { key: '/customer/home', label: 'Home' },
+    { key: '/customer/pre-booking', label: 'Booking' },
+    { key: '/customer/monthly-pass', label: 'Monthly Pass' },
+    { key: '/customer/my-parking', label: 'My Parking' },
+    { key: '/customer/helpdesk', label: 'Helpdesk (e-KYC)' },
   ];
 
   const userMenu: any = {
     items: [
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
-      { key: 'rules', icon: <ReadOutlined />, label: 'Quy định', onClick: () => setIsRulesOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Rules', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],
@@ -154,15 +154,15 @@ export const CustomerLayout = () => {
             else navigate(key);
           }}
           items={[
-            { key: '/customer/home', icon: <HomeOutlined />, label: 'Trang chủ' },
-            { key: '/customer/pre-booking', icon: <CarOutlined />, label: 'Đặt chỗ' },
-            { key: '/customer/monthly-pass', icon: <IdcardOutlined />, label: 'Vé tháng' },
-            { key: '/customer/my-parking', icon: <HistoryOutlined />, label: 'Quản lý dịch vụ' },
-            { key: '/customer/helpdesk', icon: <CustomerServiceOutlined />, label: 'Hỗ trợ' },
+            { key: '/customer/home', icon: <HomeOutlined />, label: 'Home' },
+            { key: '/customer/pre-booking', icon: <CarOutlined />, label: 'Booking' },
+            { key: '/customer/monthly-pass', icon: <IdcardOutlined />, label: 'Monthly Pass' },
+            { key: '/customer/my-parking', icon: <HistoryOutlined />, label: 'My Parking' },
+            { key: '/customer/helpdesk', icon: <CustomerServiceOutlined />, label: 'Helpdesk' },
             { type: 'divider' }, 
-            { key: 'rules', icon: <ReadOutlined className="text-blue-600" />, label: <span className="text-blue-600 font-bold">Quy định bãi đỗ xe</span> },
-            { key: 'settings', icon: <SettingOutlined className="text-slate-600" />, label: <span className="text-slate-600 font-bold">Cài đặt</span> },
-            { key: 'logout', icon: <LogoutOutlined className="text-red-500" />, label: <span className="text-red-500 font-bold">Đăng xuất</span> }
+            { key: 'rules', icon: <ReadOutlined className="text-blue-600" />, label: <span className="text-blue-600 font-bold">Parking Rules</span> },
+            { key: 'settings', icon: <SettingOutlined className="text-slate-600" />, label: <span className="text-slate-600 font-bold">Settings</span> },
+            { key: 'logout', icon: <LogoutOutlined className="text-red-500" />, label: <span className="text-red-500 font-bold">Logout</span> }
           ]}
           className="border-r-0"
         />
@@ -179,29 +179,29 @@ export const CustomerLayout = () => {
                       <div className="flex items-center gap-2 mb-4">
                           <span className="font-sans font-black text-2xl text-slate-800">PBMS<span className="text-blue-600">.</span></span>
                       </div>
-                      <p className="text-slate-500 text-sm max-w-sm mb-6 font-medium">Hệ thống Quản lý Bãi đỗ xe Thông minh ứng dụng AI và IoT hàng đầu. An toàn, Minh bạch, Nhanh chóng.</p>
+                      <p className="text-slate-500 text-sm max-w-sm mb-6 font-medium">Leading Smart Parking Management System using AI and IoT. Safe, Transparent, Fast.</p>
                       <div className="flex items-center gap-4">
                           <div className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 flex items-center gap-2 font-bold shadow-sm">
                               <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                              Bảo mật RSA 2048-bit
+                              RSA 2048-bit Security
                           </div>
                       </div>
                   </div>
                   
                   <div>
-                      <h4 className="text-slate-800 font-bold mb-4">Hỗ trợ Khách hàng</h4>
+                      <h4 className="text-slate-800 font-bold mb-4">Customer Support</h4>
                       <ul className="space-y-3 text-sm text-slate-500 font-medium">
-                          <li><a onClick={() => navigate('/customer/my-parking')} className="hover:text-blue-600 transition cursor-pointer">Tra cứu hóa đơn</a></li>
-                          <li><a onClick={() => navigate('/customer/helpdesk')} className="hover:text-blue-600 transition cursor-pointer">Báo mất thẻ / Sự cố</a></li>
-                          <li><a onClick={() => setIsRulesOpen(true)} className="hover:text-blue-600 transition cursor-pointer">Quy định bãi giữ xe</a></li>
+                          <li><a onClick={() => navigate('/customer/my-parking')} className="hover:text-blue-600 transition cursor-pointer">Lookup Invoice</a></li>
+                          <li><a onClick={() => navigate('/customer/helpdesk')} className="hover:text-blue-600 transition cursor-pointer">Report Lost Card / Incident</a></li>
+                          <li><a onClick={() => setIsRulesOpen(true)} className="hover:text-blue-600 transition cursor-pointer">Parking Rules</a></li>
                       </ul>
                   </div>
                   <div>
-                      <h4 className="text-slate-800 font-bold mb-4">Liên hệ (24/7)</h4>
+                      <h4 className="text-slate-800 font-bold mb-4">Contact (24/7)</h4>
                       <ul className="space-y-3 text-sm text-slate-500 font-medium">
                           <li className="flex items-center gap-2">Hotline: <span className="text-blue-600 font-mono font-bold bg-blue-50 px-2 py-0.5 rounded">{buildingProfile?.hotline || '1900 1234'}</span></li>
                           <li>Email: <span className="text-slate-700">{buildingProfile?.contactEmail || 'support@pbms.vn'}</span></li>
-                          <li>{buildingProfile?.address || 'Khu Công Nghệ Cao, TP.HCM'}</li>
+                          <li>{buildingProfile?.address || 'Hi-Tech Park, HCMC'}</li>
                       </ul>
                   </div>
               </div>
@@ -209,8 +209,8 @@ export const CustomerLayout = () => {
               <div className="flex flex-col md:flex-row justify-between items-center text-xs font-semibold text-slate-400">
                   <p>&copy; {new Date().getFullYear()} {buildingProfile?.name || 'PBMS'} - Smart Parking Management System. All rights reserved.</p>
                   <div className="flex gap-4 mt-4 md:mt-0">
-                      <a className="hover:text-blue-600 transition cursor-pointer">Điều khoản dịch vụ</a>
-                      <a className="hover:text-blue-600 transition cursor-pointer">Chính sách bảo mật</a>
+                      <a className="hover:text-blue-600 transition cursor-pointer">Terms of Service</a>
+                      <a className="hover:text-blue-600 transition cursor-pointer">Privacy Policy</a>
                   </div>
               </div>
           </div>

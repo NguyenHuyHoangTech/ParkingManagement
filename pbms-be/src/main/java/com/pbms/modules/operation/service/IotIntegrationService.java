@@ -62,7 +62,7 @@ public class IotIntegrationService {
                             "type", "MONTHLY_ZONE_VIOLATION",
                             "zoneId", zone.getId(),
                             "zoneName", zone.getZoneName(),
-                            "message", String.format("Phát hiện %d xe đỗ trái phép tại Zone %s! (Tổng chỗ bị chiếm: %d, Tổng vé tháng trong bãi: %d, Số xe đã phạt: %d)", 
+                            "message", String.format("Detected %d unauthorized parked vehicles at Zone %s! (Total occupied: %d, Total monthly tickets inside: %d, Penalized vehicles: %d)", 
                                     occupiedMonthlySlots - monthlyCarsInside - penalizedCars, zone.getZoneName(), occupiedMonthlySlots, monthlyCarsInside, penalizedCars)
                         )
                     );

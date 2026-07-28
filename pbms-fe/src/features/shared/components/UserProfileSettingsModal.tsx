@@ -70,11 +70,11 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
       return response.data;
     },
     onSuccess: () => {
-      message.success({ content: 'Link your Google Success account!', key: 'google', duration: 2 });
+      message.success({ content: 'Google account linked successfully!', key: 'google', duration: 2 });
       linkGoogleAccount(); // Updates local Zustand store (authProvider='GOOGLE')
     },
     onError: (error: any) => {
-      message.error({ content: error.response?.data?.message || 'Error when linking Google', key: 'google', duration: 3 });
+      message.error({ content: error.response?.data?.message || 'Error when linking Google account', key: 'google', duration: 3 });
     }
   });
 
@@ -98,9 +98,9 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
     onSuccess: () => {
       if (!hasPassword) {
         createPassword(); // Update local Zustand state
-        message.success({ content: 'New Password created Success!', key: 'pwd', duration: 2 });
+        message.success({ content: 'Password created successfully!', key: 'pwd', duration: 2 });
       } else {
-        message.success({ content: 'Change Password Success!', key: 'pwd', duration: 2 });
+        message.success({ content: 'Password changed successfully!', key: 'pwd', duration: 2 });
       }
       pwdForm.resetFields();
     },
@@ -111,15 +111,15 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
 
   const handleChangePassword = (values: any) => {
     if (values.newPassword !== values.confirmPassword) {
-      return message.error('Password Confirm does not match!');
+      return message.error('Passwords do not match!');
     }
-    message.loading({ content: 'Processingeee', key: 'pwd' });
+    message.loading({ content: 'Processing...', key: 'pwd' });
     changePasswordMutation.mutate(values);
   };
 
   return (
     <Modal
-      title={<span className="text-xl font-bold">Settings Account</span>}
+      title={<span className="text-xl font-bold">Account Settings</span>}
       open={isOpen}
       onCancel={onClose}
       footer={null}
@@ -129,33 +129,32 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
       <Tabs activeKey={activeTab} onChange={setActiveTab} className="mt-4">
         
         {/* TAB 1: PERSONAL INFO */}
-        <Tabs.TabPane tab={<span><UserOutlined />File</span>} key="1">
+        <Tabs.TabPane tab={<span><UserOutlined />Profile</span>} key="1">
           <Form form={form} layout="vertical" onFinish={handleUpdateProfile} className="mt-2">
-            <Form.Item label="Email Login">
+            <Form.Item label="Login Email">
               <Input disabled value={email || ''} className="bg-gray-50 text-gray-500" />
             </Form.Item>
             <Form.Item 
               name="name" 
-              label="Display name" 
+              label="Display Name" 
               rules={[{ required: true, message: 'Please enter a display name!' }]}
             >
               <Input placeholder="Enter your name" size="large" />
             </Form.Item>
             <Button type="primary" htmlType="submit" icon={<SaveOutlined />} size="large" className="w-full mt-2">
-              
-                                        Save Changes
-                                      </Button>
+              Save Changes
+            </Button>
           </Form>
         </Tabs.TabPane>
 
         {/* TAB 2: SECURITY */}
-        <Tabs.TabPane tab={<span><SafetyCertificateOutlined />Security & Links</span>} key="2">
+        <Tabs.TabPane tab={<span><SafetyCertificateOutlined />Security & Linking</span>} key="2">
           <div className="mt-2 space-y-6">
             
             {/* Account Information */}
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
               <div className="flex justify-between items-center mb-2">
-                <Text strong className="text-gray-700">Google link status:</Text>
+                <Text strong className="text-gray-700">Google Link Status:</Text>
                 {authProvider === 'GOOGLE' ? (
                   <span className="text-green-600 font-bold text-sm bg-green-100 px-2 py-1 rounded">Linked</span>
                 ) : (
@@ -170,7 +169,7 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
               ) : (
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <GoogleOutlined className="text-red-500" />
-                  <Text>This account is using Login via Google</Text>
+                  <Text>This account is logged in via Google</Text>
                 </div>
               )}
             </div>
@@ -181,7 +180,7 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
             <div>
               <Title level={5} className="mb-4">
                 <LockOutlined className="mr-2 text-blue-500" />
-                {hasPassword ? 'Change Password' : 'Create Password Login'}
+                {hasPassword ? 'Change Password' : 'Create Login Password'}
               </Title>
               
               {!hasPassword && (
@@ -189,8 +188,8 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
                   type="info" 
                   showIcon 
                   className="mb-4"
-                  message="You don't have a Password yet"
-                  description="You are Login with Google. Please create a Password so you can Log in directly by Email without going through Google."
+                  message="You don't have a password yet"
+                  description="You logged in with Google. Please create a password so you can log in directly using your email without relying on Google."
                 />
               )}
 
@@ -198,33 +197,33 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
                 {hasPassword && (
                   <Form.Item 
                     name="oldPassword" 
-                    label="Current password"
-                    rules={[{ required: true, message: 'Enter current Password' }]}
+                    label="Current Password"
+                    rules={[{ required: true, message: 'Please enter your current password' }]}
                   >
-                    <Input.Password placeholder="Enter old Passwordeee" />
+                    <Input.Password placeholder="Enter current password" />
                   </Form.Item>
                 )}
                 
                 <Form.Item 
                   name="newPassword" 
-                  label="New Password "
+                  label="New Password"
                   rules={[
-                    { required: true, message: 'Enter new Password' },
+                    { required: true, message: 'Please enter a new password' },
                     { 
                       pattern: /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!_]).{8,20}$/,
-                      message: 'Password must be 8-20 characters, including uppercase letters, lowercase letters, numbers and special characters'
+                      message: 'Password must be 8-20 characters long, including uppercase, lowercase, numbers, and special characters.'
                     }
                   ]}
                 >
-                  <Input.Password placeholder="Enter new Passwordeee" />
+                  <Input.Password placeholder="Enter new password" />
                 </Form.Item>
                 
                 <Form.Item 
                   name="confirmPassword" 
-                  label="Confirm password"
-                  rules={[{ required: true, message: 'Confirm new Password' }]}
+                  label="Confirm Password"
+                  rules={[{ required: true, message: 'Please confirm your new password' }]}
                 >
-                  <Input.Password placeholder="Re-enter the new Password" />
+                  <Input.Password placeholder="Re-enter new password" />
                 </Form.Item>
 
                 <Button type="primary" htmlType="submit" className="w-full">

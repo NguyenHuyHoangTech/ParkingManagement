@@ -195,7 +195,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       const outSub = stompClient.subscribe(outDest, (msg) => {
         const payload = JSON.parse(msg.body);
         if (payload.status === 'SUCCESS' && isProcessingRef.current) {
-          message.success(`Checkout thành công! Barrier đã mở!`);
+          message.success(`Checkout successful! Barrier opened!`);
           setScanData(null);
           setEditablePlate('');
           setPaymentMethod('CASH');
@@ -513,7 +513,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       } else {
         setExpiresAt(null);
       }
-      message.success("Báo giá đã được làm mới!");
+      message.success("Price has been refreshed!");
     }).catch(err => {
       message.error(err.response?.data?.message || 'Failed to refresh price');
     }).finally(() => {
@@ -627,7 +627,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
               </div>
               {/* OUT Column */}
               <div className="flex-1 flex flex-col gap-2 pl-2">
-                <div className="text-xs font-bold text-blue-400 text-center uppercase tracking-widest bg-slate-800 py-1 rounded">Xe Ra photo</div>
+                <div className="text-xs font-bold text-blue-400 text-center uppercase tracking-widest bg-slate-800 py-1 rounded">OUT Vehicle Photo</div>
                 <div className="flex-1 relative bg-black rounded overflow-hidden border border-slate-700"><img src={getImageUrl(scanData.imageOutBase64)} alt="OUT Pan" className="w-full h-full object-contain absolute" /></div>
                 <div className="h-[25%] relative bg-white rounded flex items-center justify-center border border-slate-700"><img src={getImageUrl(scanData.lprImageOutBase64)} alt="OUT LPR" className="max-w-full max-h-full object-contain" /></div>
               </div>
@@ -716,7 +716,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       />
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-inner flex-1">
-                      <Text className="text-blue-700 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate Ra (Edit if wrong)</Text>
+                      <Text className="text-blue-700 font-bold mb-1 uppercase tracking-widest text-[10px]">License Plate OUT (Edit if wrong)</Text>
                       <Input
                         value={editablePlate}
                         onChange={(e) => setEditablePlate(normalizePlateNumber(e.target.value))}
@@ -742,10 +742,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   {isExpired && scanData && (
                     <div className="absolute inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
                       <ClockCircleOutlined className="text-5xl text-red-500 mb-4 animate-pulse" />
-                      <Title level={3} className="!text-red-400 !m-0">Báo giá đã hết hạn</Title>
-                      <Text className="text-slate-300 mt-2 mb-6 block">Thời gian giữ giá 5 phút đã kết thúc. Vui lòng làm mới để hệ thống cập nhật biểu giá mới nhất.</Text>
+                      <Title level={3} className="!text-red-400 !m-0">Price Quote Expired</Title>
+                      <Text className="text-slate-300 mt-2 mb-6 block">The 5-minute price hold has ended. Please refresh to update to the latest price.</Text>
                       <Button type="primary" size="large" danger className="w-full max-w-xs font-bold uppercase tracking-widest h-12" onClick={handleRefreshPrice} loading={isLoading}>
-                        Làm mới giá (Refresh)
+                        Refresh Price
                       </Button>
                     </div>
                   )}
@@ -841,7 +841,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                           </>
                         ) : (
                           <div className="bg-green-100 text-green-800 p-2 rounded w-full h-full text-center font-bold flex flex-col items-center justify-center text-xs shadow-inner">
-                            <CheckCircleOutlined className="text-2xl mb-1 text-green-600" /> Money collected Success!
+                            <CheckCircleOutlined className="text-2xl mb-1 text-green-600" /> Money collected successfully!
                           </div>
                         )}
                       </div>

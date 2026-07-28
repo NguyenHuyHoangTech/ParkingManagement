@@ -98,7 +98,7 @@ export const ManagerLayout = () => {
   const userMenu: any = {
     items: [
       { key: 'settings', icon: <SettingOutlined />, label: 'Setting', onClick: () => setIsSettingsOpen(true) },
-      { key: 'rules', icon: <ReadOutlined />, label: 'Nội Quy', onClick: () => setIsRulesOpen(true) },
+      { key: 'rules', icon: <ReadOutlined />, label: 'Rules', onClick: () => setIsRulesOpen(true) },
       { type: 'divider' },
       { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout, danger: true },
     ],

@@ -194,16 +194,15 @@ export const PreBookingManagementScreen = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string, record: PreBooking) => {
-        if (status === 'PENDING') return <Tag color="gold" className="font-bold">ĐÃ ĐẶT CHỖ</Tag>;
-        if (status === 'ACTIVE') return <Tag color="blue" className="font-bold animate-pulse">ĐANG TRONG BÃI</Tag>;
-        if (status === 'ONGOING') return <Tag color="orange" className="font-bold animate-pulse">ONGOING</Tag>;
-        if (status === 'COMPLETED') return <Tag color="green" className="font-bold"><CheckCircleOutlined className="mr-1" />ĐÃ HOÀN THÀNH</Tag>;
+        if (status === 'PENDING') return <Tag color="gold" className="font-bold">RESERVED</Tag>;
+        if (status === 'ACTIVE') return <Tag color="blue" className="font-bold animate-pulse">IN PARKING</Tag>;
+        if (status === 'COMPLETED') return <Tag color="green" className="font-bold"><CheckCircleOutlined className="mr-1" />COMPLETED</Tag>;
         if (status === 'COMPLETED_UNUSED') return <Tag color="default" className="font-bold">NO SHOW</Tag>;
 
         if (status === 'CANCELLED') {
-          if (record.refundStatus === 'PENDING') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY (ĐANG HOÀN TIỀN)</Tag>;
-          if (record.refundStatus === 'REFUNDED' || record.refundStatus === 'SUCCESS') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY (ĐÃ HOÀN TIỀN)</Tag>;
-          return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />ĐÃ HỦY</Tag>;
+          if (record.refundStatus === 'PENDING') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />CANCELLED (REFUNDING)</Tag>;
+          if (record.refundStatus === 'REFUNDED' || record.refundStatus === 'SUCCESS') return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />CANCELLED (REFUNDED)</Tag>;
+          return <Tag color="red" className="font-bold"><CloseCircleOutlined className="mr-1" />CANCELLED</Tag>;
         }
         return <Tag color="default" className="font-bold">{status}</Tag>;
       }
@@ -252,13 +251,13 @@ export const PreBookingManagementScreen = () => {
       <Row gutter={16} className="mb-6">
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-blue-500 bg-blue-50/30">
-            <Statistic title="ĐÃ ĐẶT CHỖ" value={upcomingCount} suffix="Vehicles" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
+            <Statistic title="RESERVED" value={upcomingCount} suffix="Vehicles" valueStyle={{ color: '#1890ff', fontWeight: 'bold' }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card className="shadow-sm border-l-4 border-l-orange-500 bg-orange-50/30">
             <Statistic
-              title={<span className="text-orange-600 animate-pulse font-semibold">ĐANG TRONG BÃI</span>}
+              title={<span className="text-orange-600 animate-pulse font-semibold">IN PARKING</span>}
               value={ongoingCount} suffix="Vehicles" valueStyle={{ color: '#d97706', fontWeight: 'bold' }}
             />
           </Card>
@@ -292,10 +291,10 @@ export const PreBookingManagementScreen = () => {
           />
           <Select value={filterStatus} onChange={setFilterStatus} className="w-48" options={[
             { label: 'All Status', value: 'ALL' },
-            { label: 'Đã đặt chỗ', value: 'PENDING' },
-            { label: 'Đang trong bãi', value: 'ACTIVE' },
-            { label: 'Đã hoàn thành', value: 'COMPLETED' },
-            { label: 'Đã hủy', value: 'CANCELLED' }
+            { label: 'Reserved', value: 'PENDING' },
+            { label: 'In Parking', value: 'ACTIVE' },
+            { label: 'Completed', value: 'COMPLETED' },
+            { label: 'Cancelled', value: 'CANCELLED' }
           ]} />
           <Input
             placeholder="Type in Booking Code or License Plate"

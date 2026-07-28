@@ -27,7 +27,7 @@ export const CustomerRulesScreen = () => {
           onClick={() => navigate(-1)}
           className="mb-8 inline-flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-semibold"
         >
-          <ArrowLeftOutlined /> Quay lại
+          <ArrowLeftOutlined /> Back
         </button>
 
         {buildingProfile?.rules ? (
@@ -41,9 +41,9 @@ export const CustomerRulesScreen = () => {
                   <BookOutlined className="text-3xl text-orange-500" />
                 </div>
                 <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-red-500 tracking-tight">
-                  Quy định bãi đỗ xe
+                  Parking Rules
                 </h1>
-                <p className="text-slate-500 font-medium mt-4 text-lg max-w-2xl mx-auto">Vui lòng tuân thủ các quy định dưới đây để đảm bảo an toàn và trật tự cho {buildingProfile.name || 'bãi đỗ xe'}.</p>
+                <p className="text-slate-500 font-medium mt-4 text-lg max-w-2xl mx-auto">Please comply with the rules below to ensure safety and order for {buildingProfile.name || 'the parking lot'}.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -66,7 +66,7 @@ export const CustomerRulesScreen = () => {
           </section>
         ) : (
           <div className="text-center py-20 text-slate-500 italic bg-white/50 backdrop-blur-md rounded-3xl border border-white">
-            Hiện tại chưa có quy định nào được thiết lập.
+            There are currently no rules established.
           </div>
         )}
       </main>

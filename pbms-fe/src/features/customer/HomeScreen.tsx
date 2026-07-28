@@ -149,7 +149,7 @@ export const HomeScreen = () => {
         <h3 className="text-lg font-bold text-slate-800">{slot.label}</h3>
         <div className="mt-4 flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-3">
             <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Chỗ trống</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Available Slots</p>
                 <p className={`text-4xl font-black font-mono mt-1 ${numberColor}`}>{isFull ? '00' : slot.available}</p>
             </div>
             <span className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full border font-bold text-center ${statusBg}`}>{statusText}</span>
@@ -160,7 +160,7 @@ export const HomeScreen = () => {
 
   // Pricing rendering
   const renderPricingCards = () => {
-    if (!pricingPolicies || pricingPolicies.length === 0) return <p className="text-slate-500 italic text-center">Hệ thống đang cập nhật bảng giá...</p>;
+    if (!pricingPolicies || pricingPolicies.length === 0) return <p className="text-slate-500 italic text-center">System is updating pricing...</p>;
     
     const activeVTs = (vehicleTypes || []).filter((vt: any) => vt.status === 'ACTIVE');
     if (activeVTs.length === 0) return null;
@@ -196,47 +196,47 @@ export const HomeScreen = () => {
                 <summary className="p-8 cursor-pointer list-none flex flex-col justify-between">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-2xl font-bold text-slate-800">Khách Vãng Lai</h3>
+                            <h3 className="text-2xl font-bold text-slate-800">Walk-in Guests</h3>
                             <span className="text-cyan-500 transform transition-transform duration-300 group-open:rotate-180 bg-cyan-50 p-2 rounded-full">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                             </span>
                         </div>
-                        <p className="text-sm text-slate-500 mb-6 font-medium">Phù hợp cho nhu cầu đỗ xe ngắn hạn. Bấm để xem chi tiết.</p>
+                        <p className="text-sm text-slate-500 mb-6 font-medium">Suitable for short-term parking. Click for details.</p>
                         <div className="flex items-end gap-2">
                             <span className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
                               {policy.globalBaseFee?.toLocaleString() || '0'}
-                              <span className="text-2xl text-slate-400 font-sans ml-1">đ</span>
+                              <span className="text-2xl text-slate-400 font-sans ml-1">VND</span>
                             </span>
-                            <span className="text-slate-500 font-medium mb-1">/ {policy.globalBaseMins} phút</span>
+                            <span className="text-slate-500 font-medium mb-1">/ {policy.globalBaseMins} mins</span>
                         </div>
                     </div>
                 </summary>
                 
                 <div className="px-8 pb-8 pt-2 border-t border-slate-100">
                     <ul className="space-y-4 text-sm text-slate-600 font-medium mt-4">
-                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Thanh toán linh hoạt tại cổng ra</li>
-                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Nhận diện biển số LPR chính xác 99%</li>
+                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Flexible payment at the exit gate</li>
+                        <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> 99% accurate LPR license plate recognition</li>
 
                         
                         {/* Chi tiết ca đỗ */}
                         {policy.shifts && policy.shifts.length > 0 && (
                           <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
-                            <h4 className="font-bold text-slate-800 mb-3">Chi tiết giá theo ca:</h4>
+                            <h4 className="font-bold text-slate-800 mb-3">Shift pricing details:</h4>
                             {policy.shifts.map((shift: any, idx: number) => (
                               <div key={idx} className="mb-4 last:mb-0 p-4 bg-slate-50 rounded-xl border border-slate-100">
                                 <div className="font-bold text-slate-700 mb-2 flex items-center gap-2">
                                   <ClockCircleOutlined className="text-cyan-600" /> 
-                                  Ca: {shift.shiftName} ({shift.startTime} - {shift.endTime})
+                                  Shift: {shift.shiftName} ({shift.startTime} - {shift.endTime})
                                 </div>
                                 <div className="space-y-1 mt-2">
                                   {shift.blocks?.map((b: any, bIdx: number) => (
                                     <div key={bIdx} className="flex justify-between text-sm text-slate-600 border-b border-slate-200 border-dashed last:border-0 py-1.5">
-                                      <span>Khung {b.blockOrder} ({b.durationMins} phút)</span>
-                                      <span className="font-bold text-slate-800">{b.fee?.toLocaleString()}đ</span>
+                                      <span>Block {b.blockOrder} ({b.durationMins} mins)</span>
+                                      <span className="font-bold text-slate-800">{b.fee?.toLocaleString()} VND</span>
                                     </div>
                                   ))}
                                   {(!shift.blocks || shift.blocks.length === 0) && (
-                                    <div className="text-slate-400 italic text-sm">Chưa có khung giá cho ca này</div>
+                                    <div className="text-slate-400 italic text-sm">No pricing blocks for this shift</div>
                                   )}
                                 </div>
                               </div>
@@ -252,28 +252,28 @@ export const HomeScreen = () => {
               <div className="rounded-3xl p-1 bg-gradient-to-b from-cyan-400 to-blue-600 shadow-xl transform md:-translate-y-4 hover:shadow-2xl transition-all duration-300">
                   <div className="bg-white h-full rounded-[23px] p-8 relative overflow-hidden flex flex-col justify-between">
                       <div>
-                          <div className="absolute top-4 right-4 bg-cyan-100 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-cyan-200">Tiết kiệm nhất</div>
+                          <div className="absolute top-4 right-4 bg-cyan-100 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide border border-cyan-200">Best Value</div>
                           
-                          <h3 className="text-2xl font-bold text-slate-800 mb-2">Vé Tháng</h3>
-                          <p className="text-sm text-slate-500 mb-6 font-medium">Giải pháp tối ưu cho cư dân và nhân viên văn phòng.</p>
+                          <h3 className="text-2xl font-bold text-slate-800 mb-2">Monthly Pass</h3>
+                          <p className="text-sm text-slate-500 mb-6 font-medium">Optimal solution for residents and office workers.</p>
                           <div className="mb-6 pb-6 border-b border-slate-100 flex items-end gap-2">
                               <span className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
                                 {policy.monthlyRate?.toLocaleString()}
-                                <span className="text-2xl text-slate-400 font-sans ml-1">đ</span>
+                                <span className="text-2xl text-slate-400 font-sans ml-1">VND</span>
                               </span>
-                              <span className="text-slate-500 font-medium mb-1">/ tháng</span>
+                              <span className="text-slate-500 font-medium mb-1">/ month</span>
                           </div>
                           <ul className="space-y-4 text-sm text-slate-600 mb-8 relative z-10 font-medium">
-                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> <strong className="text-slate-800">Cố định chỗ đỗ tại ZONE VIP</strong></li>
-                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Ra vào không giới hạn số lần</li>
-                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Tích hợp thẻ vật lý RFID chống sao chép</li>
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> <strong className="text-slate-800">Fixed parking spot in VIP ZONE</strong></li>
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Unlimited entry/exit</li>
+                              <li className="flex items-center gap-3"><svg className="w-5 h-5 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg> Integrated anti-copy RFID physical card</li>
                           </ul>
                       </div>
                       <button 
                         onClick={() => navigate('/customer/monthly-pass')}
                         className="w-full mt-4 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold transition shadow-lg relative z-10 hover:-translate-y-0.5 active:translate-y-0"
                       >
-                        Đăng ký Vé Tháng ngay
+                        Register Monthly Pass Now
                       </button>
                       
                       <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-cyan-50 blur-3xl rounded-full"></div>
@@ -282,7 +282,7 @@ export const HomeScreen = () => {
             )}
           </div>
         ) : (
-          <p className="text-slate-500 italic text-center">Chưa có bảng giá cho loại hình phương tiện này.</p>
+          <p className="text-slate-500 italic text-center">No pricing table for this vehicle type yet.</p>
         )}
       </div>
     );
@@ -302,14 +302,14 @@ export const HomeScreen = () => {
                 <div className="flex-1 w-full max-w-2xl text-center lg:text-left mt-8 lg:mt-0">
                     <div className="inline-flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-700 mb-6 md:mb-8 backdrop-blur-sm shadow-sm">
                         <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">Hệ thống Điều hướng AI Đã Kích Hoạt</span>
+                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">AI Navigation System Activated</span>
                     </div>
                     <h1 className="text-4xl md:text-5xl lg:text-7xl font-black leading-tight mb-4 md:mb-6 tracking-tight text-slate-800">
-                        Không gian thông minh.<br className="hidden md:block" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 block mt-2 md:mt-0">Trải nghiệm không chạm.</span>
+                        Smart space.<br className="hidden md:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 block mt-2 md:mt-0">Touchless experience.</span>
                     </h1>
                     <p className="text-slate-500 text-base md:text-lg lg:text-xl mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
-                        {buildingProfile?.name || "Hệ thống bãi đỗ xe thông minh."} Đỗ xe dễ dàng hơn bao giờ hết. Cập nhật chỗ trống theo thời gian thực, điều hướng thông minh bằng AI và thanh toán tự động qua nhận diện biển số (LPR).
+                        {buildingProfile?.name || "Smart parking system."} Parking easier than ever. Real-time empty slot updates, smart AI navigation, and automated payment via License Plate Recognition (LPR).
                     </p>
                 </div>
 
@@ -320,12 +320,12 @@ export const HomeScreen = () => {
                         <div className="relative">
                             <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
                                 <CarOutlined className="text-cyan-500" />
-                                Đặt chỗ trước
+                                Pre-booking
                             </h3>
                             
                             <div className="space-y-5">
                                 <div>
-                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Loại phương tiện</label>
+                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Vehicle Type</label>
                                     <select 
                                       value={formVehicle}
                                       onChange={(e) => setFormVehicle(e.target.value)}
@@ -338,7 +338,7 @@ export const HomeScreen = () => {
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Thời gian đến dự kiến</label>
+                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Expected Arrival Time</label>
                                     <div className="hidden md:block">
                                         <DatePicker 
                                           showTime 
@@ -366,7 +366,7 @@ export const HomeScreen = () => {
                                       onClick={() => navigate('/customer/pre-booking', { state: { vehicleTypeId: parseInt(formVehicle), arrivalTime: formArrivalTime?.toISOString() }})}
                                       className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 px-8 rounded-xl shadow-[0_4px_14px_0_rgba(6,182,212,0.39)] hover:shadow-[0_6px_20px_rgba(6,182,212,0.23)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                                     >
-                                        TIẾP TỤC ĐẶT CHỖ
+                                        CONTINUE BOOKING
                                     </button>
                                 </div>
                             </div>
@@ -382,19 +382,19 @@ export const HomeScreen = () => {
                 <div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                         <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
-                        Tình trạng lưu bãi
+                        Parking Status
                     </h2>
-                    <p className="text-slate-500 mt-2 font-medium">Dữ liệu được cập nhật trực tiếp theo thời gian thực từ hệ thống cảm biến AI/IoT</p>
+                    <p className="text-slate-500 mt-2 font-medium">Real-time data updated directly from AI/IoT sensor system</p>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-cyan-600 font-mono bg-cyan-50 px-3 py-1.5 rounded-full border border-cyan-100">
-                   <ClockCircleOutlined /> Lần cập nhật cuối: Vừa xong
+                   <ClockCircleOutlined /> Last updated: Just now
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {slots.length > 0 ? slots.map(renderSlotCard) : (
                   <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                    Chưa có dữ liệu bãi đỗ.
+                    No parking data.
                   </div>
                 )}
             </div>
@@ -403,8 +403,8 @@ export const HomeScreen = () => {
         {/* PRICING SECTION */}
         <section className="relative">
             <div className="text-center mb-8 md:mb-16 max-w-3xl mx-auto">
-                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight mb-4">Gói dịch vụ linh hoạt</h2>
-                <p className="text-slate-500 font-medium text-sm md:text-base">Thanh toán tự động không tiền mặt qua cổng điện tử. Bảng giá minh bạch, không phụ phí ẩn, tích hợp nhận diện biển số.</p>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight mb-4">Flexible Service Packages</h2>
+                <p className="text-slate-500 font-medium text-sm md:text-base">Automated cashless payment via electronic gates. Transparent pricing, no hidden fees, integrated license plate recognition.</p>
             </div>
 
             {renderPricingCards()}

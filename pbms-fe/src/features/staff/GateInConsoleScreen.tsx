@@ -468,21 +468,21 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     
     if (dynamicWarnings.length > 0) {
       Modal.confirm({
-        title: <span className="text-red-600 font-bold"><WarningOutlined className="mr-2" />Hệ thống ghi nhận Cảnh báo!</span>,
+        title: <span className="text-red-600 font-bold"><WarningOutlined className="mr-2" />System Warning Detected!</span>,
         content: (
           <div className="mt-4">
-            <p className="font-medium text-slate-700 mb-2">Phương tiện này đang có {dynamicWarnings.length} cảnh báo:</p>
+            <p className="font-medium text-slate-700 mb-2">This vehicle has {dynamicWarnings.length} warnings:</p>
             <ul className="list-disc pl-5 mb-4 space-y-1">
               {dynamicWarnings.map((w: string, idx: number) => (
                 <li key={idx} className="text-red-600">{w}</li>
               ))}
             </ul>
-            <p className="font-bold text-slate-800">Bạn có chắc chắn muốn bỏ qua và cho xe VÀO BÃI không?</p>
+            <p className="font-bold text-slate-800">Are you sure you want to ignore the warnings and LET THE VEHICLE IN?</p>
           </div>
         ),
-        okText: 'Bỏ qua cảnh báo & Cho vào',
+        okText: 'Ignore warnings & Let in',
         okType: 'danger',
-        cancelText: 'Hủy bỏ',
+        cancelText: 'Cancel',
         width: 500,
         onOk: () => {
           executeCheckIn();

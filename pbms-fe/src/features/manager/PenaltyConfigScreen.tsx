@@ -116,7 +116,7 @@ export const PenaltyConfigScreen = () => {
             >
               <Form.Item 
                 name="PENALTY_LOST_CARD" 
-                label={<span className="font-bold text-slate-700">Lost Card Penalty Fee (VNĐ)</span>}
+                label={<span className="font-bold text-slate-700">Lost Card Penalty Fee (VND)</span>}
                 help="Applied when a customer loses their parking card."
                 rules={[{ required: true, message: 'Please enter the lost card penalty fee' }]}
               >
@@ -131,7 +131,7 @@ export const PenaltyConfigScreen = () => {
 
               <Form.Item 
                 name="PENALTY_DAMAGED_CARD" 
-                label={<span className="font-bold text-slate-700">Damaged Card Penalty Fee (VNĐ)</span>}
+                label={<span className="font-bold text-slate-700">Damaged Card Penalty Fee (VND)</span>}
                 help="Applied when a customer damages their parking card (customer's fault)."
                 rules={[{ required: true, message: 'Please enter the damaged card penalty fee' }]}
               >

@@ -184,7 +184,7 @@ export const ExceptionDeskScreen = () => {
                   className="rounded-lg font-medium shadow-sm px-4"
                   onClick={navigateToForm}
                 >
-                  Tạo sự cố
+                  Create Incident
                 </Button>
               </div>
 
@@ -211,17 +211,17 @@ export const ExceptionDeskScreen = () => {
               {/* Horizontal Scroll Categories */}
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                 {[
-                  { id: 'ALL', label: 'Tất cả', count: pendingTickets.length },
-                  { id: 'ZONE_VIOLATION', label: 'Sai khu vực', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
-                  { id: 'OVERSTAY', label: 'Quá giờ', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
-                  { id: 'LOST_CARD', label: 'Mất thẻ', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
-                  { id: 'DAMAGED_CARD', label: 'Hỏng thẻ', count: pendingTickets.filter((t: any) => t.type === 'DAMAGED_CARD').length },
-                  { id: 'MISMATCH', label: 'Sai thông tin xe', count: pendingTickets.filter((t: any) => t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH').length },
-                  { id: 'SLOT_OCCUPIED', label: 'Trùng chỗ', count: pendingTickets.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
-                  { id: 'FIND_CAR', label: 'Tìm xe', count: pendingTickets.filter((t: any) => t.type === 'FIND_CAR').length },
-                  { id: 'FEE_DISPUTE', label: 'Khiếu nại phí', count: pendingTickets.filter((t: any) => t.type === 'FEE_DISPUTE').length },
-                  { id: 'OTHER', label: 'Lỗi khác', count: pendingTickets.filter((t: any) => t.type === 'OTHER').length },
-                  ...(isManager ? [{ id: 'OTHER_FEEDBACK', label: 'Góp ý', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }] : []),
+                  { id: 'ALL', label: 'All', count: pendingTickets.length },
+                  { id: 'ZONE_VIOLATION', label: 'Wrong Zone', count: pendingTickets.filter((t: any) => t.type === 'ZONE_VIOLATION').length },
+                  { id: 'OVERSTAY', label: 'Overstay', count: pendingTickets.filter((t: any) => t.type === 'OVERSTAY').length },
+                  { id: 'LOST_CARD', label: 'Lost Card', count: pendingTickets.filter((t: any) => t.type === 'LOST_CARD').length },
+                  { id: 'DAMAGED_CARD', label: 'Damaged Card', count: pendingTickets.filter((t: any) => t.type === 'DAMAGED_CARD').length },
+                  { id: 'MISMATCH', label: 'Mismatch', count: pendingTickets.filter((t: any) => t.type === 'LPR_MISMATCH' || t.type === 'TYPE_MISMATCH' || t.type === 'MULTIPLE_MISMATCH').length },
+                  { id: 'SLOT_OCCUPIED', label: 'Slot Occupied', count: pendingTickets.filter((t: any) => t.type === 'SLOT_OCCUPIED').length },
+                  { id: 'FIND_CAR', label: 'Find Car', count: pendingTickets.filter((t: any) => t.type === 'FIND_CAR').length },
+                  { id: 'FEE_DISPUTE', label: 'Fee Dispute', count: pendingTickets.filter((t: any) => t.type === 'FEE_DISPUTE').length },
+                  { id: 'OTHER', label: 'Other Penalty', count: pendingTickets.filter((t: any) => t.type === 'OTHER').length },
+                  ...(isManager ? [{ id: 'OTHER_FEEDBACK', label: 'Feedback', count: pendingTickets.filter((t: any) => t.type === 'OTHER_FEEDBACK').length }] : []),
                   { id: 'BLACKLIST', label: 'Blacklist', count: pendingTickets.filter((t: any) => t.type === 'BLACKLIST_VIOLATION').length }
                 ].map(cat => (
                   <div
@@ -243,25 +243,25 @@ export const ExceptionDeskScreen = () => {
               {/* Filters */}
               <Select size="large" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
                 {
-                  value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
+                  value: 'ALL', label: `All statuses (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch;
                   }).length})`
                 },
                 {
-                  value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
+                  value: 'PHASE_1', label: `🔴 Phase 1 - Pending (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
                   }).length})`
                 },
                 {
-                  value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
+                  value: 'PHASE_2', label: `🟡 Phase 2 - Processing (${ticketsData.filter((t: any) => {
                     const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                     return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
                   }).length})`
                 },
-                { value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)' },
-                { value: 'CANCELLED', label: 'Đã Hủy/Từ chối' },
+                { value: 'PHASE_3', label: 'Phase 3 (Resolved)' },
+                { value: 'CANCELLED', label: 'Cancelled/Rejected' },
               ]} />
             </div>
 
@@ -270,7 +270,7 @@ export const ExceptionDeskScreen = () => {
               {isLoadingTickets ? (
                 <div className="flex flex-col items-center justify-center p-12 opacity-50">
                   <div className="animate-spin text-4xl mb-4">⏳</div>
-                  <Text type="secondary">Đang tải dữ liệu...</Text>
+                  <Text type="secondary">Loading data...</Text>
                 </div>
               ) : (
                 <>
@@ -283,20 +283,20 @@ export const ExceptionDeskScreen = () => {
                       <div className="flex flex-wrap gap-2">
                         <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 rounded-md px-2 py-1">{item.type}</Tag>
                         {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
-                          <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Đã hủy</Tag>
+                          <Tag color="default" className="m-0 border-0 rounded-md px-2 py-1">Cancelled</Tag>
                         ) : item.status === 'RESOLVED' ? (
-                          <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Hoàn tất (P3)</Tag>
+                          <Tag color="success" className="m-0 border-0 rounded-md px-2 py-1">Resolved (P3)</Tag>
                         ) : (
                           <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 rounded-md px-2 py-1 font-semibold text-blue-700">Phase {item.phase}</Tag>
                         )}
                         {item.priority === 'HIGH' && (
-                          <Tag color="red" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Cấp bách</Tag>
+                          <Tag color="red" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">High</Tag>
                         )}
                         {item.priority === 'MEDIUM' && (
-                          <Tag color="orange" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Trung bình</Tag>
+                          <Tag color="orange" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Medium</Tag>
                         )}
                         {item.priority === 'LOW' && (
-                          <Tag color="green" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Thấp</Tag>
+                          <Tag color="green" className="m-0 border-0 rounded-md px-2 py-1 font-semibold">Low</Tag>
                         )}
                         {item.sessionVehicleType && (
                           <Tag color="purple" className="m-0 border-0 rounded-md px-2 py-1">{item.sessionVehicleType}</Tag>
@@ -307,7 +307,7 @@ export const ExceptionDeskScreen = () => {
                   {filteredTickets.length === 0 && (
                     <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center mt-10">
                       <CreditCardOutlined className="text-5xl text-slate-300 mb-4" />
-                      <Text className="text-slate-500">Không có sự cố nào</Text>
+                      <Text className="text-slate-500">No incidents</Text>
                     </div>
                   )}
                 </>
@@ -319,7 +319,7 @@ export const ExceptionDeskScreen = () => {
               icon={<PlusOutlined />}
               type="primary"
               style={{ right: 24, bottom: 24, width: 56, height: 56 }}
-              tooltip="Tạo sự cố tại quầy"
+              tooltip="Create Incident at Desk"
               onClick={navigateToForm}
             />
           </div>
@@ -329,7 +329,7 @@ export const ExceptionDeskScreen = () => {
           <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
             <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
               <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
-              <Title level={4} className="m-0 text-gray-800">Tạo sự cố tại quầy</Title>
+              <Title level={4} className="m-0 text-gray-800">Create Incident at Desk</Title>
             </div>
             <div className="flex-1 overflow-y-auto pb-24">
               <IncidentSubmitForm onSuccess={handleIncidentSuccess} userRole="STAFF" isManager={isManager} />
@@ -351,7 +351,7 @@ export const ExceptionDeskScreen = () => {
             className="w-full h-11 rounded-xl font-semibold shadow-md shadow-blue-200 text-[15px] bg-blue-600 hover:bg-blue-500"
             onClick={navigateToForm}
           >
-            Tạo Sự Cố Tại Quầy
+            Create Incident at Desk
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 pb-3">
@@ -397,25 +397,25 @@ export const ExceptionDeskScreen = () => {
           </div>
           <Select size="small" value={queueFilter} onChange={setQueueFilter} className="w-full" options={[
             {
-              value: 'ALL', label: `Tất cả trạng thái (${ticketsData.filter((t: any) => {
+              value: 'ALL', label: `All statuses (${ticketsData.filter((t: any) => {
                 const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                 return catMatch;
               }).length})`
             },
             {
-              value: 'PHASE_1', label: `🔴 Phase 1 - Chờ xử lý (${ticketsData.filter((t: any) => {
+              value: 'PHASE_1', label: `🔴 Phase 1 - Pending (${ticketsData.filter((t: any) => {
                 const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                 return catMatch && t.phase === 1 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
               }).length})`
             },
             {
-              value: 'PHASE_2', label: `🟡 Phase 2 - Đang xử lý (${ticketsData.filter((t: any) => {
+              value: 'PHASE_2', label: `🟡 Phase 2 - Processing (${ticketsData.filter((t: any) => {
                 const catMatch = selectedCategory === 'ALL' || selectedCategory === 'CREATE_INCIDENT' || t.type === selectedCategory || (selectedCategory === 'BLACKLIST' && t.type === 'BLACKLIST_VIOLATION');
                 return catMatch && t.phase === 2 && t.status !== 'CANCELLED' && t.status !== 'REJECTED';
               }).length})`
             },
-            { value: 'PHASE_3', label: 'Phase 3 (Hoàn tất)' },
-            { value: 'CANCELLED', label: 'Đã Hủy/Từ chối' },
+            { value: 'PHASE_3', label: 'Phase 3 (Resolved)' },
+            { value: 'CANCELLED', label: 'Cancelled/Rejected' },
           ]} />
         </div>
         <div className="flex-1 overflow-y-auto p-2">
@@ -425,20 +425,20 @@ export const ExceptionDeskScreen = () => {
               <div className="flex flex-wrap gap-2 mb-2">
                 <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 text-[10px] sm:text-xs">{item.type}</Tag>
                 {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (
-                  <Tag color="default" className="m-0 border-0 text-[10px] sm:text-xs">Đã hủy</Tag>
+                  <Tag color="default" className="m-0 border-0 text-[10px] sm:text-xs">Cancelled</Tag>
                 ) : item.status === 'RESOLVED' ? (
-                  <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Hoàn tất (P3)</Tag>
+                  <Tag color="success" className="m-0 border-0 text-[10px] sm:text-xs">Resolved (P3)</Tag>
                 ) : (
                   <Tag color={item.phase === 1 ? 'processing' : 'warning'} className="m-0 border-0 text-[10px] sm:text-xs">Phase {item.phase}</Tag>
                 )}
                 {item.priority === 'HIGH' && (
-                  <Tag color="red" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Cấp bách</Tag>
+                  <Tag color="red" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">High</Tag>
                 )}
                 {item.priority === 'MEDIUM' && (
-                  <Tag color="orange" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Trung bình</Tag>
+                  <Tag color="orange" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Medium</Tag>
                 )}
                 {item.priority === 'LOW' && (
-                  <Tag color="green" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Thấp</Tag>
+                  <Tag color="green" className="m-0 border-0 text-[10px] sm:text-xs font-semibold">Low</Tag>
                 )}
                 {item.sessionVehicleType && (
                   <Tag color="purple" className="m-0 border-0 text-[10px] sm:text-xs">{item.sessionVehicleType}</Tag>
@@ -478,8 +478,8 @@ export const ExceptionDeskScreen = () => {
           <div className="flex flex-col h-full overflow-y-auto">
             <div className="p-4 border-b border-gray-200 bg-slate-50 flex items-center justify-between shrink-0">
               <div>
-                <Title level={4} className="m-0 text-blue-700">Tạo sự cố mới tại quầy</Title>
-                <Text className="text-sm text-gray-500">Hỗ trợ khách hàng gửi báo cáo hoặc ghi nhận sự cố thủ công</Text>
+                <Title level={4} className="m-0 text-blue-700">Create a new Incident at Desk</Title>
+                <Text className="text-sm text-gray-500">Support customers to submit reports or manually record incidents</Text>
               </div>
             </div>
             <div className="p-8 flex-1">
