@@ -379,7 +379,7 @@ export const MyParkingScreen = () => {
   const [renewGateway, setRenewGateway] = useState('PAYPAL');
 
   const [isRenewQRModalVisible, setIsRenewQRModalVisible] = useState(false);
-  const [renewCountdown, setRenewCountdown] = useState(60);
+  const [renewCountdown, setRenewCountdown] = useState(900);
   const [isRenewSuccess, setIsRenewSuccess] = useState(false);
   const [isRenewVerifying, setIsRenewVerifying] = useState(false);
   const [verifyCooldown, setVerifyCooldown] = useState(0);
@@ -431,7 +431,7 @@ export const MyParkingScreen = () => {
   const handleConfirmRenew = (totalFee: number) => {
     setIsRenewQRModalVisible(true);
     setIsRenewSuccess(false);
-    setRenewCountdown(60);
+    setRenewCountdown(900);
     setRenewPaymentUrl('');
     setRenewPaymentToken('');
     generateRenewLinkMutation.mutate(totalFee);
@@ -494,6 +494,9 @@ export const MyParkingScreen = () => {
         timer = setTimeout(() => {
           setRenewCountdown(c => c - 1);
         }, 1000);
+      } else {
+        message.warning('Payment QR code expired. Please try again.');
+        setIsRenewQRModalVisible(false);
       }
     }
     return () => clearTimeout(timer);

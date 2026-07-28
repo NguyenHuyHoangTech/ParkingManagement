@@ -37,7 +37,7 @@ export const CustomerMonthlyPassScreen = () => {
   const [selectedGateway, setSelectedGateway] = useState<string>('PAYPAL');
 
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
-  const [countdown, setCountdown] = useState(60);
+  const [countdown, setCountdown] = useState(900);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyCooldown, setVerifyCooldown] = useState(0);
@@ -172,7 +172,7 @@ export const CustomerMonthlyPassScreen = () => {
     setIsPaymentSuccess(false);
     setPaymentUrl('');
     setPaymentOrderId('');
-    setCountdown(60);
+    setCountdown(900);
     generateLinkMutation.mutate();
   };
 
@@ -230,6 +230,9 @@ export const CustomerMonthlyPassScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
         }, 1000);
+      } else {
+        message.warning('Payment QR code expired. Please try again.');
+        setIsQRModalVisible(false);
       }
     }
     return () => clearTimeout(timer);

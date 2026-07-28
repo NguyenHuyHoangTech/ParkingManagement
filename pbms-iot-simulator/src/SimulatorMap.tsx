@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer, Line, Group, Rect, Text as KonvaText, Label, Tag } from 'react-konva';
-import { Button, Select } from 'antd';
-import { ZoomInOutlined, ZoomOutOutlined, AimOutlined } from '@ant-design/icons';
 import Konva from 'konva';
 
 const GRID_SIZE = 50;
@@ -70,28 +68,7 @@ export const SimulatorMap = forwardRef(({ floors, zones, gates, slots, vehicleTy
     }
   }, [mapCols, mapRows, containerSize]);
 
-  const handleZoom = (factor) => {
-    if (!stageRef.current || !containerRef.current) return;
-    const oldScale = stageScale;
-    let newScale = oldScale * factor;
-    newScale = Math.max(defaultScale, Math.min(newScale, 5));
 
-    const center = {
-      x: containerRef.current.clientWidth / 2,
-      y: containerRef.current.clientHeight / 2,
-    };
-
-    const mousePointTo = {
-      x: (center.x - stagePos.x) / oldScale,
-      y: (center.y - stagePos.y) / oldScale,
-    };
-
-    setStageScale(newScale);
-    setStagePos({
-      x: center.x - mousePointTo.x * newScale,
-      y: center.y - mousePointTo.y * newScale,
-    });
-  };
 
   const handleZoomFit = () => {
     if (!containerRef.current) return;
@@ -394,7 +371,7 @@ export const SimulatorMap = forwardRef(({ floors, zones, gates, slots, vehicleTy
 
       {!activeFloor && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-white">
-          Chưa tải được dữ liệu tầng
+          No floor data loaded
         </div>
       )}
     </div>

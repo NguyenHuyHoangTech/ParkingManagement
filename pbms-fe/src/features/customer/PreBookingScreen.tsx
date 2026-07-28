@@ -344,6 +344,9 @@ export const PreBookingScreen = () => {
         timer = setTimeout(() => {
           setCountdown(c => c - 1);
         }, 1000);
+      } else {
+        message.warning('Payment QR code expired. Please try again.');
+        setIsQRModalVisible(false);
       }
     }
     return () => clearTimeout(timer);

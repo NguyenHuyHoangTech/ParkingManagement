@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Typography, Row, Col, Form, Input, Button, Slider, Select, message, Table, Tag, DatePicker, ConfigProvider, theme, Radio } from 'antd';
+import { Card, Typography, Row, Col, Form, Input, Button, Select, message, Table, Tag, DatePicker, ConfigProvider, theme, Radio } from 'antd';
 import { SendOutlined, FastForwardOutlined, CopyOutlined, SyncOutlined, AimOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axios from 'axios';
@@ -300,7 +300,7 @@ const App = () => {
               </Select>
             </Col>
             <Col xs={24} md={12}>
-              <div className="mb-2 text-gray-600">Chọn Vehicle Type</div>
+              <div className="mb-2 text-gray-600">Select Vehicle Type</div>
               <Select className="w-full" value={selectedVehicleTypeIdForOut} onChange={setSelectedVehicleTypeIdForOut}>
                 {vehicleTypes.map((v: any) => <Select.Option key={v.id} value={v.id}>{v.typeName}</Select.Option>)}
               </Select>
@@ -405,10 +405,19 @@ const App = () => {
               
               <div className="mt-6 flex justify-end">
                 <Button size="large" type="primary" htmlType="submit" className="bg-red-500 hover:bg-red-400 border-none font-bold text-white" icon={<SendOutlined />}>
-                  XÁC NHẬN & BẮN TÍN HIỆU RA (CHECK-OUT)
+                  CONFIRM & CHECK-OUT
                 </Button>
               </div>
             </Form>
+
+            {lastPayload && (
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <span className="text-gray-500 font-bold mb-2 block">Last API Payload:</span>
+                <div className="bg-gray-900 rounded p-3 text-green-400 font-mono text-xs overflow-x-auto max-h-48 overflow-y-auto">
+                  <pre>{JSON.stringify(lastPayload, (key, val) => (key === 'imageBase64' || key === 'lprImageBase64') ? '[BASE64_IMAGE_DATA_HIDDEN]' : val, 2)}</pre>
+                </div>
+              </div>
+            )}
           </Card>
         )}
       </div>
@@ -505,7 +514,7 @@ const App = () => {
         url: url,
         data: payload
       });
-      
+
       return axios.post(url, payload).then(res => res.data);
     },
     onSuccess: (_, variables) => {
@@ -519,10 +528,12 @@ const App = () => {
 
   const triggerSensorMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number, status: string }) => {
-      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/sensors/update`, {
+      const payload = {
         sensorId: id,
         status: status
-      }).then(res => res.data);
+      };
+      setLastPayload({ method: "POST", url: `${getBaseApiUrl()}/operation/iot/hardware/sensors/update`, data: payload });
+      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/sensors/update`, payload).then(res => res.data);
     },
     onSuccess: (_, variables) => {
       message.success(`Updated slot ID ${variables.id} to ${variables.status}`);
@@ -536,9 +547,9 @@ const App = () => {
   const timeTravelMutation = useMutation({
     mutationFn: async (values: any) => {
       const targetTimeStr = values.targetTime.format('YYYY-MM-DDTHH:mm:ss');
-      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/time/fast-forward`, {
-        targetTime: targetTimeStr
-      }).then(res => res.data);
+      const payload = { targetTime: targetTimeStr };
+      setLastPayload({ method: "POST", url: `${getBaseApiUrl()}/operation/iot/hardware/time/fast-forward`, data: payload });
+      return axios.post(`${getBaseApiUrl()}/operation/iot/hardware/time/fast-forward`, payload).then(res => res.data);
     },
     onSuccess: () => {
       message.success('Successfully fast-forwarded system time!');
@@ -565,28 +576,28 @@ const App = () => {
 
   // Table Columns
   const activeSessionsColumns = [
-    { title: 'Biển số', dataIndex: 'plate', key: 'plate', render: (text: string) => <Tag color="blue">{text}</Tag> },
-    { title: 'Mã Thẻ', dataIndex: ['rfidCard', 'cardId'], key: 'cardId', render: (text: string) => text ? <Tag color="cyan">{text}</Tag> : <span className="text-gray-400">N/A</span> },
+    { title: 'Plate Number', dataIndex: 'plate', key: 'plate', render: (text: string) => <Tag color="blue">{text}</Tag> },
+    { title: 'Card ID', dataIndex: ['rfidCard', 'cardId'], key: 'cardId', render: (text: string) => text ? <Tag color="cyan">{text}</Tag> : <span className="text-gray-400">N/A</span> },
     { title: 'Zone Suggest', key: 'suggestedZone', render: (_: any, record: any) => {
         let targetZoneId = record.suggestedZoneId;
         if (!targetZoneId && record.slot?.id) {
             const slotInfo = slots?.find((s: any) => s.id === record.slot.id);
             if (slotInfo) targetZoneId = slotInfo.zoneId;
         }
-        if (!targetZoneId) return <span className="text-gray-400">Không có</span>;
+        if (!targetZoneId) return <span className="text-gray-400">None</span>;
         const zone = zones?.find((z: any) => z.id === targetZoneId);
         return zone ? <b className="text-purple-600">{zone.zoneName}</b> : <span className="text-gray-600">ID: {targetZoneId}</span>;
       } 
     },
     { title: 'Time in', dataIndex: 'timeIn', key: 'timeIn', render: (text: string) => text ? dayjs(text).format('DD/MM/YYYY HH:mm:ss') : '' },
-    { title: 'Loại xe', dataIndex: ['vehicleType', 'typeName'], key: 'vehicleType' },
+    { title: 'Vehicle Type', dataIndex: ['vehicleType', 'typeName'], key: 'vehicleType' },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (text: string) => <Tag color="green">{text}</Tag> },
     { title: 'Action', key: 'action', render: (_: any, record: any) => <Button icon={<CopyOutlined />} size="small" onClick={() => copyToClipboard(record.plate)}>Copy Plate</Button> }
   ];
 
   const reservationsColumns = [
-    { title: 'Biển số', dataIndex: ['vehicle', 'plateNumber'], key: 'plate', render: (text: string) => <Tag color="orange">{text || 'Unknown'}</Tag> },
-    { title: 'Zone', dataIndex: ['zone', 'zoneName'], key: 'zoneName', render: (text: string) => text || 'Không rõ' },
+    { title: 'Plate Number', dataIndex: ['vehicle', 'plateNumber'], key: 'plate', render: (text: string) => <Tag color="orange">{text || 'Unknown'}</Tag> },
+    { title: 'Zone', dataIndex: ['zone', 'zoneName'], key: 'zoneName', render: (text: string) => text || 'Unknown' },
     { title: 'Expected Entry', dataIndex: 'expectedEntryTime', key: 'expectedEntryTime', render: (text: string) => text ? dayjs(text).format('DD/MM/YYYY HH:mm:ss') : '' },
     { title: 'Booking Fee', dataIndex: 'reservationFee', key: 'reservationFee', render: (text: number) => text ? `${text.toLocaleString()} VND` : '0 VND' },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (text: string) => <Tag color={text === 'ACTIVE' ? 'blue' : 'orange'}>{text}</Tag> },
@@ -648,7 +659,7 @@ const App = () => {
                     disabled={selectedGate && (selectedGate.gateType === 'IN' || selectedGate.gateType === 'ENTRY' || selectedGate.gateType === 'OUT' || selectedGate.gateType === 'EXIT')}
                   >
                     <Select.Option value="IN"><span className="text-blue-400 font-bold">Check-In</span></Select.Option>
-                    <Select.Option value="OUT"><span className="text-red-400 font-bold">Check-Out (Ra)</span></Select.Option>
+                    <Select.Option value="OUT"><span className="text-red-400 font-bold">Check-Out</span></Select.Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -683,9 +694,7 @@ const App = () => {
               </div>
             </Form.Item>
 
-            <Form.Item name="confidence" label={<span className="text-gray-600">OCR Confidence Score</span>}>
-              <Slider min={0} max={100} marks={{ 0: '0%', 50: '50%', 100: '100%' }} className="mx-2" />
-            </Form.Item>
+
 
             {previewImages.panorama && (
               <div className="mb-4 bg-slate-50 border-4 border-gray-200 rounded-xl overflow-hidden shadow-lg p-2 flex flex-col sm:flex-row gap-2 h-auto sm:h-48">
@@ -716,10 +725,19 @@ const App = () => {
                 loading={triggerApiMutation.isPending}
                 className="w-full bg-blue-600 hover:bg-blue-500 border-none font-bold shadow-[0_0_15px_rgba(37,99,235,0.4)]"
               >
-                FIRE EVENT (Bắn API)
+                FIRE EVENT
               </Button>
             </div>
           </Form>
+
+          {lastPayload && (
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <span className="text-gray-500 font-bold mb-2 block">Last API Payload:</span>
+              <div className="bg-gray-900 rounded p-3 text-green-400 font-mono text-xs overflow-x-auto max-h-48 overflow-y-auto">
+                <pre>{JSON.stringify(lastPayload, (key, val) => (key === 'imageBase64' || key === 'lprImageBase64') ? '[BASE64_IMAGE_DATA_HIDDEN]' : val, 2)}</pre>
+              </div>
+            </div>
+          )}
         </Card>
       </Col>
       
@@ -857,6 +875,14 @@ const App = () => {
           selectedFloorId={selectedFloorId}
           toggleSlot={toggleSlot}
         />
+        {lastPayload && (
+          <div className="mt-6 border-t border-gray-200 pt-4">
+            <span className="text-gray-500 font-bold mb-2 block">Last API Payload:</span>
+            <div className="bg-gray-900 rounded p-3 text-green-400 font-mono text-xs overflow-x-auto max-h-48 overflow-y-auto">
+              <pre>{JSON.stringify(lastPayload, null, 2)}</pre>
+            </div>
+          </div>
+        )}
       </Card>
     );
   };
@@ -908,10 +934,18 @@ const App = () => {
         </Form.Item>
         <div className="mt-8">
           <Button type="primary" htmlType="submit" size="large" icon={<FastForwardOutlined />} className="w-full bg-purple-600 hover:bg-purple-500 border-none font-bold text-lg h-12" loading={timeTravelMutation.isPending}>
-            XÁC NHẬN TUA THỜI GIAN
+            CONFIRM TIME TRAVEL
           </Button>
         </div>
       </Form>
+      {lastPayload && (
+        <div className="mt-6 border-t border-gray-200 pt-4">
+          <span className="text-gray-500 font-bold mb-2 block">Last API Payload:</span>
+          <div className="bg-gray-900 rounded p-3 text-green-400 font-mono text-xs overflow-x-auto max-h-48 overflow-y-auto">
+            <pre>{JSON.stringify(lastPayload, null, 2)}</pre>
+          </div>
+        </div>
+      )}
     </Card>
   );
 

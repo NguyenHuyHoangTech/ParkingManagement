@@ -255,7 +255,7 @@ export const LoginScreen = () => {
               <button type="submit" disabled={isAnyPending} className={btnPrimary}>{loginMutation.isPending ? 'Logging in...' : 'Login'}</button>
               <div className="relative my-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"/></div><div className="relative flex justify-center text-sm"><span className="px-3 bg-white text-gray-400">Or</span></div></div>
               <div className="flex justify-center">
-                <GoogleLogin onSuccess={cr => { if (cr.credential) googleLoginMutation.mutate(cr.credential); }} onError={() => setError('Login Google Failed.')} useOneTap theme="outline" size="large" text="signin_with" shape="rectangular" />
+                <GoogleLogin {...({ locale: 'en' } as any)} onSuccess={cr => { if (cr.credential) googleLoginMutation.mutate(cr.credential); }} onError={() => setError('Login Google Failed.')} useOneTap theme="outline" size="large" text="signin_with" shape="rectangular" />
               </div>
               <p className="text-center mt-4 text-sm text-gray-500">No Account? <button type="button" onClick={() => { setView('register'); clearMessages(); setRegStep(1); }} className={btnSecondary}>Apply Now</button></p>
             </>
