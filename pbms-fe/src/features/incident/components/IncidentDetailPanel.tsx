@@ -98,10 +98,10 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   });
 
   const monthlyTicketColumns = [
-    { title: 'Biển số', dataIndex: 'plate', key: 'plate', render: (t: string) => <Text strong>{t}</Text> },
-    { title: 'Loại xe', dataIndex: 'type', key: 'type' },
-    { title: 'Khách hàng', dataIndex: 'user', key: 'user' },
-    { title: 'SĐT', dataIndex: 'phone', key: 'phone' },
+    { title: 'Plate', dataIndex: 'plate', key: 'plate', render: (t: string) => <Text strong>{t}</Text> },
+    { title: 'Vehicle Type', dataIndex: 'type', key: 'type' },
+    { title: 'Customer', dataIndex: 'user', key: 'user' },
+    { title: 'Phone', dataIndex: 'phone', key: 'phone' },
   ];
 
   const { data: systemConfigs } = useQuery({
@@ -203,7 +203,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, payload);
     },
     onSuccess: () => {
-      message.success('Đã xác nhận Giai đoạn 1');
+      message.success('Phase 1 confirmed');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       if (onActionComplete) onActionComplete(); else onClose();
     }
@@ -228,12 +228,12 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       await axiosClient.put(`/incident/incidents/${ticket.id}/resolve`, payload);
     },
     onSuccess: () => {
-      message.success('Đã hoàn tất xử lý sự cố');
+      message.success('Incident resolved completely');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       if (onActionComplete) onActionComplete(); else onClose();
     },
     onError: (error: any) => {
-      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi xác nhận thu tiền mặt. Vui lòng tải lại trang.');
+      message.error(error.response?.data?.message || 'Error confirming cash payment. Please reload the page.');
     }
   });
 
@@ -295,7 +295,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   // Listen for webhook payment confirmation
   useEffect(() => {
     if (ticket && ticket.status === 'RESOLVED' && !paymentConfirmed && (paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS')) {
-      message.success(`Thanh toán ${paymentMethod} thành công! Hệ thống đã tự động xử lý sự cố.`);
+      message.success(`${paymentMethod} payment successful! System auto-resolved the incident.`);
       setPaymentConfirmed(true);
       if (onActionComplete) onActionComplete(); else onClose();
     }
@@ -320,23 +320,23 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         if (res.data?.data?.status === 'COMPLETED') {
           axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
             .then(execRes => {
-                message.success(`Xác nhận thanh toán ${paymentMethod} thành công!`);
+                message.success(`${paymentMethod} payment confirmed successfully!`);
                 queryClient.invalidateQueries({ queryKey: ['incidents'] });
                 if (onActionComplete) onActionComplete(); else onClose();
             })
             .catch(execErr => {
-                message.error(execErr.response?.data?.message || 'Lỗi khi ghi nhận xử lý sự cố. Đã chuyển sang hoàn tiền.');
+                message.error(execErr.response?.data?.message || 'Error recording incident resolution. Switched to refund.');
                 setPaymentConfirmed(true);
             });
         } else {
-           message.warning('Chưa ghi nhận thanh toán hoàn tất từ cổng.');
+           message.warning('Payment not yet recorded from gateway.');
         }
       })
       .catch(err => {
          if (err.response?.status === 400) {
-           message.warning('Chưa ghi nhận thanh toán hoàn tất. Thử lại sau ít phút.');
+           message.warning('Payment not yet completed. Try again in a few minutes.');
          } else {
-           message.error('Hệ thống đang bận.');
+           message.error('System is busy.');
          }
       })
       .finally(() => {
@@ -350,7 +350,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       await axiosClient.put(`/incident/incidents/${ticket.id}/pause-fee`);
     },
     onSuccess: () => {
-      message.success('Đã tính tổng phí đỗ xe hiện tại');
+      message.success('Current parking fee calculated');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
     }
   });
@@ -365,13 +365,13 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       });
     },
     onSuccess: () => {
-      message.success('Đã hủy sự cố thành công');
+      message.success('Incident cancelled successfully');
       setCancelModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       if (onActionComplete) onActionComplete(); else onClose();
     },
     onError: (error: any) => {
-      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi hủy sự cố');
+      message.error(error.response?.data?.message || 'Error cancelling incident');
     }
   });
 
@@ -420,20 +420,20 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       <div className="p-4 border-b bg-slate-50 flex justify-between items-center rounded-t-xl shrink-0">
         <div>
           <Title level={4} className="m-0 text-slate-800 flex items-center gap-2">
-            Chi tiết Sự cố #{ticket.id}
+            Incident Details #{ticket.id}
             <Tag color={ticket.status === 'CANCELLED' ? 'default' : ticket.status === 'RESOLVED' ? 'success' : 'processing'}>
               {ticket.status}
             </Tag>
           </Title>
           <Text type="secondary">
-            Loại: <Tag color="blue">{ticket.type}</Tag>
-            {ticket.priority === 'HIGH' && <Tag color="red" className="font-semibold">Cấp bách</Tag>}
-            {ticket.priority === 'MEDIUM' && <Tag color="orange" className="font-semibold">Trung bình</Tag>}
-            {ticket.priority === 'LOW' && <Tag color="green" className="font-semibold">Thấp</Tag>}
-            | BKS: <Text strong>{ticket.plate}</Text>
+            Type: <Tag color="blue">{ticket.type}</Tag>
+            {ticket.priority === 'HIGH' && <Tag color="red" className="font-semibold">Urgent</Tag>}
+            {ticket.priority === 'MEDIUM' && <Tag color="orange" className="font-semibold">Medium</Tag>}
+            {ticket.priority === 'LOW' && <Tag color="green" className="font-semibold">Low</Tag>}
+            | Plate: <Text strong>{ticket.plate}</Text>
           </Text>
         </div>
-        <Button onClick={onClose} type="text">Đóng</Button>
+        <Button onClick={onClose} type="text">Close</Button>
       </div>
 
       {/* Body - Timeline */}
@@ -443,59 +443,59 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
           current={currentStep}
           status={ticket.status === 'CANCELLED' || ticket.status === 'REJECTED' ? 'error' : 'process'}
           items={[
-            // BƯỚC 1: TẠO SỰ CỐ
+            // PHASE 1: CREATE INCIDENT
             {
-              title: <span className="font-bold text-lg">Giai đoạn 1: Tiếp nhận báo cáo</span>,
+              title: <span className="font-bold text-lg">Phase 1: Report Received</span>,
               description: (
                 <Card size="small" className="mt-2 bg-slate-50 border-slate-200 shadow-sm">
                   <div className="mb-2">
-                    <Text type="secondary">Người tạo sự cố:</Text>
-                    <div className="font-medium text-slate-700">{ticket.creatorEmail || 'Hệ thống / Vô danh'}</div>
+                    <Text type="secondary">Created by:</Text>
+                    <div className="font-medium text-slate-700">{ticket.creatorEmail || 'System / Anonymous'}</div>
                   </div>
                   <div className="mb-2">
-                    <Text type="secondary">Thời gian tạo:</Text>
-                    <div className="font-medium text-slate-700">{ticket.time ? new Date(ticket.time).toLocaleString('vi-VN') : 'Không có'}</div>
+                    <Text type="secondary">Created at:</Text>
+                    <div className="font-medium text-slate-700">{ticket.time ? new Date(ticket.time).toLocaleString() : 'N/A'}</div>
                   </div>
                   <div className="mb-2">
-                    <Text type="secondary">Nội dung báo cáo:</Text>
+                    <Text type="secondary">Report Content:</Text>
                     <div className="font-medium break-all whitespace-pre-wrap">{ticket.description}</div>
                   </div>
                   {ticket.type === 'SLOT_OCCUPIED' && (
                     <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="font-bold text-blue-700 mb-1">Ghi nhận sự cố thành công</div>
+                      <div className="font-bold text-blue-700 mb-1">Incident Recorded Successfully</div>
                       <div className="text-blue-800 text-sm leading-relaxed">
-                        Hệ thống đã ghi nhận sự cố của quý khách. Để không làm lỡ thời gian, quý khách có thể chủ động đỗ tại bất kỳ ô trống nào gần nhất, hoặc liên hệ nhân viên bảo vệ để được hỗ trợ đưa xe vào vị trí dự phòng. Chi tiết tiến độ xử lý đã được cập nhật trong mục Quản lý sự cố. Rất mong quý khách thông cảm cho trải nghiệm chưa trọn vẹn này!
+                        The system has recorded your incident. To save time, please park in any available slot nearby or contact security for assistance. Processing progress can be tracked in Incident Management. We apologize for the inconvenience!
                       </div>
                     </div>
                   )}
                   {ticket.fineAmount !== undefined && ticket.fineAmount !== null && ticket.fineAmount > 0 && !(ticket.phase >= 2 && ticket.discountFee && ticket.discountFee > 0) && (
                     <div className="mb-2">
-                      <Text type="secondary">Phí phạt dự kiến:</Text>
-                      <div className="font-medium text-red-600 text-lg">{ticket.fineAmount.toLocaleString('vi-VN')} đ</div>
+                      <Text type="secondary">Expected Penalty Fee:</Text>
+                      <div className="font-medium text-red-600 text-lg">{ticket.fineAmount.toLocaleString()} VND</div>
                     </div>
                   )}
                   {ticket.phase >= 2 && ticket.type === 'FEE_DISPUTE' && ticket.discountFee !== undefined && ticket.discountFee !== null && ticket.discountFee > 0 && (
                     <div className="mb-2">
-                      <Text type="secondary">Số tiền được giảm:</Text>
-                      <div className="font-medium text-green-600 text-lg">- {ticket.discountFee.toLocaleString('vi-VN')} đ</div>
+                      <Text type="secondary">Discount Amount:</Text>
+                      <div className="font-medium text-green-600 text-lg">- {ticket.discountFee.toLocaleString()} VND</div>
                     </div>
                   )}
                   {ticket.uploadedDocUrl && (
                     <div className="mb-2">
-                      <Text type="secondary">Ảnh minh chứng từ khách:</Text>
+                      <Text type="secondary">Proof Image from Customer:</Text>
                       {renderImages(ticket.uploadedDocUrl)}
                     </div>
                   )}
                   {ticket.sessionId && (
                     <div className="mb-2 p-3 bg-white border border-slate-200 rounded-lg">
-                      <Text type="secondary" className="font-semibold block mb-2 text-slate-800">Thông tin xe vào bãi:</Text>
-                      <div className="grid grid-cols-2 gap-2 mb-2 text-sm">
+                      <Text type="secondary" className="font-semibold block mb-2 text-slate-800">Entry Info:</Text>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2 text-sm">
                         <div>
-                          <Text type="secondary">Giờ vào:</Text>
-                          <div className="font-medium">{ticket.sessionTimeIn ? new Date(ticket.sessionTimeIn).toLocaleString('vi-VN') : 'N/A'}</div>
+                          <Text type="secondary">Entry Time:</Text>
+                          <div className="font-medium">{ticket.sessionTimeIn ? new Date(ticket.sessionTimeIn).toLocaleString() : 'N/A'}</div>
                         </div>
                         <div>
-                          <Text type="secondary">Zone gợi ý:</Text>
+                          <Text type="secondary">Suggested Zone:</Text>
                           <div className="font-medium text-blue-600">{ticket.sessionSuggestedZone || 'N/A'}</div>
                         </div>
                       </div>
@@ -508,17 +508,17 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                     </div>
                   )}
 
-                  {/* STAFF/MANAGER ACTION: Duyệt GĐ1 */}
+                  {/* STAFF/MANAGER ACTION: Phase 1 Approval */}
                   {userRole === 'STAFF' && ticket.phase === 1 && ticket.status === 'PENDING' && (
                     <div className="mt-4 pt-4 border-t border-slate-200 bg-white p-4 rounded-lg border">
-                      <Title level={5} className="text-blue-700">Thao tác của Nhân viên</Title>
+                      <Title level={5} className="text-blue-700">Staff Actions</Title>
                       {ticket.type === 'OTHER' && !isManager ? (
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
-                          Chỉ Quản lý (Manager) mới có quyền duyệt và định giá mức phạt cho sự cố này. Nếu báo cáo sai, bạn có thể Hủy (Cancel).
+                          Only Managers can approve and set penalties for this incident. If the report is invalid, you can Cancel it.
                         </div>
                       ) : ticket.type === 'FEE_DISPUTE' && !isManager ? (
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
-                          Chỉ Quản lý (Manager) mới có quyền giải quyết giảm phí ở bước này. Nếu báo cáo sai, bạn có thể Hủy (Cancel).
+                          Only Managers can approve fee discounts. If the report is invalid, you can Cancel it.
                         </div>
                       ) : (
                         <Form layout="vertical">
@@ -527,10 +527,10 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                               {!isFeeVisible ? (
                                 <div className="bg-slate-50 p-6 rounded-lg mb-4 border border-slate-200 text-center">
                                   <Button size="large" type="primary" onClick={() => { setIsFeeVisible(true); pauseFeeMutation.mutate(); }} loading={pauseFeeMutation.isPending}>
-                                    Tính phí đỗ xe hiện tại
+                                    Calculate Current Parking Fee
                                   </Button>
                                   <div className="text-xs text-amber-600 italic mt-3">
-                                    Ấn để tra cứu mức phí (đây là phí tính tại thời điểm này và có thể thay đổi khi ra bãi).
+                                    Click to calculate current fee (this fee is calculated at the current time and may change upon exit).
                                   </div>
                                 </div>
                               ) : (
@@ -546,7 +546,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     totalFee={calculatedParkingFee + totalPenalty - (p1DiscountAmount || 0)}
                                     isLightMode={true}
                                   />
-                                  <Form.Item label="Số tiền giảm (VND) - Sẽ trừ vào Tổng phí đỗ xe" className="mt-4 mb-0 font-medium">
+                                  <Form.Item label="Discount Amount (VND) - Deducted from Total Fee" className="mt-4 mb-0 font-medium">
                                     <InputNumber 
                                       className="w-full" 
                                       size="large" 
@@ -556,7 +556,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                       onChange={v => setP1DiscountAmount(v || 0)} 
                                     />
                                     {p1DiscountAmount > calculatedParkingFee && (
-                                      <div className="text-red-500 text-sm mt-1">Số tiền giảm không được lớn hơn tổng phí hiện tại.</div>
+                                      <div className="text-red-500 text-sm mt-1">Discount amount cannot exceed current total fee.</div>
                                     )}
                                   </Form.Item>
                                 </div>
@@ -564,29 +564,29 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                             </>
                           )}
                           {ticket.type === 'OTHER' && (
-                            <Form.Item label="Số tiền phạt (VND) - Bắt buộc nhập" required className="mt-4 font-medium">
+                            <Form.Item label="Penalty Fee (VND) - Required" required className="mt-4 font-medium">
                               <InputNumber 
                                 className="w-full" 
                                 size="large" 
                                 min={0}
                                 value={p1FineAmount} 
                                 onChange={v => setP1FineAmount(v || 0)} 
-                                placeholder="Nhập số tiền phạt (VND)"
+                                placeholder="Enter penalty amount (VND)"
                               />
                             </Form.Item>
                           )}
                           
                           {ticket.type === 'LOST_CARD' && (
-                            <Form.Item label="Số tiền phạt (VND)" className="mt-4 font-medium">
+                            <Form.Item label="Penalty Fee (VND)" className="mt-4 font-medium">
                               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                                <span className="text-red-600 font-bold text-lg">{getLostCardPenalty().toLocaleString()} đ</span>
-                                <span className="text-gray-500 text-sm ml-2">(Mức phạt cố định theo hệ thống)</span>
+                                <span className="text-red-600 font-bold text-lg">{getLostCardPenalty().toLocaleString()} VND</span>
+                                <span className="text-gray-500 text-sm ml-2">(Fixed penalty per system config)</span>
                               </div>
                             </Form.Item>
                           )}
 
                           {ticket.type === 'DAMAGED_CARD' && (
-                            <Form.Item label="Xác nhận nguyên nhân hỏng thẻ (Cập nhật phí phạt)" className="mt-4 font-medium">
+                            <Form.Item label="Confirm Cause of Card Damage (Update Penalty)" className="mt-4 font-medium">
                               <Radio.Group 
                                 value={damageCausePhase1} 
                                 onChange={(e) => {
@@ -595,17 +595,17 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                 }}
                                 className="flex flex-col gap-3"
                               >
-                                <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên (0 đ)</span></Radio>
-                                <Radio value="USER"><span className="text-base text-red-600 font-medium">Do khách hàng (Thu phí: {getDamagedCardPenalty().toLocaleString()} đ)</span></Radio>
+                                <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Natural Wear & Tear (0 VND)</span></Radio>
+                                <Radio value="USER"><span className="text-base text-red-600 font-medium">Customer Fault (Penalty: {getDamagedCardPenalty().toLocaleString()} VND)</span></Radio>
                               </Radio.Group>
                             </Form.Item>
                           )}
-                          <Form.Item label="Ghi chú (gửi cho khách)" className="mt-4">
-                            <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Nhập ghi chú hoặc hướng dẫn cho khách hàng" />
+                          <Form.Item label="Notes (Sent to Customer)" className="mt-4">
+                            <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Enter notes or instructions for the customer" />
                           </Form.Item>
-                          <Form.Item label="Tải ảnh lên (Tùy chọn)">
+                          <Form.Item label="Upload Image (Optional)">
                             <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
-                              <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                              <Button icon={<UploadOutlined />}>Select Image</Button>
                             </Upload>
                           </Form.Item>
                           <Button 
@@ -615,7 +615,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                             disabled={ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > calculatedParkingFee}
                             className="w-full"
                           >
-                            Xác nhận thông tin & Xử lý (Phase 1)
+                            Confirm & Process (Phase 1)
                           </Button>
                         </Form>
                       )}
@@ -625,9 +625,9 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
               )
             },
             
-            // BƯỚC 2: XỬ LÝ & THU TIỀN
+            // PHASE 2: PROCESSING & PAYMENT
             {
-              title: <span className="font-bold text-lg">Giai đoạn 2: Xử lý và Chờ ra bãi</span>,
+              title: <span className="font-bold text-lg">Phase 2: Processing & Waiting for Exit</span>,
               description: ticket.phase >= 2 || ticket.status === 'RESOLVED' ? (
                 <Card size="small" className="mt-2 bg-blue-50 border-blue-100 shadow-sm">
                   {(() => {
@@ -643,14 +643,14 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                         <>
                           {p1Note && (
                             <div className="mb-3 p-3 bg-white rounded border border-blue-200">
-                              <Text type="secondary" className="block mb-1 font-semibold text-blue-700">Thông tin xử lý Giai đoạn 1:</Text>
+                              <Text type="secondary" className="block mb-1 font-semibold text-blue-700">Phase 1 Processing Info:</Text>
                               <div className="font-medium text-slate-700 break-all whitespace-pre-wrap">{p1Note}</div>
                               {renderImages(ticket.resolutionImageUrl, ['P1'])}
                             </div>
                           )}
                           {p2Note && (
                             <div className="mb-3 p-3 bg-white rounded border border-green-200">
-                              <Text type="secondary" className="block mb-1 font-semibold text-green-700">Thông tin xử lý Giai đoạn 2 (Hoàn tất):</Text>
+                              <Text type="secondary" className="block mb-1 font-semibold text-green-700">Phase 2 Processing Info (Completed):</Text>
                               <div className="font-medium text-slate-700 break-all whitespace-pre-wrap">{p2Note}</div>
                               {renderImages(ticket.resolutionImageUrl, ['P2'])}
                               {ticket.status === 'RESOLVED' && (
@@ -678,17 +678,17 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                     return (
                       <>
                         <div className="mb-2 whitespace-pre-wrap">
-                          <Text type="secondary">Quá trình xử lý (Notes):</Text>
+                          <Text type="secondary">Processing Notes:</Text>
                           <div className="font-medium text-blue-800 break-all">
-                            {(ticket.resolutionNotes || 'Chưa có ghi chú')
+                            {(ticket.resolutionNotes || 'No notes')
                               .replace(/\[CANCELLED\][\s\S]*$/, '')
-                              .trim() || 'Chưa có ghi chú'
+                              .trim() || 'No notes'
                             }
                           </div>
                         </div>
                         {ticket.resolutionImageUrl && (
                           <div className="mb-2">
-                            <Text type="secondary">Ảnh xử lý từ nhân viên:</Text>
+                            <Text type="secondary">Staff Processing Image:</Text>
                             {renderImages(ticket.resolutionImageUrl, ['P1', 'P2'])}
                           </div>
                         )}
@@ -712,11 +712,11 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                   })()}
                   {userRole === 'STAFF' && ticket.type === 'ZONE_VIOLATION' && (
                     <div className="mt-4 pt-4 border-t border-slate-200">
-                      <Title level={5} className="text-slate-700">Tra cứu danh sách vé tháng</Title>
-                      <Text type="secondary" className="block mb-2 text-sm">Tra cứu danh sách vé tháng để dễ dàng liên hệ với chủ xe đỗ sai vị trí.</Text>
+                      <Title level={5} className="text-slate-700">Search Monthly Passes</Title>
+                      <Text type="secondary" className="block mb-2 text-sm">Search monthly passes to easily contact the owner of the vehicle parked in the wrong zone.</Text>
                       <div className="flex gap-4 mb-4">
                         <Select 
-                          placeholder="Chọn tầng" 
+                          placeholder="Select Floor" 
                           className="w-48"
                           value={selectedFloor}
                           onChange={setSelectedFloor}
@@ -724,7 +724,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                           allowClear
                         />
                         <Select 
-                          placeholder="Chọn loại xe" 
+                          placeholder="Select Vehicle Type" 
                           className="w-48"
                           value={selectedVType}
                           onChange={setSelectedVType}
@@ -747,24 +747,24 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                     <div className="mt-4 pt-4 border-t border-blue-200 bg-white p-4 rounded-lg border border-blue-100">
                       {isAutoCheckoutType ? (
                         <div className="text-center p-4 bg-blue-50 text-blue-800 rounded font-medium border border-blue-200">
-                          <Title level={5} className="text-blue-700 m-0 mb-2">Chờ xe ra bãi</Title>
-                          Hệ thống sẽ không tính phí và cho xe ra tại bước này. Vui lòng chờ xe ra bãi, sự cố sẽ tự động hoàn thành và chuyển sang Giai đoạn 3 cùng với phần phí phạt đã xác nhận.
-                          <div className="text-sm mt-2 text-slate-500 italic">Bạn chỉ có thể hủy sự cố (nút bên dưới) nếu có sai sót.</div>
+                          <Title level={5} className="text-blue-700 m-0 mb-2">Waiting for vehicle to exit</Title>
+                          The system will not charge fee and will let the vehicle exit at this step. Please wait for the vehicle to exit, the incident will automatically complete and move to Phase 3 with the confirmed penalty.
+                          <div className="text-sm mt-2 text-slate-500 italic">You can only cancel the incident (button below) if there is an error.</div>
                         </div>
                       ) : ticket.type === 'FEE_DISPUTE' && !isManager ? (
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
-                          Chỉ Quản lý (Manager) mới có quyền giảm phí và hoàn tất sự cố này.
+                          Only Managers can approve fee discounts and complete this incident.
                         </div>
                       ) : (
                         <>
-                          <Title level={5} className="text-green-700">Chi tiết Phí ra bãi</Title>
+                          <Title level={5} className="text-green-700">Exit Fee Details</Title>
                           {!isFeeVisible ? (
                             <div className="bg-slate-50 p-6 rounded-lg mb-4 border border-slate-200 text-center">
                               <Button size="large" type="primary" onClick={() => { setIsFeeVisible(true); pauseFeeMutation.mutate(); }} loading={pauseFeeMutation.isPending}>
-                                Tính phí đỗ xe hiện tại
+                                Calculate Current Parking Fee
                               </Button>
                               <div className="text-xs text-amber-600 italic mt-3">
-                                Ấn để tra cứu mức phí. Phí đỗ xe vẫn tiếp tục tính bình thường.
+                                Click to view fee. Parking fee will continue to be calculated normally.
                               </div>
                             </div>
                           ) : (
@@ -783,29 +783,29 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                   />
                                   <div className="text-center mt-3">
                                     <Button size="small" type="primary" ghost onClick={() => pauseFeeMutation.mutate()} loading={pauseFeeMutation.isPending}>
-                                      Cập nhật lại phí hiện tại
+                                      Recalculate Current Fee
                                     </Button>
                                     <div className="text-[10px] text-slate-500 italic mt-1">
-                                      Lưu ý: Phí đỗ xe sẽ không bị đóng băng và tiếp tục được tính cho đến khi bạn hoàn tất sự cố.
+                                      Note: The parking fee is not frozen and will continue to accumulate until you complete the incident.
                                     </div>
                                   </div>
                               </div>
 
                               <Form layout="vertical">
                                 {ticket.type === 'DAMAGED_CARD' && (
-                                  <Form.Item label="Xác nhận nguyên nhân hỏng thẻ (Cập nhật phí phạt)">
+                                  <Form.Item label="Confirm Cause of Card Damage (Update Penalty)">
                                     <Radio.Group 
                                       value={damageCausePhase2} 
                                       onChange={(e) => setDamageCausePhase2(e.target.value)}
                                       className="flex flex-col gap-2"
                                     >
-                                      <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Hao mòn tự nhiên (Miễn phí)</span></Radio>
-                                      <Radio value="USER"><span className="text-base text-red-600 font-medium">Do khách hàng (Thu phí đền thẻ: {getDamagedCardPenalty().toLocaleString()}đ)</span></Radio>
+                                      <Radio value="NATURAL"><span className="text-base text-green-600 font-medium">Natural Wear & Tear (Free)</span></Radio>
+                                      <Radio value="USER"><span className="text-base text-red-600 font-medium">Customer Fault (Card Replacement Fee: {getDamagedCardPenalty().toLocaleString()} VND)</span></Radio>
                                     </Radio.Group>
                                   </Form.Item>
                                 )}
                                 {ticket.type === 'FEE_DISPUTE' && (
-                                  <Form.Item label="Số tiền giảm (VND) - Trừ thẳng vào Tổng thanh toán">
+                                  <Form.Item label="Discount Amount (VND) - Deducted from Total Payment">
                                     <InputNumber 
                                       className="w-full" 
                                       size="large" 
@@ -815,12 +815,12 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     />
                                   </Form.Item>
                                 )}
-                                <Form.Item label="Ghi chú hoàn tất">
-                                  <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p2Notes} onChange={e => setP2Notes(e.target.value)} placeholder="Ghi chú lại quá trình thu tiền & cho xe ra bãi" />
+                                <Form.Item label="Completion Notes">
+                                  <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p2Notes} onChange={e => setP2Notes(e.target.value)} placeholder="Notes on payment collection and vehicle exit process" />
                                 </Form.Item>
-                                <Form.Item label="Tải ảnh bằng chứng (Biên lai thu tiền, CCCD,...)">
+                                <Form.Item label="Upload Proof Image (Receipt, ID, etc.)">
                                   <Upload beforeUpload={f => { setP2File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
-                                    <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                                    <Button icon={<UploadOutlined />}>Select Image</Button>
                                   </Upload>
                                 </Form.Item>
                                 
@@ -831,7 +831,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     buttonStyle="solid"
                                     className="flex w-full bg-slate-100 rounded-lg p-1 border border-slate-200"
                                   >
-                                    <Radio.Button value="CASH" className="flex-1 text-center font-bold">Tiền mặt</Radio.Button>
+                                    <Radio.Button value="CASH" className="flex-1 text-center font-bold">Cash</Radio.Button>
                                     <Radio.Button value="PAYPAL" className="flex-1 text-center font-bold">PayPal</Radio.Button>
                                     <Radio.Button value="PAYOS" className="flex-1 text-center font-bold">PayOS QR</Radio.Button>
                                   </Radio.Group>
@@ -853,7 +853,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                                 <QRCode value={paymentUrl} size={160} />
                                             )}
                                             <div className="mt-2 text-center text-sm font-semibold text-slate-600">
-                                              Yêu cầu khách quét QR để thanh toán. Cửa sổ sẽ tự đóng khi thanh toán thành công.
+                                              Ask the customer to scan the QR to pay. The window will close automatically on success.
                                             </div>
                                             {paymentUrl && (
                                               <Button 
@@ -861,23 +861,23 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                                 className="mt-2 bg-blue-600 hover:bg-blue-500 text-white font-bold w-full max-w-[200px]" 
                                                 onClick={() => window.open(paymentUrl, '_blank')}
                                               >
-                                                Mở Link Thanh Toán
+                                                Open Payment Link
                                               </Button>
                                             )}
                                             <Button type="link" onClick={handleManualVerify} loading={isVerifying} disabled={verifyCooldown > 0} className={`mt-2 ${verifyCooldown > 0 ? 'text-slate-400' : 'text-orange-600'}`}>
-                                              {verifyCooldown > 0 ? `Chờ ${verifyCooldown}s để kiểm tra lại` : 'Kiểm tra trạng thái thanh toán'}
+                                              {verifyCooldown > 0 ? `Wait ${verifyCooldown}s to check again` : 'Check payment status'}
                                             </Button>
                                           </div>
                                         ) : (
                                           <div className="flex flex-col items-center py-4 text-slate-500">
                                             <QrcodeOutlined className="text-4xl animate-pulse mb-2" />
-                                            Đang tạo mã QR thanh toán...
+                                            Generating payment QR code...
                                           </div>
                                         )}
                                       </>
                                     ) : (
                                       <div className="text-green-600 font-bold flex items-center justify-center">
-                                        <CheckCircleOutlined className="mr-2 text-xl" /> Đã xác nhận thanh toán!
+                                        <CheckCircleOutlined className="mr-2 text-xl" /> Payment confirmed!
                                       </div>
                                     )}
                                   </div>
@@ -891,7 +891,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                   disabled={(paymentMethod !== 'CASH' && !paymentConfirmed) || (calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)) <= 0}
                                   block
                                 >
-                                  {paymentMethod === 'CASH' || (calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)) <= 0 ? 'Xác nhận đã thu đủ tiền & Cho xe ra bãi' : 'Đợi khách thanh toán QR...'}
+                                  {paymentMethod === 'CASH' || (calculatedParkingFee + totalPenalty - (feeDiscount || ticket.discountFee || 0)) <= 0 ? 'Confirm full payment received & Open gate' : 'Waiting for customer QR payment...'}
                                 </Button>
                               </Form>
                             </>
@@ -902,66 +902,66 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                   )}
                 </Card>
               ) : ticket.status === 'CANCELLED' || ticket.status === 'REJECTED' ? (
-                <div className="text-slate-400 italic mt-1">Sự cố bị hủy trước khi đến giai đoạn này</div>
-              ) : <div className="text-slate-400 italic mt-1">Đang chờ xử lý xong Giai đoạn 1</div>
+                <div className="text-slate-400 italic mt-1">Incident was cancelled before reaching this phase</div>
+              ) : <div className="text-slate-400 italic mt-1">Waiting for Phase 1 to complete</div>
             },
 
             // BƯỚC 3: LƯU LỊCH SỬ / KẾT THÚC
             {
-              title: <span className="font-bold text-lg">Giai đoạn 3: Kết thúc</span>,
+              title: <span className="font-bold text-lg">Phase 3: Completed</span>,
               description: ticket.status === 'RESOLVED' ? (
                 <Card size="small" className="mt-2 bg-green-50 border-green-200 shadow-sm">
-                  <Tag color="success" className="text-base py-1 px-3 mb-2">Đã hoàn tất toàn bộ quy trình</Tag>
+                  <Tag color="success" className="text-base py-1 px-3 mb-2">All processes completed successfully</Tag>
                   <div className="mb-2">
-                    <Text type="secondary">Người giải quyết:</Text>
-                    <div className="font-medium text-green-800">{ticket.staffEmail || 'Hệ thống'}</div>
+                    <Text type="secondary">Resolved by:</Text>
+                    <div className="font-medium text-green-800">{ticket.staffEmail || 'System'}</div>
                   </div>
                   <div className="mb-2">
-                    <Text type="secondary">Thời gian giải quyết:</Text>
-                    <div className="font-medium text-green-800">{ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString('vi-VN') : 'Không có'}</div>
+                    <Text type="secondary">Resolved at:</Text>
+                    <div className="font-medium text-green-800">{ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString() : 'N/A'}</div>
                   </div>
                 </Card>
               ) : ticket.status === 'CANCELLED' || ticket.status === 'REJECTED' ? (
                 <Card size="small" className="mt-2 bg-gray-50 border-gray-200 shadow-sm">
-                  <Tag color="default" className="text-base py-1 px-3 mb-2">Sự cố đã bị hủy / Từ chối</Tag>
+                  <Tag color="default" className="text-base py-1 px-3 mb-2">Incident Cancelled / Rejected</Tag>
                   <div className="mb-2">
-                    <Text type="secondary">Người hủy / giải quyết:</Text>
-                    <div className="font-medium text-gray-700">{ticket.staffEmail || 'Hệ thống'}</div>
+                    <Text type="secondary">Cancelled / Resolved by:</Text>
+                    <div className="font-medium text-gray-700">{ticket.staffEmail || 'System'}</div>
                   </div>
                   <div className="mb-2">
-                    <Text type="secondary">Thời gian hủy / giải quyết:</Text>
-                    <div className="font-medium text-gray-700">{ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString('vi-VN') : 'Không có'}</div>
+                    <Text type="secondary">Cancelled / Resolved at:</Text>
+                    <div className="font-medium text-gray-700">{ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString() : 'N/A'}</div>
                   </div>
                   {ticket.cancelType && (
                     <div className="mb-2">
-                      <Text type="secondary">Phân loại hủy:</Text>
+                      <Text type="secondary">Cancellation Type:</Text>
                       <div className="font-medium text-gray-700">{ticket.cancelType}</div>
                     </div>
                   )}
                   <div className="mb-2 whitespace-pre-wrap">
-                    <Text type="secondary">Ghi chú hủy / xử lý:</Text>
+                    <Text type="secondary">Cancellation / Resolution Notes:</Text>
                     <div className="font-medium text-red-700 break-all">{
                       ticket.resolutionNotes?.includes('[CANCELLED]') 
                         ? ticket.resolutionNotes.substring(ticket.resolutionNotes.indexOf('[CANCELLED]')) 
-                        : (ticket.resolutionNotes || 'Không có ghi chú thêm')
+                        : (ticket.resolutionNotes || 'No additional notes')
                     }</div>
                   </div>
                   {ticket.resolutionImageUrl && (
                     <div className="mb-2">
-                      <Text type="secondary">Ảnh đính kèm (Bao gồm ảnh Hủy nếu có):</Text>
+                      <Text type="secondary">Attached Images (Including Cancellation if any):</Text>
                       {renderImages(ticket.resolutionImageUrl, ['CX'])}
                     </div>
                   )}
                 </Card>
               ) : (
-                <div className="text-slate-400 italic mt-1">Chờ xe ra bãi và thu phí xong</div>
+                <div className="text-slate-400 italic mt-1">Waiting for vehicle exit and payment collection</div>
               )
             }
           ]}
         />
       </div>
 
-      {/* Footer - Hủy */}
+      {/* Footer - Cancel */}
       {(() => {
         const isMismatch = ['LPR_MISMATCH', 'TYPE_MISMATCH', 'MULTIPLE_MISMATCH'].includes(ticket.type);
         const isCardIncident = ['LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
@@ -969,41 +969,41 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         const canCancel = !isMismatch && isActive && (isCardIncident || ticket.status === 'PENDING' || isManager);
         if (!canCancel) return null;
         return (
-          <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-end">
+          <div className="p-4 border-t bg-slate-50 rounded-b-xl flex flex-col sm:flex-row justify-end gap-2">
             {userRole === 'STAFF' ? (
-              <Button danger icon={<CloseCircleOutlined />} onClick={() => setCancelModalVisible(true)}>
-                Hủy báo cáo sự cố (Cancel)
+              <Button danger icon={<CloseCircleOutlined />} onClick={() => setCancelModalVisible(true)} className="w-full sm:w-auto">
+                Cancel Incident Report
               </Button>
             ) : (
-              <Button danger onClick={() => setCancelModalVisible(true)}>Hủy yêu cầu</Button>
+              <Button danger onClick={() => setCancelModalVisible(true)} className="w-full sm:w-auto">Cancel Request</Button>
             )}
           </div>
         );
       })()}
       <Modal
-        title="Hủy / Từ chối sự cố"
+        title="Cancel / Reject Incident"
         open={cancelModalVisible}
         onCancel={() => setCancelModalVisible(false)}
         onOk={() => cancelMutation.mutate()}
         confirmLoading={cancelMutation.isPending}
-        okText="Xác nhận Hủy"
+        okText="Confirm Cancellation"
         okButtonProps={{ danger: true }}
       >
         <Form layout="vertical">
-          <Form.Item label="Lý do hủy" required>
+          <Form.Item label="Cancellation Reason" required>
             <Select value={cancelType} onChange={setCancelType}>
-              <Select.Option value="GUEST_FOUND_CARD">Khách yêu cầu hủy</Select.Option>
-              <Select.Option value="INFO_INCORRECT">Thông tin cung cấp sai</Select.Option>
-              <Select.Option value="OTHER">Lý do khác</Select.Option>
+              <Select.Option value="GUEST_FOUND_CARD">Customer requested cancellation</Select.Option>
+              <Select.Option value="INFO_INCORRECT">Incorrect info provided</Select.Option>
+              <Select.Option value="OTHER">Other reason</Select.Option>
             </Select>
           </Form.Item>
-            <Form.Item label="Lý do chi tiết" required>
-              <TextArea rows={3} style={{ wordBreak: 'break-all' }} value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Mô tả rõ tại sao lại hủy/từ chối" />
+            <Form.Item label="Detailed Reason" required>
+              <TextArea rows={3} style={{ wordBreak: 'break-all' }} value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Describe clearly why it is cancelled/rejected" />
             </Form.Item>
           {userRole === 'STAFF' && (
-            <Form.Item label="Ảnh minh chứng (nếu có)">
+            <Form.Item label="Proof Image (if any)">
               <Upload beforeUpload={f => { setCancelFile(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
-                <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                <Button icon={<UploadOutlined />}>Select Image</Button>
               </Upload>
             </Form.Item>
           )}

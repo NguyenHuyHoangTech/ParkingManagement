@@ -1,3 +1,14 @@
+/**
+ * ============================================================================
+ * [IMPORT LIBRARIES & UTILITIES] - Các thư viện và công cụ tiện ích
+ * ============================================================================
+ * 1. React & Hooks: useState, useEffect, useRef... để quản lý trạng thái và vòng đời Component.
+ * 2. React Query: Dùng để gọi API một cách tối ưu, tự động cache dữ liệu (useQuery, useQueryClient).
+ * 3. Ant Design (antd): Thư viện UI Kit cung cấp các component giao diện (Card, Button, Modal...).
+ * 4. WebSocket: Hook tự tạo (useWebSocket) để kết nối và nhận tín hiệu thời gian thực từ phần cứng.
+ * 5. Các tiện ích khác: dayjs (Xử lý thời gian), axiosClient (Gửi HTTP Request), Konva (Vẽ bản đồ).
+ * ============================================================================
+ */
 import { simulatedDayjs } from '../../core/utils/timeProvider';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../../core/store/useAuthStore';
@@ -105,6 +116,12 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   });
 
+  /**
+   * ============================================================================
+   * [QUẢN LÝ TRẠNG THÁI] - CÁC STATE NÒNG CỐT CỦA MÀN HÌNH
+   * ============================================================================
+   * Nhóm 1: Trạng thái hiển thị (Debug, Loading, Khóa cửa sổ)
+   */
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [lastRawPayload, setLastRawPayload] = useState<any>(null);
   const [debugMinimized, setDebugMinimized] = useState(false);
@@ -116,26 +133,43 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     });
   };
 
-  const [scanData, setScanData] = useState<any>(null);
-  const [editablePlate, setEditablePlate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const isProcessingRef = useRef<boolean>(false);
+  const isProcessingRef = useRef<boolean>(false); // Cờ chặn (Khóa vòi nước): Không nhận xe mới khi đang tính tiền xe cũ
 
-  // OUT Gate states
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PAYPAL' | 'PAYOS'>('CASH');
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
-  const [paymentQrCode, setPaymentQrCode] = useState<string>('');
-  const [paymentOrderId, setPaymentOrderId] = useState<string>('');
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  /**
+   * Nhóm 2: Trạng thái Phiên giao dịch (Hóa đơn, Biển số)
+   */
+  const [scanData, setScanData] = useState<any>(null); // Chứa toàn bộ dữ liệu Hóa đơn (Fee, Plate, Hình ảnh) từ Backend trả về
+  const [editablePlate, setEditablePlate] = useState<string>(''); // Biển số xe có thể sửa bằng tay nếu AI đọc sai
 
-  const [expiresAt, setExpiresAt] = useState<number | null>(null);
-  const [countdown, setCountdown] = useState<number>(0);
-  const [isExpired, setIsExpired] = useState<boolean>(false);
+  /**
+   * Nhóm 3: Trạng thái Thanh toán (Payment Gateway)
+   */
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'PAYPAL' | 'PAYOS'>('CASH'); // Phương thức thanh toán đang chọn
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null); // Link nhảy sang cổng thanh toán (Nếu dùng ĐT)
+  const [paymentQrCode, setPaymentQrCode] = useState<string>(''); // Chuỗi ký tự để vẽ mã QR lên màn hình máy tính
+  const [paymentOrderId, setPaymentOrderId] = useState<string>(''); // Mã đơn hàng để đối soát với Backend
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false); // Cờ báo hiệu đã nhận tiền thành công
+  const [isVerifying, setIsVerifying] = useState(false); // Trạng thái Đang ép kiểm tra giao dịch (Loading)
+  const [verifyCooldown, setVerifyCooldown] = useState(0); // Đếm ngược thời gian chống spam nút Check Transaction
+
+  /**
+   * Nhóm 4: Trạng thái Hết hạn Hóa đơn (Pricing Expiry)
+   */
+  const [expiresAt, setExpiresAt] = useState<number | null>(null); // Mốc thời gian tuyệt đối (Epoch) mà hóa đơn sẽ hết hạn
+  const [countdown, setCountdown] = useState<number>(0); // Số giây đếm ngược hiển thị trên màn hình
+  const [isExpired, setIsExpired] = useState<boolean>(false); // Cờ báo Hóa đơn đã hết hạn, cần làm mới (Refresh Price)
 
   const handleRefreshPriceRef = useRef<(() => void) | null>(null);
 
+  /**
+   * ============================================================================
+   * [BỘ ĐẾM NGƯỢC THỜI GIAN] - COUNTDOWN TIMER
+   * ============================================================================
+   * Mỗi khi có một Hóa đơn được tạo (biến expiresAt có giá trị), bộ đếm này sẽ chạy.
+   * Cứ mỗi 1 giây (1000ms), nó trừ lùi thời gian còn lại.
+   * Nếu thời gian về 0, nó báo cờ `isExpired` và tự động gọi hàm Refresh Hóa Đơn mới.
+   */
   useEffect(() => {
     if (!expiresAt) {
       setCountdown(0);
@@ -176,11 +210,23 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
    */
   useEffect(() => {
     if (activeGate && stompClient && connected) {
+      // Kênh 1: Hứng tín hiệu xe lướt qua Camera / Quẹt thẻ RFID tại cổng này
       const destination = `/topic/gates/${activeGate.id}/scans`;
+
+      // Kênh 2: Hứng tín hiệu cổng tự mở (Ví dụ: Thanh toán MoMo thành công, Server tự ra lệnh mở Barie)
       const outDest = `/topic/gates/${activeGate.id}/out`;
+
+      // Kênh 3: Hứng tín hiệu cảnh báo (Ví dụ: Có xe đặt trước chuẩn bị tới tầng này)
       const notifDest = `/topic/floors/${activeGate.floorId}/notifications`;
+
       addLog(`Subscribed to ${destination}, ${outDest} and ${notifDest}`);
 
+      /**
+       * [NOTIF SUB]: Lắng nghe cảnh báo
+       * Nếu có xe VIP đặt trước (Pre-booked) sắp rẽ vào hầm, hệ thống sẽ 
+       * thả một thông báo nổi (Antd Notification) ở góc phải màn hình 
+       * trong 10 giây để nhân viên chú ý đón khách.
+       */
       const notifSub = stompClient.subscribe(notifDest, (msg) => {
         const payload = JSON.parse(msg.body);
         import('antd').then(({ notification }) => {
@@ -192,10 +238,20 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         });
       });
 
+      /**
+       * [OUT SUB]: Tự động mở Barie khi thanh toán số hoàn tất
+       * Webhook MoMo trả về Backend -> Backend xác nhận tiền đã vào tài khoản 
+       * -> Backend bắn chữ "SUCCESS" lên kênh `outDest`.
+       * 
+       * Ngay khi nhận chữ SUCCESS, nếu màn hình đang hiển thị hóa đơn (`isProcessingRef.current === true`),
+       * Frontend tự động đập vỡ hóa đơn, dọn dẹp biến, báo Barie mở và trả màn hình về trạng thái chờ xe mới.
+       */
       const outSub = stompClient.subscribe(outDest, (msg) => {
         const payload = JSON.parse(msg.body);
         if (payload.status === 'SUCCESS' && isProcessingRef.current) {
           message.success(`Checkout successful! Barrier opened!`);
+
+          // Dọn dẹp phiên giao dịch
           setScanData(null);
           setEditablePlate('');
           setPaymentMethod('CASH');
@@ -207,6 +263,12 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         }
       });
 
+      /**
+       * [SCAN SUB]: Tim mạch của Trạm Thu Phí
+       * Hứng payload từ Camera IoT (bao gồm: Biển số, Hình ẢNH, Thẻ từ).
+       * Ngay khi nhận được, lập tức gửi lệnh triệu hồi API `checkout-session-info` 
+       * để Backend in Hóa đơn mang lên hiển thị cho khách xem.
+       */
       const subscription = stompClient.subscribe(destination, (msg) => {
         if (isProcessingRef.current) {
           addLog("Close stream band: Ignore new signal due to pending processing of current vehicle");
@@ -227,6 +289,13 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         // For UI purposes, we'll map it to our UI state shape
         setEditablePlate(payload.plateNumber || 'UNKNOWN');
 
+        /**
+         * [TRIỆU HỒI HÓA ĐƠN TỪ BACKEND]
+         * Khi nhận được tín hiệu xe ra, Frontend phải hỏi Backend xem:
+         * "Chiếc xe này hồi đó vào bằng cổng nào, lúc mấy giờ, gửi loại xe gì, tổng tiền là bao nhiêu?".
+         * API `/operation/gates/checkout-session-info` sẽ đóng vai trò như một cỗ máy tính tiền,
+         * gom tất cả thông tin lại và trả về 1 Hóa Đơn (session-info) chi tiết nhất.
+         */
         axiosClient.get('/operation/gates/checkout-session-info', {
           params: { rfid: payload.rfid, plate: payload.plateNumber }
         }).then(res => {
@@ -309,6 +378,18 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     }
   }, [activeGate, stompClient, connected]);
 
+  /**
+   * ============================================================================
+   * [HỦY BỎ GIAO DỊCH] - NÚT CANCEL
+   * ============================================================================
+   * MỤC ĐÍCH: Hủy bỏ tiến trình thanh toán hiện tại, xóa toàn bộ màn hình để đón xe tiếp theo.
+   * 
+   * THỰC THI:
+   * 1. Nhả cờ `isProcessingRef.current = false` để mở lại "vòi nước", cho phép đón tín hiệu IoT mới.
+   * 2. Xóa trắng dữ liệu Hóa đơn (`setScanData(null)`).
+   * 3. Xóa trắng các dữ liệu thanh toán số đang gen dở (QR Code, URL...).
+   * ============================================================================
+   */
   const handleCancel = () => {
     isProcessingRef.current = false;
     setScanData(null);
@@ -321,6 +402,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     message.warning('The current scanning session has been canceled. System is ready.');
   };
 
+  /**
+   * ============================================================================
+   * [XỬ LÝ NGOẠI LỆ] - CHO PHÉP CHECK-IN TẠI CỔNG RA (IN_OUT GATE)
+   * ============================================================================
+   * MỤC ĐÍCH: Nếu loại cổng là `IN_OUT` (Cổng 2 chiều), hệ thống có thể tái sử dụng 
+   * giao diện này để ép check-in thủ công nếu hệ thống không bắt được xe lúc vào.
+   * Đây là một tính năng Fallback an toàn dành cho cổng đa năng.
+   * ============================================================================
+   */
   const handleCheckIn = async () => {
     if (!scanData || !activeGate) return;
     setIsLoading(true);
@@ -349,6 +439,14 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   };
 
 
+  /**
+   * ============================================================================
+   * [XÁC NHẬN TIỀN MẶT THỦ CÔNG]
+   * ============================================================================
+   * Bật cờ `paymentConfirmed`. Sẽ kích hoạt useEffect bên dưới tự động chạy `handleCompletePaymentAndOpen`
+   * nếu phương thức đang chọn là CASH.
+   * ============================================================================
+   */
   const handleManualPaymentConfirm = () => {
     setPaymentConfirmed(true);
     message.success('Payment recorded successfully!');
@@ -419,7 +517,19 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
 
 
-  // Generate Payment URL when switching to digital method
+  /**
+   * ============================================================================
+   * [AUTO-GENERATE QR] - KHỞI TẠO THANH TOÁN SỐ (PAYOS / PAYPAL)
+   * ============================================================================
+   * MỤC ĐÍCH: Tự động xin mã QR thanh toán ngay khi nhân viên chuyển Tab từ Tiền mặt sang QR.
+   * 
+   * CƠ CHẾ HOẠT ĐỘNG:
+   * B1: Lắng nghe sự thay đổi của biến `paymentMethod`. Nếu nhân viên click chọn 'PAYOS' hoặc 'PAYPAL'.
+   * B2: Tự động cộng dồn tất cả các loại phí (FeeBase + Overtime + Penalty - Discount) thành `calculatedTotalFee`.
+   * B3: Bắn API POST `/finance/payments/initialize` gọi dịch vụ tạo QR (VietQR qua PayOS hoặc PayPal Link).
+   * B4: Lấy Link QR trả về và cắm thẳng vào thẻ `<QRCode>` để hiện hình ảnh mã vạch lên màn hình cho khách quét.
+   * ============================================================================
+   */
   useEffect(() => {
     if ((paymentMethod === 'PAYPAL' || paymentMethod === 'PAYOS') && scanData) {
       const calculatedTotalFee = Math.max(0,
@@ -537,6 +647,19 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     return () => clearTimeout(timer);
   }, [verifyCooldown]);
 
+  /**
+   * ============================================================================
+   * [TỰ KIỂM TRA GIAO DỊCH] - MANUAL VERIFY CỨNG TỪ BÊN THỨ 3
+   * ============================================================================
+   * MỤC ĐÍCH: Giải cứu trong trường hợp "Khách đã trừ tiền, tài khoản báo trừ, 
+   * nhưng Cổng không chịu mở" (Do rớt mạng, mất webhook, nghẽn cổng thanh toán...).
+   * 
+   * CƠ CHẾ HOẠT ĐỘNG (Nút Check Transaction):
+   * B1: Nắm đầu mã đơn hàng (`paymentOrderId`) gửi thẳng sang PayOS/PayPal bằng API `.../capture` để hỏi: "Đơn này nó thanh toán thật chưa?".
+   * B2: Nếu PayOS xác nhận "COMPLETED" (Đã trả tiền), gọi tiếp API `/finance/payments/execute-action`.
+   * B3: Backend sẽ ghi nhận Giao dịch thành công, lưu DB và tự tay mở Barie y như lúc Webhook báo về.
+   * ============================================================================
+   */
   const handleManualVerify = () => {
     if (!paymentOrderId || verifyCooldown > 0) return;
     setIsVerifying(true);
@@ -578,13 +701,30 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       });
   };
 
-  // Auto-submit checkout when CASH payment is confirmed
+  /**
+   * ============================================================================
+   * [AUTO TÍNH TIỀN MẶT]
+   * ============================================================================
+   * Khi nhân viên bấm nút Xác nhận Đã Thu Tiền (paymentConfirmed = true) và phương thức là Tiền Mặt (CASH),
+   * đoạn mã này sẽ tự động gọi hàm `handleCompletePaymentAndOpen` để báo Backend chốt hóa đơn.
+   * ============================================================================
+   */
   useEffect(() => {
     if (paymentConfirmed && paymentMethod === 'CASH' && scanData && activeGate) {
       handleCompletePaymentAndOpen();
     }
   }, [paymentConfirmed]);
 
+  /**
+   * ============================================================================
+   * [GIAO DIỆN CHÍNH CỦA CỔNG RA - RENDER OUT GATE PANEL]
+   * ============================================================================
+   * Bao gồm 3 phần chính (layout 3 cột / 2 cột):
+   * 1. LEFT SIDE (Camera 4 chiều): Hiển thị ảnh chụp lúc xe VÀO (trái) và lúc xe RA (phải) để nhân viên đối chiếu.
+   * 2. RIGHT SIDE (Hóa đơn - Fee Breakdown): Tờ hóa đơn chi tiết tính toán từng đồng (Cơ bản + Phạt - Khuyến mãi = Tổng).
+   * 3. RIGHT SIDE (Thanh toán - Payment Gate): Chỗ quét QR, nút chốt tiền mặt.
+   * ============================================================================
+   */
   const renderOutGatePanel = () => {
     const totalFee = Math.max(0,
       (scanData?.expectedFee || scanData?.feeBase || 0) +
@@ -610,7 +750,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     // 
     return (
       <div className="flex h-full overflow-hidden w-full bg-slate-100 rounded-xl shadow-inner gap-4">
-        {/* LEFT SIDE: 4-Way Cameras (45% width) */}
+        {/* 
+         * ============================================================================
+         * [CỘT TRÁI - 45%] KHU VỰC CAMERA ĐỐI CHIẾU
+         * Hiển thị ảnh chụp từ Camera IoT. Chia làm 2 cột nhỏ:
+         * - Cột 1: Ảnh chụp lúc xe VÀO (Ảnh toàn cảnh + Ảnh cắt góc biển số).
+         * - Cột 2: Ảnh chụp lúc xe RA (Ảnh toàn cảnh + Ảnh cắt góc biển số).
+         * Mục đích: Giúp nhân viên thu ngân đối chiếu bằng mắt xem 2 xe có phải là một không.
+         * ============================================================================
+         */}
         <div className="w-[45%] flex-none p-2 flex gap-2 bg-slate-900 border-4 border-slate-800 rounded-xl overflow-hidden shadow-lg">
           {!scanData ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900">
@@ -635,14 +783,22 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           )}
         </div>
 
-        {/* RIGHT SIDE: Info, Plates, Billing, Actions (55% width) */}
+        {/* 
+         * ============================================================================
+         * [CỘT PHẢI - 55%] KHU VỰC NGHIỆP VỤ (THÔNG TIN - HÓA ĐƠN - THANH TOÁN)
+         * Nơi hiển thị tất cả các con số, lịch sử, bảng tính tiền và cụm nút tương tác mở cổng.
+         * ============================================================================
+         */}
         <div className="w-[55%] flex flex-col h-full bg-slate-50 border border-slate-300 rounded-xl overflow-hidden shadow-sm relative">
 
-          {/* Scrollable Detail Area (Split into 2 internal columns) */}
+          {/* 
+           * --- PHẦN KHUNG CUỘN ĐƯỢC (SCROLLABLE BỘ THÔNG TIN BÊN TRONG) --- 
+           * Chia làm 2 nửa trái phải để tối ưu diện tích hiển thị.
+           */}
           <div className="flex-1 p-2 flex flex-col xl:flex-row gap-4 overflow-y-auto custom-scrollbar">
             {scanData ? (
               <>
-                {/* Internal Left: Info & Plates */}
+                {/* NỬA TRÁI CỦA CỘT PHẢI: Chứa Thông tin Thẻ (RFID), Loại Xe, Lịch sử vào/ra, Cảnh báo và Sửa biển số */}
                 <div className="w-full xl:w-1/2 flex flex-col gap-2">
 
                   {/* Identity & Slot */}
@@ -735,7 +891,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   )}
                 </div>
 
-                {/* Internal Right: Billing & Payment */}
+                {/* NỬA PHẢI CỦA CỘT PHẢI: Bảng Kê Chi Phí (Fee Breakdown) và Giao Diện Chọn Cổng Thanh Toán (Radio / QR) */}
                 <div className="w-full xl:w-1/2 flex flex-col bg-slate-800 border border-slate-700 rounded-xl shadow-lg text-white p-4 relative overflow-hidden">
 
                   {/* EXPIRATION OVERLAY */}
@@ -791,6 +947,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       value={paymentMethod}
                       onChange={(e) => {
                         setPaymentMethod(e.target.value);
+                        // Tự động làm mới giá (nếu có thay đổi về phí) khi người dùng đổi hình thức thanh toán
                         if (handleRefreshPriceRef.current) {
                           handleRefreshPriceRef.current();
                         }
@@ -861,7 +1018,16 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             )}
           </div>
 
-          {/* Fixed Actions Area (Fixed h-[88px]) */}
+          {/* 
+           * ============================================================================
+           * [THANH CÔNG CỤ CỐ ĐỊNH - 88px] NÚT CHỐT HẠ GIAO DỊCH
+           * - Nút Cancel: Hủy bỏ, dọn màn hình.
+           * - Nút Action chính: Tự động đổi text & đổi màu dựa vào logic:
+           *   + Màu Đỏ (LOCKED): Xe đang dính lỗi, nhân viên phải đi giải quyết vé phạt mới được mở.
+           *   + Màu Xám (DISABLED): Chưa thanh toán / Khác biển số.
+           *   + Màu Xanh (READY): Đã nhận tiền, chớp chớp giục nhân viên bấm mở.
+           * ============================================================================
+           */}
           <div className="flex-none h-[88px] px-3 pt-2 pb-3 border-t border-slate-200 bg-white flex gap-3 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] relative z-10">
             <Button
               size="large"
@@ -878,12 +1044,12 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
               type="primary"
               size="large"
               className={`h-full flex-[2] text-xl font-bold rounded-lg shadow-lg border-b-4 active:border-b-0 active:translate-y-1 transition-all ${(scanData?.status === 'LOCKED')
-                  ? 'bg-red-800 border-red-900 cursor-not-allowed opacity-80'
-                  : isInvalidEntry || isPlateMismatch
-                    ? 'bg-slate-600 border-slate-700 cursor-not-allowed opacity-80'
-                    : (paymentMethod !== 'CASH' && !paymentConfirmed)
-                      ? 'bg-slate-400 border-slate-500 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-500 border-green-800 animate-pulse'
+                ? 'bg-red-800 border-red-900 cursor-not-allowed opacity-80'
+                : isInvalidEntry || isPlateMismatch
+                  ? 'bg-slate-600 border-slate-700 cursor-not-allowed opacity-80'
+                  : (paymentMethod !== 'CASH' && !paymentConfirmed)
+                    ? 'bg-slate-400 border-slate-500 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-500 border-green-800 animate-pulse'
                 }`}
               disabled={(!scanData) || isInvalidEntry || isPlateMismatch || (paymentMethod !== 'CASH' && !paymentConfirmed) || (scanData?.status === 'LOCKED')}
               loading={isLoading}
@@ -905,8 +1071,6 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-100 relative">
-
-
       <Row className="h-full w-full m-0">
         <Col span={24} className="h-full p-4 flex flex-col bg-slate-50">
           <div className="flex justify-between items-center mb-4 shrink-0">

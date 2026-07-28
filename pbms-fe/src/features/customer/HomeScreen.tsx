@@ -73,12 +73,27 @@ export const HomeScreen = () => {
         }
       }
 
-      setSlots(filteredData.map((d: any) => ({
-        type: d.type,
-        label: d.label,
-        available: d.available,
-        icon: d.type === 'FOUR_WHEEL' ? <CarOutlined /> : (d.type === 'TWO_WHEEL' ? <div className="text-xl leading-none">🏍️</div> : <div className="text-xl leading-none">⚡</div>)
-      })));
+      setSlots(filteredData.map((d: any) => {
+        const matchedVt = (vehicleTypes || []).find((vt: any) => vt.typeName === d.label);
+        let iconElement: React.ReactNode = <CarOutlined />;
+        if (matchedVt && matchedVt.iconUrl) {
+          iconElement = <img src={getImageUrl(matchedVt.iconUrl)} style={{ width: 32, height: 32, objectFit: 'contain' }} alt={d.label} />;
+        } else {
+           const nameLower = d.label.toLowerCase();
+           if (nameLower.includes('motor') || nameLower.includes('máy')) iconElement = <span className="text-2xl leading-none">🏍️</span>;
+           else if (nameLower.includes('bike') || nameLower.includes('bicycle') || nameLower.includes('đạp')) iconElement = <span className="text-2xl leading-none">🚲</span>;
+           else if (nameLower.includes('truck') || nameLower.includes('tải')) iconElement = <span className="text-2xl leading-none">🚐</span>;
+           else if (d.type === 'TWO_WHEEL') iconElement = <span className="text-2xl leading-none">🏍️</span>;
+           else if (d.type === 'EBIKE') iconElement = <span className="text-2xl leading-none">⚡</span>;
+        }
+
+        return {
+          type: d.type,
+          label: d.label,
+          available: d.available,
+          icon: iconElement
+        };
+      }));
     }
     
     if (!formArrivalTime) {
@@ -135,10 +150,13 @@ export const HomeScreen = () => {
       numberColor = "text-orange-600";
     }
 
-    if (slot.type === 'TWO_WHEEL') {
+    const nameLower = slot.label.toLowerCase();
+    if (nameLower.includes('motor') || nameLower.includes('máy') || slot.type === 'TWO_WHEEL') {
        iconBg = "bg-purple-50 text-purple-600";
-    } else if (slot.type === 'EBIKE' || slot.label.toLowerCase().includes('điện') || slot.label.toLowerCase().includes('electric')) {
+    } else if (nameLower.includes('điện') || nameLower.includes('electric') || nameLower.includes('ebike') || nameLower.includes('e_bike') || slot.type === 'EBIKE') {
        iconBg = "bg-cyan-50 text-cyan-600";
+    } else if (nameLower.includes('đạp') || nameLower.includes('bicycle')) {
+       iconBg = "bg-emerald-50 text-emerald-600";
     }
 
     return (

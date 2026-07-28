@@ -18,7 +18,6 @@ import { BuildingRulesModal } from '../shared/components/BuildingRulesModal';
 import { useState } from 'react';
 import { useSystemTime } from '../../core/utils/timeProvider';
 import { NotificationDropdown } from '../shared/components/NotificationDropdown';
-import { MonthlyZoneConflictModal } from './MonthlyZoneConflictModal';
 import { useEffect } from 'react';
 import { Client } from '@stomp/stompjs';
 import { notification } from 'antd';
@@ -39,11 +38,6 @@ export const StaffLayout = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const systemTime = useSystemTime();
-
-  // Conflict state
-  const [monthlyConflictVisible, setMonthlyConflictVisible] = useState(false);
-  const [monthlyConflictData, setMonthlyConflictData] = useState<any>(null);
-
   // QUERY: GET /finance/dashboard/operational for live sensor monitoring
   const { data: operationalData } = useQuery({
     queryKey: ['operational_dashboard'],

@@ -442,12 +442,13 @@ export const VehicleRoutingScreen = () => {
       let adviceStr = res.data.data;
       
       try {
-        if (adviceStr.startsWith("```json")) {
-           adviceStr = adviceStr.substring(7, adviceStr.length - 3).trim();
-        } else if (adviceStr.startsWith("```")) {
-           adviceStr = adviceStr.substring(3, adviceStr.length - 3).trim();
+        let cleanStr = adviceStr;
+        const firstBrace = cleanStr.indexOf('{');
+        const lastBrace = cleanStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanStr = cleanStr.substring(firstBrace, lastBrace + 1);
         }
-        const parsed = JSON.parse(adviceStr);
+        const parsed = JSON.parse(cleanStr);
         setAiResponse(parsed);
       } catch (e) {
         setAiResponse({ raw: adviceStr });

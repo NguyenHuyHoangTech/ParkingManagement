@@ -336,6 +336,24 @@ export const ExceptionDeskScreen = () => {
             </div>
           </div>
         )}
+
+        {isShowingDetail && selectedTicket && (
+          <div className="flex flex-col h-full bg-slate-50 w-full z-20 absolute inset-0 animate-fade-in-up">
+            <div className="p-4 bg-white shadow-sm flex items-center shrink-0 sticky top-0 z-10 border-b border-gray-200">
+              <Button type="text" icon={<ArrowLeftOutlined />} onClick={navigateBack} className="mr-2" size="large" />
+              <Title level={4} className="m-0 text-gray-800">Incident Details</Title>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <IncidentDetailPanel
+                ticket={selectedTicket}
+                userRole="STAFF"
+                isManager={isManager}
+                onClose={() => setSelectedTicket(null)}
+                onActionComplete={handleActionComplete}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   };

@@ -197,15 +197,15 @@ export const MyParkingScreen = () => {
           if (item.recordType === 'RESERVATION') {
             const resStatus = item.status || 'UNKNOWN';
             const labelMap: Record<string, string> = {
-              PENDING: 'Đặt chỗ (Chờ)',
-              ACTIVE: 'Đặt chỗ (Đang sử dụng)',
-              COMPLETED: 'Đặt chỗ (Hoàn thành)',
-              CANCELLED: 'Đặt chỗ (Đã huỷ)',
-              COMPLETED_UNUSED: 'Đặt chỗ (Không đến - Mất phí)',
+              PENDING: 'Booking (Pending)',
+              ACTIVE: 'Booking (Active)',
+              COMPLETED: 'Booking (Completed)',
+              CANCELLED: 'Booking (Cancelled)',
+              COMPLETED_UNUSED: 'Booking (No-show)',
             };
             return {
               recordType: 'RESERVATION' as const,
-              type: labelMap[resStatus] || `Đặt chỗ (${resStatus})`,
+              type: labelMap[resStatus] || `Booking (${resStatus})`,
               plateNumber: item.plate,
               fee: item.reservationFee || 0,
               timeIn: item.expectedEntryTime ? dayjs(item.expectedEntryTime).format('HH:mm DD/MM/YYYY') : '---',
@@ -224,7 +224,7 @@ export const MyParkingScreen = () => {
           // Normal parking session
           return {
             recordType: 'SESSION' as const,
-            type: 'Vào bãi',
+            type: 'Walk-in',
             plateNumber: item.plate,
             fee: item.totalFee || 0,
             timeIn: item.timeIn ? dayjs(item.timeIn).format('HH:mm DD/MM/YYYY') : '---',
@@ -683,7 +683,7 @@ export const MyParkingScreen = () => {
           <Select
             size="large"
             allowClear
-            placeholder="Loại phương tiện (Bắt buộc)"
+            placeholder="Vehicle Type (Required)"
             value={vehicleTypeIdInput}
             onChange={setVehicleTypeIdInput}
             options={vehicleTypes.map((v: any) => ({ label: v.typeName, value: v.id }))}
@@ -805,7 +805,7 @@ export const MyParkingScreen = () => {
                           icon={<SearchOutlined />}
                           onClick={() => handleViewParkingStatus(item.plateNumber, item.vehicleTypeId, item.rfid)}
                         >
-                          Tra cứu
+                          Search
                         </Button>
                       )}
                       {displayStatus !== 'ACTIVE' && displayStatus !== 'PENDING' && (
@@ -843,7 +843,7 @@ export const MyParkingScreen = () => {
                       {displayStatus === 'CANCELLED_REFUNDED' && item.refundProofUrl && (
                         <div className="mt-2 text-right">
                           <a href={getImageUrl(item.refundProofUrl)} target="_blank" rel="noreferrer" className="text-blue-600 underline text-sm font-semibold flex items-center justify-end">
-                             <CheckCircleOutlined className="mr-1" /> Xem ảnh hoàn tiền
+                             <CheckCircleOutlined className="mr-1" /> View Refund Proof
                           </a>
                         </div>
                       )}
@@ -871,12 +871,12 @@ export const MyParkingScreen = () => {
           items={[
             {
               key: 'active',
-              label: 'Đang xử lý / Trong bãi',
+              label: 'Processing / In Lot',
               children: renderList(activeBookings),
             },
             {
               key: 'history',
-              label: 'Lịch sử / Đã hoàn thành',
+              label: 'History / Completed',
               children: renderList(historyBookings),
             }
           ]}
@@ -918,7 +918,7 @@ export const MyParkingScreen = () => {
                         <Tag color={item.status === 'ACTIVE' ? 'green' : item.status === 'EXPIRING_SOON' ? 'orange' : 'red'} className="m-0 font-bold">{item.status}</Tag>
                         {item.inParkingLot && (
                           <Tag color={item.status === 'EXPIRED' ? 'red' : 'orange'} className="m-0 animate-pulse font-bold border">
-                            ĐANG TRONG BÃI
+                            IN PARKING LOT
                           </Tag>
                         )}
                       </div>
@@ -950,7 +950,7 @@ export const MyParkingScreen = () => {
                         icon={<SearchOutlined />}
                         onClick={() => handleViewParkingStatus(item.plate, item.vehicleTypeId, item.rfid)}
                       >
-                        Tra cứu
+                        Search
                       </Button>
                     )}
                     <Button
@@ -995,12 +995,12 @@ export const MyParkingScreen = () => {
           items={[
             {
               key: '1',
-              label: `Vé Đang Hoạt Động & Xe Trong Bãi (${activePasses.length})`,
+              label: `Active Passes & Vehicles In Lot (${activePasses.length})`,
               children: renderList(activePasses),
             },
             {
               key: '2',
-              label: `Vé Đã Hết Hạn (${inactivePasses.length})`,
+              label: `Expired Passes (${inactivePasses.length})`,
               children: renderList(inactivePasses),
             }
           ]}
@@ -1472,7 +1472,7 @@ export const MyParkingScreen = () => {
       </Modal>
 
       <Drawer
-        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2" />Lịch sử cho xe {selectedHistoryPlate}</span>}
+        title={<span className="text-blue-600 font-bold"><HistoryOutlined className="mr-2" />History for Plate {selectedHistoryPlate}</span>}
         width={520}
         onClose={() => setIsHistoryDrawerVisible(false)}
         open={isHistoryDrawerVisible}
@@ -1514,37 +1514,37 @@ export const MyParkingScreen = () => {
                           </Tag>
                         </div>
                         <div className="text-right">
-                          <Text type="secondary" className="block text-xs">Phí đặt chỗ</Text>
+                          <Text type="secondary" className="block text-xs">Booking Fee</Text>
                           <Text strong className="text-blue-600 text-base">{(record.reservationFee || 0).toLocaleString()} VND</Text>
                         </div>
                       </div>
                       <Divider className="my-2" />
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
-                          <Text type="secondary" className="block mb-1">📅 Giờ dự kiến vào:</Text>
+                          <Text type="secondary" className="block mb-1">📅 Entry Time:</Text>
                           <Text strong className="text-slate-700">{record.timeIn}</Text>
                         </div>
                         <div>
-                          <Text type="secondary" className="block mb-1">📅 Giờ dự kiến ra:</Text>
+                          <Text type="secondary" className="block mb-1">📅 Exit Time:</Text>
                           <Text strong className="text-slate-700">{record.expectedEntryTime && record.expectedDurationMinutes ? dayjs(record.expectedEntryTime).add(record.expectedDurationMinutes, 'minute').format('HH:mm DD/MM/YYYY') : '---'}</Text>
                         </div>
                         <div>
-                          <Text type="secondary" className="block mb-1">🅿️ Khu vực:</Text>
+                          <Text type="secondary" className="block mb-1">🅿️ Zone:</Text>
                           <Text strong className="text-slate-700">{record.zoneName || 'N/A'}</Text>
                         </div>
                         <div>
-                          <Text type="secondary" className="block mb-1">⏱ Thời lượng dự kiến:</Text>
-                          <Text strong className="text-slate-700">{record.expectedDurationMinutes ? `${record.expectedDurationMinutes} phút` : '---'}</Text>
+                          <Text type="secondary" className="block mb-1">⏱ Expected Duration:</Text>
+                          <Text strong className="text-slate-700">{record.expectedDurationMinutes ? `${record.expectedDurationMinutes} mins` : '---'}</Text>
                         </div>
                         <div>
-                          <Text type="secondary" className="block mb-1">💸 Hoàn tiền:</Text>
+                          <Text type="secondary" className="block mb-1">💸 Refund:</Text>
                           <Text strong className={(record.refundAmount || 0) > 0 ? 'text-green-600' : 'text-slate-400'}>
-                            {(record.refundAmount || 0) > 0 ? `+${(record.refundAmount || 0).toLocaleString()} VND` : 'Không có'}
+                            {(record.refundAmount || 0) > 0 ? `+${(record.refundAmount || 0).toLocaleString()} VND` : 'None'}
                           </Text>
                           {record.refundProofUrl && (
                             <div className="mt-1">
                               <a href={getImageUrl(record.refundProofUrl)} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs font-semibold">
-                                Xem ảnh hoàn tiền
+                                View Refund Proof
                               </a>
                             </div>
                           )}
@@ -1553,11 +1553,11 @@ export const MyParkingScreen = () => {
                       {(record.forfeitedAmount || 0) > 0 && (
                         <div className="mt-3 pt-2 border-t border-red-200">
                           <div className="flex justify-between items-center">
-                            <Text className="text-red-600 font-semibold">⚠️ Phí bị giữ lại:</Text>
+                            <Text className="text-red-600 font-semibold">⚠️ Retained Fee:</Text>
                             <Text strong className="text-red-600 text-base">{(record.forfeitedAmount || 0).toLocaleString()} VND</Text>
                           </div>
                           <Text type="secondary" className="text-xs block mt-1">
-                            {record.status === 'COMPLETED_UNUSED' ? 'Xe không đến trong thời gian đặt chỗ, phí đặt chỗ không được hoàn.' : 'Huỷ muộn, phí đặt chỗ không được hoàn toàn.'}
+                            {record.status === 'COMPLETED_UNUSED' ? 'No-show during booking period, booking fee is non-refundable.' : 'Late cancellation, booking fee is partially retained.'}
                           </Text>
                         </div>
                       )}
@@ -1571,17 +1571,17 @@ export const MyParkingScreen = () => {
                           <Tag color="green" className="mt-1">{record.type}</Tag>
                         </div>
                         <div className="text-right">
-                          <Text strong className="text-blue-600 text-lg">{record.fee === 0 ? 'Miễn phí' : `${record.fee.toLocaleString()} VND`}</Text>
+                          <Text strong className="text-blue-600 text-lg">{record.fee === 0 ? 'Free' : `${record.fee.toLocaleString()} VND`}</Text>
                         </div>
                       </div>
                       <Divider className="my-2" />
                       <div className="grid grid-cols-2 gap-4 text-sm mt-2">
                         <div>
-                          <Text type="secondary" className="block mb-1">Giờ vào:</Text>
+                          <Text type="secondary" className="block mb-1">Time In:</Text>
                           <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400" /> {record.timeIn}</Text>
                         </div>
                         <div>
-                          <Text type="secondary" className="block mb-1">Giờ ra:</Text>
+                          <Text type="secondary" className="block mb-1">Time Out:</Text>
                           <Text strong className="text-slate-700"><ClockCircleOutlined className="mr-1 text-slate-400" /> {record.timeOut}</Text>
                         </div>
                       </div>
@@ -1606,7 +1606,7 @@ export const MyParkingScreen = () => {
             />
           ) : (
             <div className="py-12 text-center">
-              <Empty description={<span className="text-slate-500">Chưa có lịch sử cho xe này</span>} />
+              <Empty description={<span className="text-slate-500">No history found for this vehicle</span>} />
             </div>
           )}
         </div>

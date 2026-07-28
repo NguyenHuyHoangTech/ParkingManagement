@@ -12,7 +12,7 @@ import {
   SettingOutlined,
   ReadOutlined
 } from '@ant-design/icons';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useWebSocket } from '../../core/websocket/useWebSocket';
 import { UserProfileSettingsModal } from '../shared/components/UserProfileSettingsModal';
@@ -173,7 +173,7 @@ export const CustomerLayout = () => {
       </Content>
 
       <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="max-w-7xl mx-auto px-4 md:px-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-12 border-b border-slate-100 pb-12 mb-8">
                   <div className="col-span-1 md:col-span-2">
                       <div className="flex items-center gap-2 mb-4">
@@ -191,8 +191,8 @@ export const CustomerLayout = () => {
                   <div>
                       <h4 className="text-slate-800 font-bold mb-4">Customer Support</h4>
                       <ul className="space-y-3 text-sm text-slate-500 font-medium">
-                          <li><a onClick={() => navigate('/customer/my-parking')} className="hover:text-blue-600 transition cursor-pointer">Lookup Invoice</a></li>
-                          <li><a onClick={() => navigate('/customer/helpdesk')} className="hover:text-blue-600 transition cursor-pointer">Report Lost Card / Incident</a></li>
+                          <li><Link to="/customer/my-parking" className="hover:text-blue-600 transition cursor-pointer">Lookup Invoice</Link></li>
+                          <li><Link to="/customer/helpdesk" className="hover:text-blue-600 transition cursor-pointer">Report Lost Card / Incident</Link></li>
                           <li><a onClick={() => setIsRulesOpen(true)} className="hover:text-blue-600 transition cursor-pointer">Parking Rules</a></li>
                       </ul>
                   </div>
