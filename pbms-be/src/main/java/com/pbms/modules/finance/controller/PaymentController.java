@@ -47,11 +47,11 @@ public class PaymentController {
             Double amount = paymentValidatorService.calculateRequiredAmount(request);
             
             if (amount <= 0) {
-                return ResponseEntity.badRequest().body(ApiResponse.error(400, "Số tiền thanh toán phải lớn hơn 0 để sử dụng cổng thanh toán."));
+                return ResponseEntity.badRequest().body(ApiResponse.error(400, "Payment amount must be greater than 0 to use the payment gateway."));
             }
             
             if (Math.abs(amount - requestedAmount) > 1.0) {
-                return ResponseEntity.badRequest().body(ApiResponse.error(400, "Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", amount.longValue()) + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất."));
+                return ResponseEntity.badRequest().body(ApiResponse.error(400, "The actual payment fee has changed to " + String.format("%,d", amount.longValue()) + " VND. Please refresh the page to see the latest quote."));
             }
             
             request.setAmount(amount);

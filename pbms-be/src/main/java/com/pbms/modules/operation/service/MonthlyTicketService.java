@@ -159,14 +159,14 @@ public class MonthlyTicketService {
     public void validateCreateTicket(Map<String, Object> payload) {
         String plate = (String) payload.get("plateNumber");
         if (plate == null || plate.trim().isEmpty()) {
-            throw new IllegalArgumentException("Biển số xe không được để trống.");
+            throw new IllegalArgumentException("License plate cannot be empty.");
         }
 
         Long vehicleTypeId = payload.get("vehicleTypeId") != null
                 ? Long.parseLong(payload.get("vehicleTypeId").toString())
                 : null;
         if (vehicleTypeId == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
 
         if (isVehicleInside(plate)) {
@@ -182,18 +182,18 @@ public class MonthlyTicketService {
             }
             if (vehicle.getVehicleType() != null && !vehicle.getVehicleType().getId().equals(vehicleTypeId)) {
                 throw new IllegalArgumentException(
-                        "Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+                        "This license plate is already registered with another vehicle type in the system.");
             }
         }
         
         boolean hasActiveTicket = monthlyTicketRepository.findByPlateNumberAndStatus(plate, "ACTIVE").isPresent();
         if (hasActiveTicket) {
-            throw new IllegalArgumentException("Phương tiện này đã có vé tháng đang hoạt động. Vui lòng kiểm tra lại.");
+            throw new IllegalArgumentException("This vehicle already has an active monthly ticket. Please check again.");
         }
         
         boolean hasPendingReservation = !reservationRepository.findByVehicle_PlateNumberAndStatus(plate, "PENDING").isEmpty();
         if (hasPendingReservation) {
-            throw new IllegalArgumentException("Phương tiện này đang có lịch đặt chỗ trước chờ xử lý. Không thể đăng ký vé tháng đè lên.");
+            throw new IllegalArgumentException("This vehicle has a pending reservation. Cannot register a monthly ticket.");
         }
     }
 
@@ -409,39 +409,39 @@ public class MonthlyTicketService {
         String thTdStyles = "border: 1px solid #ddd; padding: 8px; text-align: left;";
         
         String detailsHtml = "<table style='" + tableStyles + "'>" +
-                "<tr><th style='" + thTdStyles + "'>Biển số xe</th><td style='" + thTdStyles + "'>" + ticket.getPlateNumber() + "</td></tr>" +
-                "<tr><th style='" + thTdStyles + "'>Loại phương tiện</th><td style='" + thTdStyles + "'>" + (ticket.getVehicleType() != null ? ticket.getVehicleType().getTypeName() : "N/A") + "</td></tr>" +
-                "<tr><th style='" + thTdStyles + "'>Ngày bắt đầu</th><td style='" + thTdStyles + "'>" + startDateStr + "</td></tr>" +
-                "<tr><th style='" + thTdStyles + "'>Ngày hết hạn</th><td style='" + thTdStyles + "'><strong>" + endDateStr + "</strong></td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>License Plate</th><td style='" + thTdStyles + "'>" + ticket.getPlateNumber() + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Vehicle Type</th><td style='" + thTdStyles + "'>" + (ticket.getVehicleType() != null ? ticket.getVehicleType().getTypeName() : "N/A") + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>Start Date</th><td style='" + thTdStyles + "'>" + startDateStr + "</td></tr>" +
+                "<tr><th style='" + thTdStyles + "'>End Date</th><td style='" + thTdStyles + "'><strong>" + endDateStr + "</strong></td></tr>" +
                 "</table>";
 
         if ("CREATE".equals(type)) {
-            subject = "Xác nhận đăng ký Vé Tháng thành công - PBMS";
+            subject = "Successful Monthly Pass Registration - PBMS";
             htmlBody = "<div style='" + commonStyles + "'>" +
-                    "<h2 style='color: #4CAF50;'>Đăng ký Vé Tháng Thành Công!</h2>" +
-                    "<p>Xin chào " + user.getFullName() + ",</p>" +
-                    "<p>Cảm ơn bạn đã đăng ký vé tháng tại hệ thống PBMS. Dưới đây là thông tin vé của bạn:</p>" +
+                    "<h2 style='color: #4CAF50;'>Monthly Pass Registered Successfully!</h2>" +
+                    "<p>Hello " + user.getFullName() + ",</p>" +
+                    "<p>Thank you for registering a monthly pass with PBMS. Here are your pass details:</p>" +
                     detailsHtml +
-                    "<p style='margin-top: 20px;'>Chúc bạn có những trải nghiệm tuyệt vời cùng chúng tôi!</p>" +
+                    "<p style='margin-top: 20px;'>We hope you have a great experience with us!</p>" +
                     "</div>";
         } else if ("RENEW".equals(type)) {
-            subject = "Xác nhận gia hạn Vé Tháng thành công - PBMS";
+            subject = "Successful Monthly Pass Renewal - PBMS";
             htmlBody = "<div style='" + commonStyles + "'>" +
-                    "<h2 style='color: #2196F3;'>Gia Hạn Vé Tháng Thành Công!</h2>" +
-                    "<p>Xin chào " + user.getFullName() + ",</p>" +
-                    "<p>Vé tháng của bạn đã được gia hạn thành công. Dưới đây là thông tin cập nhật:</p>" +
+                    "<h2 style='color: #2196F3;'>Monthly Pass Renewed Successfully!</h2>" +
+                    "<p>Hello " + user.getFullName() + ",</p>" +
+                    "<p>Your monthly pass has been successfully renewed. Here are the updated details:</p>" +
                     detailsHtml +
-                    "<p style='margin-top: 20px;'>Cảm ơn bạn đã tiếp tục đồng hành cùng PBMS!</p>" +
+                    "<p style='margin-top: 20px;'>Thank you for continuing to use PBMS!</p>" +
                     "</div>";
         } else if ("EXPIRED".equals(type)) {
-            subject = "Thông báo: Vé Tháng của bạn đã hết hạn - PBMS";
+            subject = "Notification: Your Monthly Pass has Expired - PBMS";
             htmlBody = "<div style='" + commonStyles + "'>" +
-                    "<h2 style='color: #f44336;'>Vé Tháng Đã Hết Hạn</h2>" +
-                    "<p>Xin chào " + user.getFullName() + ",</p>" +
-                    "<p>Chúng tôi xin thông báo rằng vé tháng cho phương tiện của bạn đã hết hạn vào ngày <strong>" + endDateStr + "</strong>.</p>" +
+                    "<h2 style='color: #f44336;'>Monthly Pass Expired</h2>" +
+                    "<p>Hello " + user.getFullName() + ",</p>" +
+                    "<p>We would like to inform you that your monthly pass expired on <strong>" + endDateStr + "</strong>.</p>" +
                     detailsHtml +
-                    "<p style='margin-top: 20px;'>Hệ thống đã tự động khóa quyền truy cập của phương tiện này dưới dạng vé tháng. Bạn vui lòng gia hạn vé tháng sớm nhất để không bị gián đoạn dịch vụ.</p>" +
-                    "<p><a href='http://localhost:5173/customer/my-parking?tab=monthly' style='display: inline-block; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px;'>Gia hạn ngay</a></p>" +
+                    "<p style='margin-top: 20px;'>The system has automatically revoked the monthly pass access for this vehicle. Please renew your pass as soon as possible to avoid service disruption.</p>" +
+                    "<p><a href='http://localhost:5173/customer/my-parking?tab=monthly' style='display: inline-block; padding: 10px 20px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 5px;'>Renew Now</a></p>" +
                     "</div>";
         }
 

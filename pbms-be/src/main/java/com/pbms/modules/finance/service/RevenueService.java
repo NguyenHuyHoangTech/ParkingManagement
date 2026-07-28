@@ -238,7 +238,7 @@ public class RevenueService {
                 outputStream.write(0xBF);
 
                 try (PrintWriter writer = new PrintWriter(new java.io.OutputStreamWriter(outputStream, java.nio.charset.StandardCharsets.UTF_8))) {
-                    writer.println("Ngày giờ ra;Biển số;Loại xe;Cổng ra;Tiền đặt chỗ;Tiền vé;Tiền lố giờ;Tiền phạt;Tổng thu;Thanh toán");
+                    writer.println("Checkout Time;License Plate;Vehicle Type;Out Gate;Reservation Fee;Ticket Fee;Overstay Fee;Penalty Fee;Total Revenue;Payment Method");
 
                     Query query = entityManager.createNativeQuery("SELECT * FROM (" + TABLE_SQL + ") AS raw_data ORDER BY checkoutTime DESC");
                     query.setParameter("startDate", startDate.toString());

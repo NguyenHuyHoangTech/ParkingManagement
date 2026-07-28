@@ -83,10 +83,10 @@ public class ReservationService {
 
     public void validateCreateReservation(CreateReservationRequest request) {
         if (request.getVehicleTypeId() == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
         if (request.getPlateNumber() == null || request.getPlateNumber().trim().isEmpty()) {
-            throw new IllegalArgumentException("Biển số xe không được để trống.");
+            throw new IllegalArgumentException("License plate cannot be empty.");
         }
 
         Vehicle vehicle = vehicleRepository.findByPlateNumber(request.getPlateNumber()).orElse(null);
@@ -95,7 +95,7 @@ public class ReservationService {
             if (vehicle.getVehicleType() != null
                     && !vehicle.getVehicleType().getId().equals(request.getVehicleTypeId())) {
                 throw new IllegalStateException(
-                        "Biển số này đã được đăng ký với loại phương tiện khác trong hệ thống.");
+                        "This license plate is already registered with another vehicle type in the system.");
             }
             if (Boolean.TRUE.equals(vehicle.getIsBlacklisted())) {
                 throw new IllegalStateException("Cannot make a reservation because the vehicle is in the Blacklist.");
@@ -111,12 +111,12 @@ public class ReservationService {
         List<com.pbms.modules.operation.domain.ParkingSession> activeSessions = parkingSessionRepository
                 .findByPlateAndStatus(request.getPlateNumber(), "ACTIVE").stream().toList();
         if (!activeSessions.isEmpty()) {
-            throw new IllegalStateException("Phương tiện này hiện đang ở trong bãi, không thể đặt chỗ.");
+            throw new IllegalStateException("This vehicle is currently inside the parking lot, cannot make a reservation.");
         }
         
         boolean hasActiveTicket = monthlyTicketRepository.findByPlateNumberAndStatus(request.getPlateNumber(), "ACTIVE").isPresent();
         if (hasActiveTicket) {
-            throw new IllegalStateException("Phương tiện này đang có vé tháng hợp lệ, không thể đặt chỗ trước.");
+            throw new IllegalStateException("This vehicle has a valid monthly ticket, cannot make a reservation.");
         }
 
         Zone zone = zoneRepository.findById(request.getZoneId())

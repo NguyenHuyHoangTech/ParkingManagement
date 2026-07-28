@@ -131,16 +131,16 @@ public class PaymentValidatorService {
                     try {
                         io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(request.getCheckoutToken());
                         if (!String.valueOf(session.getId()).equals(claims.get("sessionId", String.class))) {
-                            throw new IllegalArgumentException("Token không khớp với phiên đỗ xe hiện tại.");
+                            throw new IllegalArgumentException("Validation token does not match the current parking session.");
                         }
                         Double expectedFeeDouble = claims.get("expectedFee", Double.class);
                         if (expectedFeeDouble != null) {
                             return expectedFeeDouble;
                         }
                     } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                        throw new IllegalArgumentException("Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                        throw new IllegalArgumentException("Quote has expired. Please refresh the page to see the latest quote.");
                     } catch (Exception e) {
-                        throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+                        throw new IllegalArgumentException("Invalid quote token: " + e.getMessage());
                     }
                 }
                 
@@ -160,13 +160,13 @@ public class PaymentValidatorService {
                     try {
                         io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(checkoutToken);
                         if (ticket.getSession() != null && !String.valueOf(ticket.getSession().getId()).equals(claims.get("sessionId", String.class))) {
-                            throw new IllegalArgumentException("Mã xác thực không khớp với phiên đỗ xe hiện tại.");
+                            throw new IllegalArgumentException("Validation token does not match the current parking session.");
                         }
                         expectedParking = claims.get("expectedFee", Double.class);
                     } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                        throw new IllegalArgumentException("Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                        throw new IllegalArgumentException("Quote has expired. Please refresh the page to see the latest quote.");
                     } catch (Exception e) {
-                        throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+                        throw new IllegalArgumentException("Invalid quote token: " + e.getMessage());
                     }
                 } else if (ticket.getSession() != null && ("ACTIVE".equals(ticket.getSession().getStatus()) || "LOCKED".equals(ticket.getSession().getStatus()))) {
                     com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = gateOperationService.getCheckOutSessionInfo(ticket.getSession(), com.pbms.common.utils.TimeProvider.now());
@@ -179,7 +179,7 @@ public class PaymentValidatorService {
             }
         } catch (Exception e) {
             log.error("Failed to calculate required amount for action: " + actionType, e);
-            throw new IllegalArgumentException("Lỗi tính toán số tiền: " + e.getMessage());
+            throw new IllegalArgumentException("Error calculating amount: " + e.getMessage());
         }
         
         throw new IllegalArgumentException("Unsupported action type for calculating amount: " + actionType);
@@ -295,11 +295,11 @@ public class PaymentValidatorService {
                 CreateReservationRequest createReq = objectMapper.convertValue(payload, CreateReservationRequest.class);
                 java.time.LocalDateTime entry = createReq.getExpectedEntryTime();
                 if (entry.isBefore(com.pbms.common.utils.TimeProvider.now())) {
-                    throw new IllegalArgumentException("Thời gian bắt đầu đặt chỗ đã trôi qua do thanh toán quá trễ. Giao dịch sẽ bị hủy và số tiền thanh toán sẽ được tự động hoàn lại.");
+                    throw new IllegalArgumentException("The reservation start time has passed due to late payment. The transaction will be cancelled and the payment amount will be automatically refunded.");
                 }
                 BigDecimal currentFee = reservationService.previewPrice(createReq.getVehicleTypeId(), entry, createReq.getExpectedDurationMinutes());
                 if (currentFee.compareTo(order.getAmount()) > 0) {
-                    throw new IllegalArgumentException("Phí dịch vụ đặt chỗ đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                    throw new IllegalArgumentException("The reservation service fee has increased since the request was created. The payment amount will be automatically refunded.");
                 }
                 resultData = reservationService.createReservation(createReq);
             } else if ("CREATE_MONTHLY_TICKET".equals(order.getActionType())) {
@@ -311,10 +311,10 @@ public class PaymentValidatorService {
                     duration = Integer.parseInt(payload.get("duration").toString());
                 }
                 PricingPolicy policy = pricingPolicyRepository.findByVehicleTypeIdAndStatus(vehicleTypeId, "ACTIVE")
-                        .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chính sách giá"));
+                        .orElseThrow(() -> new IllegalArgumentException("Pricing policy not found"));
                 BigDecimal currentTotal = calculateMonthlyTicketFee(policy, duration);
                 if (currentTotal.compareTo(order.getAmount()) > 0) {
-                    throw new IllegalArgumentException("Giá vé tháng đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                    throw new IllegalArgumentException("The monthly ticket price has increased since the request was created. The payment amount will be automatically refunded.");
                 }
                 resultData = monthlyTicketService.createTicket(payload);
             } else if ("RENEW_MONTHLY_TICKET".equals(order.getActionType())) {
@@ -325,7 +325,7 @@ public class PaymentValidatorService {
                         .orElseThrow(() -> new IllegalArgumentException("No active pricing policy found"));
                 BigDecimal currentTotal = calculateMonthlyTicketFee(policy, duration);
                 if (currentTotal.compareTo(order.getAmount()) > 0) {
-                    throw new IllegalArgumentException("Giá vé tháng đã tăng so với lúc tạo yêu cầu. Số tiền thanh toán sẽ được tự động hoàn lại.");
+                    throw new IllegalArgumentException("The monthly ticket price has increased since the request was created. The payment amount will be automatically refunded.");
                 }
                 resultData = monthlyTicketService.renewTicket(ticketId, duration, order.getPaymentMethod(), order.getId());
             } else if ("CHECKOUT".equals(order.getActionType())) {

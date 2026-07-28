@@ -17,6 +17,8 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
+
 @Service
 public class PricingConfigurationService {
 
@@ -32,6 +34,43 @@ public class PricingConfigurationService {
         this.paymentOrderRepository = paymentOrderRepository;
     }
 
+    @PostConstruct
+    public void autoInitializeDefaultPolicies() {
+        List<VehicleType> vehicleTypes = vehicleTypeRepository.findAll();
+        for (VehicleType vt : vehicleTypes) {
+            boolean hasActivePolicy = policyRepository.findByVehicleTypeIdAndStatus(vt.getId(), "ACTIVE").isPresent();
+            if (!hasActivePolicy) {
+                PricingPolicyDTO policyDTO = new PricingPolicyDTO();
+                policyDTO.setPolicyName("Default " + vt.getTypeName() + " Policy");
+                policyDTO.setVehicleTypeId(vt.getId());
+                policyDTO.setGlobalBaseMins(0);
+                policyDTO.setGlobalBaseFee(new java.math.BigDecimal("5000"));
+                policyDTO.setMonthlyRate(new java.math.BigDecimal("200000"));
+                policyDTO.setStatus("ACTIVE");
+                
+                PricingShiftDTO shift = new PricingShiftDTO();
+                shift.setShiftName("All Day");
+                shift.setStartTime("00:00");
+                shift.setEndTime("23:59");
+                shift.setTotalDurationMins(1439);
+                
+                PricingBlockDTO block = new PricingBlockDTO();
+                block.setBlockOrder(1);
+                block.setDurationMins(1439);
+                block.setFee(new java.math.BigDecimal("5000"));
+                
+                shift.getBlocks().add(block);
+                policyDTO.getShifts().add(shift);
+                
+                try {
+                    savePolicy(policyDTO);
+                } catch (Exception e) {
+                    System.err.println("Failed to auto-initialize pricing policy for vehicle type: " + vt.getId());
+                }
+            }
+        }
+    }
+
     public List<PricingPolicyDTO> getAllPolicies() {
         return policyRepository.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
     }
@@ -39,7 +78,7 @@ public class PricingConfigurationService {
     @Transactional
     public PricingPolicyDTO savePolicy(PricingPolicyDTO dto) {
         if (paymentOrderRepository.countByStatus("PROCESSING") > 0) {
-            throw new RuntimeException("Không thể lưu cấu hình bảng giá lúc này. Đang có giao dịch đang được hệ thống xử lý. Vui lòng thử lại sau vài giây.");
+            throw new RuntimeException("Cannot save pricing configuration at this time. There are transactions currently being processed by the system. Please try again in a few seconds.");
         }
 
         VehicleType vt = vehicleTypeRepository.findById(dto.getVehicleTypeId())

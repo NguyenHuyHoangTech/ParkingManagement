@@ -1,3 +1,20 @@
+/**
+ * @Author: Nguyễn Huy Hoàng
+ * @Date: 2026-06-28
+ * @Description: REST Controller chuyên trách xử lý các nghiệp vụ liên quan đến Phiên đỗ xe (Parking Session).
+ * Cung cấp các API để truy vấn phiên đỗ xe hiện tại (my-active), lịch sử đỗ xe, báo cáo thống kê, 
+ * và xử lý các thao tác quản lý phiên đỗ xe từ phía Frontend (như khách hàng tự xem thông tin vé, hoặc quản lý tra cứu).
+ * 
+ * @Dependencies (Các thành phần được tiêm vào nội bộ):
+ * - ParkingSessionRepository: Truy xuất và cập nhật dữ liệu cốt lõi của các phiên đỗ xe.
+ * - PricingCalculatorService: Tính toán lại mức phí dự kiến (nếu cần xem tạm tính).
+ * - IncidentTicketRepository, RefundRequestRepository: Liên kết tra cứu các sự cố hoặc yêu cầu hoàn tiền của một phiên đỗ.
+ * - GateOperationService, ZoneRepository, ReservationRepository: Hỗ trợ truy vấn thông tin bổ sung liên quan đến cổng, bãi và đặt chỗ.
+ * 
+ * @Interactions (Tương tác hệ thống thực tế):
+ * - Frontend (React): Được gọi bởi màn hình Web của Khách hàng (để xem thông tin lượt đỗ xe đang diễn ra - my-active) 
+ *   hoặc màn hình Quản lý của Quản trị viên (để tra cứu, lọc và xuất báo cáo CSV lịch sử đỗ xe).
+ */
 package com.pbms.modules.operation.controller;
 
 import com.pbms.common.dto.ApiResponse;

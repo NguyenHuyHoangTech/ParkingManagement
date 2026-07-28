@@ -214,16 +214,16 @@ public class VehicleService {
             .filter(s -> s.getVehicleType() != null && s.getVehicleType().getId().equals(vehicleTypeId) &&
                          s.getRfidCard() != null && s.getRfidCard().getCardCode().equals(rfid.trim()))
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Thông tin biển số, loại xe và thẻ RFID không khớp với bất kỳ lượt đỗ nào trong hệ thống."));
+            .orElseThrow(() -> new IllegalArgumentException("The license plate, vehicle type, and RFID card information do not match any parking session in the system."));
 
         com.pbms.modules.identity.domain.User targetUser;
         if (targetEmail != null && !targetEmail.isBlank()) {
             targetUser = userRepository.findByEmail(targetEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + targetEmail));
+                .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + targetEmail));
         } else {
             targetUser = getCurrentUser();
             if (targetUser == null) {
-                throw new IllegalStateException("Bạn phải đăng nhập để tự gán xe.");
+                throw new IllegalStateException("You must be logged in to assign a vehicle to yourself.");
             }
         }
 

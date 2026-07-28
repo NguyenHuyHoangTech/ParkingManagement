@@ -177,14 +177,14 @@ export const CustomerLayout = () => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-12 border-b border-slate-100 pb-12 mb-8">
                   <div className="col-span-1 md:col-span-2">
                       <div className="flex items-center gap-2 mb-4">
-                          <span className="font-sans font-black text-2xl text-slate-800">PBMS<span className="text-blue-600">.</span></span>
+                          <span className="font-sans font-black text-2xl text-slate-800 whitespace-pre-line">
+                              {buildingProfile?.name ? buildingProfile.name.replace(/\\n/g, ' ') : 'PBMS.'}
+                          </span>
                       </div>
-                      <p className="text-slate-500 text-sm max-w-sm mb-6 font-medium">Leading Smart Parking Management System using AI and IoT. Safe, Transparent, Fast.</p>
+                      <p className="text-slate-500 text-sm max-w-sm mb-6 font-medium whitespace-pre-line">
+                          {buildingProfile?.rules ? buildingProfile.rules.replace(/\\n/g, '\n') : "Leading Smart Parking Management System using AI and IoT. Safe, Transparent, Fast."}
+                      </p>
                       <div className="flex items-center gap-4">
-                          <div className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 flex items-center gap-2 font-bold shadow-sm">
-                              <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                              RSA 2048-bit Security
-                          </div>
                       </div>
                   </div>
                   
@@ -208,10 +208,7 @@ export const CustomerLayout = () => {
               
               <div className="flex flex-col md:flex-row justify-between items-center text-xs font-semibold text-slate-400">
                   <p>&copy; {new Date().getFullYear()} {buildingProfile?.name || 'PBMS'} - Smart Parking Management System. All rights reserved.</p>
-                  <div className="flex gap-4 mt-4 md:mt-0">
-                      <a className="hover:text-blue-600 transition cursor-pointer">Terms of Service</a>
-                      <a className="hover:text-blue-600 transition cursor-pointer">Privacy Policy</a>
-                  </div>
+
               </div>
           </div>
       </footer>

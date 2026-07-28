@@ -1,4 +1,22 @@
 
+/**
+ * @Author: Nguyễn Huy Hoàng
+ * @Date: 2026-06-28
+ * @Description: Lớp Service cốt lõi (Bộ não) chịu trách nhiệm xử lý toàn bộ nghiệp vụ phức tạp liên quan đến vận hành cổng (barrier).
+ * Quản lý vòng đời của một phiên đỗ xe (từ lúc xe vào, xe ra, cho đến lúc tính toán các loại phí). 
+ * Áp dụng kiến trúc Human-in-the-loop, chia quy trình điều khiển cổng làm 2 pha: Trigger (tính toán nháp, phát sóng qua WebSocket lên màn hình UI) 
+ * và Process (nhân viên dùng mắt thường đối chiếu, bấm xác nhận, sau đó mới lưu Database và xuất lệnh mở cổng).
+ * 
+ * @Dependencies (Các kho lưu trữ và dịch vụ hỗ trợ được tiêm vào nội bộ):
+ * - Các Repositories (ParkingSessionRepository, VehicleRepository, RfidCardRepository, GateRepository...): Truy xuất/Cập nhật cơ sở dữ liệu.
+ * - ZoneRoutingService: Thuật toán (AI) hỗ trợ tìm/gợi ý chỗ đỗ trống tối ưu theo khu vực.
+ * - PricingCalculatorService: Động cơ (Engine) tính phí phức tạp dựa trên loại xe, thời gian đỗ, phân loại khách (vé tháng, khách vãng lai, đặt trước).
+ * - SimpMessagingTemplate: Kênh phát sóng WebSocket (Real-time).
+ * 
+ * @Interactions (Tương tác hệ thống thực tế):
+ * - IotHardwareController: Nơi gọi hàm Trigger (Pha 1: Nhận tín hiệu camera từ giả lập IoT, xử lý nháp).
+ * - GateConsoleController: Nơi gọi hàm Process (Pha 2: Nhận lệnh chốt hạ từ React Frontend, xử lý thật).
+ */
 package com.pbms.modules.operation.service;
 
 import com.pbms.modules.identity.domain.StaffWorkSession;
@@ -265,6 +283,7 @@ public class GateOperationService {
      * `/topic/gates/{gateId}/scans`.
      * 7. Trả về kết quả thành công cho thiết bị cứng.
      */
+    @Transactional
     public GateResponseDTO triggerScanCheckIn(CheckInRequestDTO request) {
         Gate gate = gateRepository.findById(request.getGateId())
                 .orElseThrow(() -> new IllegalArgumentException("Gate not found"));
@@ -343,12 +362,21 @@ public class GateOperationService {
             }
         }
 
+        String resolvedCardId = null;
+        if (request.getRfid() != null && !request.getRfid().isBlank()) {
+            RfidCard card = rfidCardRepository.findByCardCode(request.getRfid()).orElse(null);
+            if (card != null) {
+                resolvedCardId = card.getCardId();
+            }
+        }
+
         ScanEventDTO event = ScanEventDTO.builder()
                 .gateId(gate.getId())
                 .actionType("IN")
                 .plateNumber(request.getPlateNumber())
                 .vehicleType(request.getVehicleType())
                 .rfid(request.getRfid())
+                .cardId(resolvedCardId)
                 .imageBase64(request.getImageBase64())
                 .lprImageBase64(request.getLprImageBase64())
                 .suggestedZoneId(displayRouting && suggestedZone != null ? suggestedZone.getId() : null)
@@ -391,12 +419,21 @@ public class GateOperationService {
             type = vehicleTypeRepository.findByTypeName(request.getVehicleType()).orElse(null);
         }
 
+        String resolvedCardId = null;
+        if (request.getRfid() != null && !request.getRfid().isBlank()) {
+            RfidCard card = rfidCardRepository.findByCardCode(request.getRfid()).orElse(null);
+            if (card != null) {
+                resolvedCardId = card.getCardId();
+            }
+        }
+
         ScanEventDTO event = ScanEventDTO.builder()
                 .gateId(gate.getId())
                 .actionType("OUT")
                 .plateNumber(request.getPlateNumber())
                 .vehicleType(request.getVehicleType())
                 .rfid(request.getRfid())
+                .cardId(resolvedCardId)
                 .imageBase64(request.getImageBase64())
                 .lprImageBase64(request.getLprImageBase64())
                 .customerType(determineCustomerType(request.getPlateNumber(), request.getRfid(), type))
@@ -730,7 +767,7 @@ public class GateOperationService {
             if (!reservations.isEmpty()) {
                 if (!reservations.get(0).getVehicle().getVehicleType().getId().equals(type.getId())) {
                     return GateResponseDTO.builder().status("ERROR").message(
-                            "Loại phương tiện AI nhận diện không khớp với Đơn đặt chỗ (Booking). Vui lòng kiểm tra lại.")
+                            "Vehicle type recognized by AI does not match the Booking. Please check again.")
                             .build();
                 }
                 suggestedZone = reservations.get(0).getZone();
@@ -776,6 +813,13 @@ public class GateOperationService {
             request.setSuggestedZoneId(null);
         }
 
+        if (request.getRfid() != null && !request.getRfid().isBlank()) {
+            RfidCard card = rfidCardRepository.findByCardCode(request.getRfid()).orElse(null);
+            if (card != null) {
+                request.setCardId(card.getCardId());
+            }
+        }
+
         messagingTemplate.convertAndSend("/topic/gates/" + gate.getId() + "/scans", request);
 
         StaffWorkSession activeSession = staffWorkSessionRepository.findByGateIdAndStatus(gate.getId(), "ACTIVE")
@@ -810,12 +854,12 @@ public class GateOperationService {
         }
 
         if (!"AVAILABLE".equals(card.getStatus())) {
-            String statusVN = "LOST".equals(card.getStatus()) ? "Đã bị báo mất"
-                    : ("DAMAGED".equals(card.getStatus()) ? "Đã bị báo hỏng" : "Không hợp lệ");
+            String statusVN = "LOST".equals(card.getStatus()) ? "Reported as lost"
+                    : ("DAMAGED".equals(card.getStatus()) ? "Reported as damaged" : "Invalid");
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Thẻ RFID " + statusVN
-                            + ". Không thể mở cổng. Vui lòng liên hệ Quản lý (Manager) để xử lý thẻ này!")
+                    .message("RFID Card " + statusVN
+                            + ". Cannot open gate. Please contact the Manager to resolve this card issue!")
                     .build();
         }
 
@@ -833,7 +877,7 @@ public class GateOperationService {
         if (!existingSessions.isEmpty()) {
             return GateResponseDTO.builder()
                     .status("ERROR")
-                    .message("Phương tiện có cùng biển số và loại xe đã ở trong bãi")
+                    .message("A vehicle with the same license plate and type is already in the parking lot")
                     .build();
         }
 
@@ -1035,7 +1079,7 @@ public class GateOperationService {
             try {
                 io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(request.getCheckoutToken());
                 if (!String.valueOf(session.getId()).equals(claims.get("sessionId", String.class))) {
-                    throw new IllegalArgumentException("Token không khớp với phiên đỗ xe hiện tại.");
+                    throw new IllegalArgumentException("Validation token does not match the current parking session.");
                 }
                 java.util.Date iat = claims.getIssuedAt();
                 checkOutTime = java.time.LocalDateTime.ofInstant(iat.toInstant(), java.time.ZoneId.systemDefault());
@@ -1046,10 +1090,10 @@ public class GateOperationService {
                             java.time.ZoneId.systemDefault());
                 } else {
                     throw new IllegalArgumentException(
-                            "Báo giá đã hết hạn. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                            "Quote has expired. Please refresh the page to see the latest quote.");
                 }
             } catch (Exception e) {
-                throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+                throw new IllegalArgumentException("Invalid quote token: " + e.getMessage());
             }
         }
         session.setTimeOut(checkOutTime);
@@ -1119,7 +1163,7 @@ public class GateOperationService {
                 penaltyFee = penaltyFee.add(t.getFineAmount());
             }
             t.setStatus("RESOLVED");
-            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Tự động đóng do xe đã xuất bãi thành công"
+            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Automatically closed as the vehicle has successfully exited"
                     : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             saveAndBroadcast(t);
@@ -1190,9 +1234,9 @@ public class GateOperationService {
                     Double expectedFeeDouble = claims.get("expectedFee", Double.class);
                     if (expectedFeeDouble != null && totalAmount.subtract(BigDecimal.valueOf(expectedFeeDouble)).abs()
                             .compareTo(BigDecimal.ONE) > 0) {
-                        throw new IllegalArgumentException("Phí thanh toán thực tế đã thay đổi thành "
+                        throw new IllegalArgumentException("Actual payment fee has changed to "
                                 + String.format("%,d", totalAmount.longValue())
-                                + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                                + " VND. Please refresh the page to see the latest quote.");
                     }
                 } catch (Exception e) {
                     // Already caught above
@@ -1202,8 +1246,8 @@ public class GateOperationService {
             if ("CASH".equalsIgnoreCase(request.getPaymentMethod())
                     && totalAmount.subtract(request.getParkingFee()).abs().compareTo(BigDecimal.ONE) > 0) {
                 throw new IllegalArgumentException(
-                        "Phí thanh toán thực tế đã thay đổi thành " + String.format("%,d", totalAmount.longValue())
-                                + " VNĐ. Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                        "Actual payment fee has changed to " + String.format("%,d", totalAmount.longValue())
+                                + " VND. Please refresh the page to see the latest quote.");
             }
         }
         if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
@@ -1269,7 +1313,7 @@ public class GateOperationService {
         com.pbms.modules.incident.domain.IncidentTicket saved = incidentTicketRepository.save(ticket);
         try {
             messagingTemplate.convertAndSend("/topic/alerts",
-                    "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"Danh sách sự cố vừa được cập nhật.\"}");
+                    "{\"type\":\"INCIDENT_UPDATE\",\"message\":\"The incident list has just been updated.\"}");
         } catch (Exception e) {
             log.error("Failed to broadcast incident update", e);
         }

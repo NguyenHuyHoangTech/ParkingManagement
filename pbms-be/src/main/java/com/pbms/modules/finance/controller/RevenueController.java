@@ -30,7 +30,7 @@ public class RevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         if (startDate != null && endDate != null && java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) > 90) {
-            throw new IllegalArgumentException("Khoảng thời gian xem biểu đồ Doanh thu không được vượt quá 90 ngày (3 tháng). Vui lòng dùng tính năng Export CSV nếu cần tải dữ liệu dài hạn.");
+            throw new IllegalArgumentException("The time range for viewing the Revenue chart cannot exceed 90 days (3 months). Please use the Export CSV feature if you need to download long-term data.");
         }
 
         List<RevenueRecordDTO> data = revenueService.getRevenueDashboardData(startDate, endDate);

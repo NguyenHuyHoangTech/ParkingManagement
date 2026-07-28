@@ -35,11 +35,11 @@ public class VehicleController {
             String email = payload.get("email");
             
             if (plate == null || plate.isBlank() || vehicleTypeId == null || rfid == null || rfid.isBlank()) {
-                throw new IllegalArgumentException("Biển số, loại xe và mã thẻ không được bỏ trống.");
+                throw new IllegalArgumentException("License plate, vehicle type, and card code cannot be empty.");
             }
 
             VehicleDTO dto = vehicleService.assignVehicleToUser(plate, vehicleTypeId, rfid, email);
-            return ResponseEntity.ok(ApiResponse.success(dto, "Gán xe thành công."));
+            return ResponseEntity.ok(ApiResponse.success(dto, "Vehicle assigned successfully."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(400, e.getMessage()));
         }

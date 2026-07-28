@@ -24,7 +24,11 @@ public class CheckInRequestDTO {
     private Long vehicleTypeId;
 
     /** Mã thẻ RFID được quét tại cổng */
+    @com.fasterxml.jackson.annotation.JsonAlias({"rfcode", "rfid"})
     private String rfid;
+
+    /** ID của thẻ (VD: #001) dùng để hiển thị trên UI */
+    private String cardId;
 
     /** Ảnh toàn cảnh (panorama) chụp tại thời điểm check-in (được mã hóa base64) */
     private String imageBase64;

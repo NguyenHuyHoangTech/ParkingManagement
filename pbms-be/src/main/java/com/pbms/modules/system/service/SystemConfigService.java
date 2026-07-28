@@ -128,7 +128,7 @@ public class SystemConfigService {
             String body = response.getBody();
             if (body != null) {
                 if (body.contains("\"code\":\"214\"")) {
-                    throw new IllegalArgumentException("PayOS Connection failed: Invalid Client ID (Cổng thanh toán không tồn tại)");
+                    throw new IllegalArgumentException("PayOS Connection failed: Invalid Client ID (Payment gateway does not exist)");
                 }
                 if (body.contains("\"code\":\"401\"")) {
                     throw new IllegalArgumentException("PayOS Connection failed: Invalid API Key or Unauthorized");

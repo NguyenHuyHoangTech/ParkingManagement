@@ -74,7 +74,7 @@ public class IncidentService {
 
         if (ownerEmail != null) {
             if (currentUserEmail == null || !ownerEmail.equalsIgnoreCase(currentUserEmail.trim())) {
-                throw new IllegalArgumentException("Biển số xe này đã được đăng ký bởi một tài khoản khác. Chỉ chủ sở hữu xe hoặc Nhân viên quản lý mới có quyền báo cáo sự cố cho xe này!");
+                throw new IllegalArgumentException("This license plate is registered to another account. Only the vehicle owner or Manager has the right to report an incident for this vehicle!");
             }
         }
     }
@@ -87,7 +87,7 @@ public class IncidentService {
                     .orElseThrow(() -> new IllegalArgumentException("Session not found"));
         } else if (request.getPlate() != null && !request.getPlate().isBlank()) {
             if (request.getVehicleTypeId() == null) {
-                throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+                throw new IllegalArgumentException("Vehicle type cannot be empty.");
             }
             java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(
                     request.getPlate().trim().toUpperCase(), request.getVehicleTypeId(), "ACTIVE");
@@ -105,11 +105,11 @@ public class IncidentService {
                 if (session.getVehicleType() != null) {
                     request.setVehicleTypeId(session.getVehicleType().getId());
                 } else {
-                    throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+                    throw new IllegalArgumentException("Vehicle type cannot be empty.");
                 }
             }
             if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(request.getVehicleTypeId())) {
-                throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");
+                throw new IllegalArgumentException("This license plate belongs to a different vehicle type in the system. Please check the vehicle type again.");
             }
         }
         
@@ -121,14 +121,14 @@ public class IncidentService {
             } else if (request.getPlate() != null && !request.getPlate().isBlank()) {
             }
             if (hasSlotOccupied) {
-                throw new IllegalArgumentException("Xe này đã báo cáo sự cố bị chiếm chỗ đang chờ xử lý!");
+                throw new IllegalArgumentException("This vehicle has already reported a slot occupied incident that is pending!");
             }
         }
 
         if (session != null) {
             boolean exists = incidentTicketRepository.existsBySessionIdAndIssueTypeAndStatusIn(session.getId(), request.getIssueType(), java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
             if (exists) {
-                throw new IllegalArgumentException("Đã tồn tại một sự cố loại " + request.getIssueType() + " đang chờ xử lý cho xe này trong phiên đỗ hiện tại!");
+                throw new IllegalArgumentException("A pending incident of type " + request.getIssueType() + " already exists for this vehicle in the current parking session!");
             }
         }
         
@@ -288,7 +288,7 @@ public class IncidentService {
                         .session(session)
                         .issueType("OVERSTAY")
                         .priority("HIGH")
-                        .description(String.format("Hệ thống tự động ghi nhận xe đỗ quá hạn (Không áp phí phạt) (%s: %s)", 
+                        .description(String.format("System automatically recorded overstayed vehicle (No penalty applied) (%s: %s)", 
                                 session.getPlate(), session.getTimeIn().toString()))
                         .status("PENDING")
                         .build();
@@ -350,7 +350,7 @@ public class IncidentService {
         }
 
         ticket.setStatus("RESOLVED");
-        ticket.setResolutionNotes("Xác nhận đã xem bởi nhân viên");
+        ticket.setResolutionNotes("Confirmed as viewed by staff");
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
         ticket.setStatus("WAITING_CHECKOUT");
         ticket.setStaff(getCurrentUser());
@@ -390,12 +390,12 @@ public class IncidentService {
 
         ticket.setStatus("RESOLVED");
         
-        String newNotes = resolutionNotes != null ? resolutionNotes : "[RESOLVED] Đã xử lý hoàn tất.";
+        String newNotes = resolutionNotes != null ? resolutionNotes : "[RESOLVED] Successfully resolved.";
         String methodStr = paymentMethod != null ? paymentMethod : "CASH";
-        String methodDisplay = methodStr.equals("CASH") ? "Tiền mặt" : methodStr;
+        String methodDisplay = methodStr.equals("CASH") ? "Cash" : methodStr;
         
         if (penaltyFee != null || parkingFee != null) {
-            newNotes += "\n💳 Hình thức thanh toán: " + methodDisplay;
+            newNotes += "\n💳 Payment method: " + methodDisplay;
         }
 
         if (ticket.getResolutionNotes() != null && !ticket.getResolutionNotes().isBlank()) {
@@ -425,13 +425,13 @@ public class IncidentService {
             com.pbms.common.security.JwtProvider jwtProvider = applicationContext.getBean(com.pbms.common.security.JwtProvider.class);
             
             if (checkoutToken == null || checkoutToken.isEmpty()) {
-                throw new IllegalArgumentException("Vui lòng tải lại (refresh) thông tin sự cố để lấy mã xác thực phí mới nhất trước khi xác nhận thu tiền.");
+                throw new IllegalArgumentException("Please refresh the incident information to get the latest fee validation token before confirming payment.");
             }
 
             try {
                 io.jsonwebtoken.Claims claims = jwtProvider.getCheckoutClaims(checkoutToken);
                 if (!String.valueOf(session.getId()).equals(claims.get("sessionId", String.class))) {
-                    throw new IllegalArgumentException("Mã xác thực không khớp với phiên đỗ xe hiện tại.");
+                    throw new IllegalArgumentException("Validation token does not match the current parking session.");
                 }
 
                 // Verify the expected fee from token matches the requested total fee
@@ -442,13 +442,13 @@ public class IncidentService {
                 java.math.BigDecimal totalProvidedFee = providedParkingFee.add(providedPenaltyFee).subtract(providedDiscount);
                 
                 if (java.math.BigDecimal.valueOf(tokenExpectedFee).subtract(totalProvidedFee).abs().compareTo(java.math.BigDecimal.ONE) > 0) {
-                     throw new IllegalArgumentException("Phí thanh toán có sự sai lệch với tính toán gốc (Thực tế gốc: " + String.format("%,.0f", tokenExpectedFee) + " VNĐ). Nhấn Cập nhật lại phí và thực hiện thanh toán lại.");
+                     throw new IllegalArgumentException("Payment fee differs from original calculation (Original: " + String.format("%,.0f", tokenExpectedFee) + " VND). Click Update Fee and try again.");
                 }
 
             } catch (io.jsonwebtoken.ExpiredJwtException e) {
-                throw new IllegalArgumentException("Báo giá đã hết hạn (quá 5 phút). Vui lòng làm mới trang (refresh) để xem báo giá mới nhất.");
+                throw new IllegalArgumentException("Quote has expired (over 5 minutes). Please refresh the page to see the latest quote.");
             } catch (Exception e) {
-                throw new IllegalArgumentException("Token báo giá không hợp lệ: " + e.getMessage());
+                throw new IllegalArgumentException("Invalid quote token: " + e.getMessage());
             }
         }
 
@@ -457,7 +457,7 @@ public class IncidentService {
         
         if ("LOST_CARD".equals(ticket.getIssueType()) || "ZONE_VIOLATION".equals(ticket.getIssueType()) || "BLACKLIST_VIOLATION".equals(ticket.getIssueType())) {
             if (expectedPenaltyFee.compareTo(providedPenaltyFee) != 0) {
-                throw new IllegalArgumentException("Phí phạt không khớp với hệ thống. Bắt buộc: " + String.format("%,d", expectedPenaltyFee.longValue()) + " VNĐ");
+                throw new IllegalArgumentException("Penalty fee does not match the system. Required: " + String.format("%,d", expectedPenaltyFee.longValue()) + " VND");
             }
         } else if ("DAMAGED_CARD".equals(ticket.getIssueType())) {
             java.math.BigDecimal systemDamagedFee = new java.math.BigDecimal("50000");
@@ -466,7 +466,7 @@ public class IncidentService {
             } catch (Exception e) {}
             
             if (providedPenaltyFee.compareTo(java.math.BigDecimal.ZERO) != 0 && providedPenaltyFee.compareTo(systemDamagedFee) != 0) {
-                throw new IllegalArgumentException("Phí phạt đền thẻ không hợp lệ. Chỉ được phép 0 VNĐ (Hao mòn) hoặc " + String.format("%,d", systemDamagedFee.longValue()) + " VNĐ (Lỗi người dùng)");
+                throw new IllegalArgumentException("Invalid card damage penalty fee. Only 0 VND (Wear and tear) or " + String.format("%,d", systemDamagedFee.longValue()) + " VND (User fault) is allowed");
             }
         }
         if (session != null && ("ACTIVE".equals(session.getStatus()) || "LOCKED".equals(session.getStatus()))) {
@@ -568,13 +568,28 @@ public class IncidentService {
         IncidentTicket ticket = incidentTicketRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket #" + id + " does not exist"));
 
+        com.pbms.modules.identity.domain.User currentUser = getCurrentUser();
+        if ("CUSTOMER".equals(currentUser.getRole())) {
+            if (ticket.getUser() == null || !ticket.getUser().getId().equals(currentUser.getId())) {
+                throw new IllegalStateException("You can only cancel your own incidents.");
+            }
+            if (!"PENDING".equals(ticket.getStatus()) && !"NEW".equals(ticket.getStatus())) {
+                throw new IllegalStateException("You can only cancel incidents in the initial PENDING stage.");
+            }
+        } else if ("STAFF".equals(currentUser.getRole()) || "MANAGER".equals(currentUser.getRole())) {
+            if ("RESOLVED".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus()) || "REJECTED".equals(ticket.getStatus())) {
+                throw new IllegalStateException("Incident is already closed, cannot be cancelled.");
+            }
+        }
+
+
         if ("BLACKLIST_VIOLATION".equals(ticket.getIssueType())) {
             String plateToCheck = ticket.getSession() != null ? ticket.getSession().getPlate() : null;
             if (plateToCheck != null) {
                 boolean hasActive = sessionRepository.findByPlateOrderByTimeInDesc(plateToCheck).stream()
                         .anyMatch(s -> "ACTIVE".equals(s.getStatus()) || "LOCKED".equals(s.getStatus()));
                 if (hasActive) {
-                    throw new IllegalStateException("Không thể hủy sự cố Blacklist khi xe đang ở trong bãi (đã vào bãi). Vui lòng xử lý thanh toán tại cổng ra!");
+                    throw new IllegalStateException("Cannot cancel a Blacklist incident while the vehicle is in the parking lot. Please process payment at the exit gate!");
                 }
             }
         }
@@ -582,7 +597,7 @@ public class IncidentService {
         ticket.setStatus("CANCELLED");
         ticket.setCancelType(cancelType);
         
-        String cancelNotes = "[CANCELLED] " + (reason != null ? reason : "Sự cố đã bị hủy.");
+        String cancelNotes = "[CANCELLED] " + (reason != null ? reason : "Incident has been cancelled.");
         if (ticket.getResolutionNotes() != null && !ticket.getResolutionNotes().isBlank()) {
             ticket.setResolutionNotes(ticket.getResolutionNotes() + "\n" + cancelNotes);
         } else {
@@ -675,7 +690,7 @@ public class IncidentService {
 
         if ("OTHER".equals(ticket.getIssueType()) || "OTHER_FEEDBACK".equals(ticket.getIssueType())) {
             if (!"MANAGER".equals(getCurrentUser().getRole()) && !"SUPER_ADMIN".equals(getCurrentUser().getRole())) {
-                throw new IllegalStateException("Chỉ Quản lý mới có quyền duyệt sự cố hình phạt khác hoặc góp ý.");
+                throw new IllegalStateException("Only Managers have the right to approve other penalty incidents or feedback.");
             }
         }
 
@@ -742,7 +757,7 @@ public class IncidentService {
         }
 
 
-        String notes = resolutionNotes != null && !resolutionNotes.isBlank() ? resolutionNotes : "Đã xác minh thông tin.";
+        String notes = resolutionNotes != null && !resolutionNotes.isBlank() ? resolutionNotes : "Information verified.";
         ticket.setResolutionNotes("[Phase 1] " + notes);
 
         if (resolutionImageUrl != null && !resolutionImageUrl.isBlank()) {
@@ -798,7 +813,7 @@ public class IncidentService {
         }
         
         if ("WAITING_CHECKOUT".equals(ticket.getStatus()) && "STAFF".equals(getCurrentUser().getRole())) {
-            throw new IllegalStateException("Sự cố đã qua Phase 1. Chỉ Quản lý mới có quyền Hủy ở giai đoạn này.");
+            throw new IllegalStateException("Incident has passed Phase 1. Only Managers have the right to Cancel at this stage.");
         }
 
         if (ticket.getFineAmount() != null && ticket.getFineAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
@@ -822,7 +837,7 @@ public class IncidentService {
         }
 
         ticket.setStatus("REJECTED");
-        ticket.setResolutionNotes("Từ chối xử lý: " + reason);
+        ticket.setResolutionNotes("Refused to resolve: " + reason);
         ticket.setStaff(getCurrentUser());
         ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
 
@@ -837,22 +852,22 @@ public class IncidentService {
     @Transactional
     public IncidentTicketDTO createLostCardIncident(String plate, BigDecimal fee, String description, String uploadedDocUrl, String email, Long vehicleTypeId) {
         if (vehicleTypeId == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
         verifyVehicleOwnership(plate, email);
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
         ParkingSession session = activeSessions.isEmpty() ? null : activeSessions.get(0);
         
         if (session == null) {
-            throw new IllegalArgumentException("Khong tim thay phien do xe ACTIVE cho bien so: " + plate);
+            throw new IllegalArgumentException("Cannot find ACTIVE parking session for plate: " + plate);
         }
 
         boolean exists = incidentTicketRepository.existsBySessionIdAndIssueTypeAndStatusIn(session.getId(), "LOST_CARD", java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
         if (exists) {
-            throw new IllegalArgumentException("Đã tồn tại một sự cố loại LOST_CARD đang chờ xử lý cho xe này trong phiên đỗ hiện tại!");
+            throw new IllegalArgumentException("A pending LOST_CARD incident already exists for this vehicle in the current parking session!");
         }
         if (session.getVehicleType() != null && !session.getVehicleType().getId().equals(vehicleTypeId)) {
-             throw new IllegalArgumentException("Biển số này thuộc về loại phương tiện khác trong hệ thống. Vui lòng kiểm tra lại loại xe.");
+             throw new IllegalArgumentException("This license plate belongs to a different vehicle type in the system. Please check the vehicle type again.");
         }
 
         // Do NOT change card status here. It will be changed at Phase 2 when the incident is resolved.
@@ -897,12 +912,12 @@ public class IncidentService {
     @Transactional
     public IncidentTicketDTO adjustFeeIncident(String plate, BigDecimal liveFee, String reason, Long vehicleTypeId) {
         if (vehicleTypeId == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
         ParkingSession session = activeSessions.isEmpty() ? null : activeSessions.get(0);
         if (session == null) {
-             throw new IllegalArgumentException("Khong tim thay phien do xe ACTIVE cho bien so: " + plate);
+             throw new IllegalArgumentException("Cannot find ACTIVE parking session for plate: " + plate);
         }
 
         BigDecimal oldFee = session.getParkingFee();
@@ -958,9 +973,9 @@ public class IncidentService {
             if (session.getSuggestedZoneId() != null) {
                 sessionSuggestedZone = zoneRepository.findById(session.getSuggestedZoneId())
                     .map(zone -> zone.getZoneName())
-                    .orElse(session.getSuggestedZoneId() == -1L ? "Khu vực tự do" : "Zone " + session.getSuggestedZoneId());
+                    .orElse(session.getSuggestedZoneId() == -1L ? "Free parking zone" : "Zone " + session.getSuggestedZoneId());
             } else {
-                sessionSuggestedZone = "Khu vực tự do";
+                sessionSuggestedZone = "Free parking zone";
             }
         }
 
@@ -1049,7 +1064,7 @@ public class IncidentService {
                 .ifPresent(ticket -> result.put("hasMonthlyTicket", true));
 
         if (vehicleTypeId == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
 
@@ -1071,7 +1086,7 @@ public class IncidentService {
                 .ifPresent(ticket -> result.put("hasMonthlyTicket", true));
 
         if (vehicleTypeId == null) {
-            throw new IllegalArgumentException("Loại phương tiện không được để trống.");
+            throw new IllegalArgumentException("Vehicle type cannot be empty.");
         }
         java.util.List<ParkingSession> activeSessions = sessionRepository.findByPlateAndVehicleTypeIdAndStatus(plate.trim().toUpperCase(), vehicleTypeId, "ACTIVE");
 

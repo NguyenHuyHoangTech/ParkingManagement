@@ -318,16 +318,12 @@ export const HomeScreen = () => {
             
             <div className="relative z-10 w-full flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
                 <div className="flex-1 w-full max-w-2xl text-center lg:text-left mt-8 lg:mt-0">
-                    <div className="inline-flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-700 mb-6 md:mb-8 backdrop-blur-sm shadow-sm">
-                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">AI Navigation System Activated</span>
-                    </div>
                     <h1 className="text-4xl md:text-5xl lg:text-7xl font-black leading-tight mb-4 md:mb-6 tracking-tight text-slate-800">
-                        Smart space.<br className="hidden md:block" />
+                        {buildingProfile?.name || "Smart space."}<br className="hidden md:block" />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 block mt-2 md:mt-0">Touchless experience.</span>
                     </h1>
-                    <p className="text-slate-500 text-base md:text-lg lg:text-xl mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
-                        {buildingProfile?.name || "Smart parking system."} Parking easier than ever. Real-time empty slot updates, smart AI navigation, and automated payment via License Plate Recognition (LPR).
+                    <p className="text-slate-500 text-base md:text-lg lg:text-xl mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium whitespace-pre-line">
+                        {buildingProfile?.description || "Smart Parking Facility Parking easier than ever. Real-time empty slot updates, smart AI navigation, and automated payment via License Plate Recognition (LPR)."}
                     </p>
                 </div>
 
@@ -402,7 +398,7 @@ export const HomeScreen = () => {
                         <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
                         Parking Status
                     </h2>
-                    <p className="text-slate-500 mt-2 font-medium">Real-time data updated directly from AI/IoT sensor system</p>
+
                 </div>
                 <div className="flex items-center gap-2 text-sm text-cyan-600 font-mono bg-cyan-50 px-3 py-1.5 rounded-full border border-cyan-100">
                    <ClockCircleOutlined /> Last updated: Just now

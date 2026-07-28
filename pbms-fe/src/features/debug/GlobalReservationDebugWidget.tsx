@@ -39,7 +39,7 @@ export const GlobalReservationDebugWidget = () => {
   const handleSearch = () => {
     if (!searchVehicleTypeId) {
       import('antd').then(({ message }) => {
-        message.error('Vui lòng chọn loại phương tiện để tìm kiếm');
+        message.error('Please select a vehicle type to search');
       });
       return;
     }

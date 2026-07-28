@@ -338,7 +338,7 @@ const App = () => {
                   actionType: 'OUT',
                   vehicleType: values.vehicleType,
                   plate: values.plate,
-                  rfid: values.rfid
+                  rfcode: values.rfid
                 });
               }}
             >
@@ -504,7 +504,7 @@ const App = () => {
         gateId: values.gateId,
         plateNumber: values.plate,
         vehicleType: values.vehicleType,
-        rfid: values.rfid,
+        rfcode: values.rfid,
         imageBase64: base64Img,
         lprImageBase64: generateMockLprImage(values.plate)
       };
@@ -778,7 +778,7 @@ const App = () => {
                           plate: r.vehicle?.plateNumber,
                           vehicleType: r.vehicle?.vehicleType?.typeName,
                           customerType: undefined,
-                          rfid: randomCard,
+                          rfcode: randomCard,
                           gateId: undefined
                         });
                       }}
@@ -810,7 +810,7 @@ const App = () => {
                           plate: m.plate,
                           vehicleType: m.vehicleType?.typeName,
                           customerType: undefined,
-                          rfid: cardToUse,
+                          rfcode: cardToUse,
                           gateId: undefined
                         });
                       }}

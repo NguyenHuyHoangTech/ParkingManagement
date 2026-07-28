@@ -495,8 +495,8 @@ export const PreBookingScreen = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message="Lưu ý ngoài giờ hoạt động"
-                  description={`Bãi đỗ xe hiện đang hoạt động từ ${operatingHours.start} đến ${operatingHours.end}. Thời gian bạn chọn nằm ngoài khung giờ này, vui lòng lưu ý có thể sẽ không có nhân viên trực hỗ trợ trực tiếp.`}
+                  message="Outside Operating Hours Warning"
+                  description={`The parking lot is currently operating from ${operatingHours.start} to ${operatingHours.end}. The time you selected is outside this timeframe. Please note that direct staff support may not be available.`}
                 />
               </div>
             )}
@@ -533,7 +533,7 @@ export const PreBookingScreen = () => {
                               style={{ width: `${(((z.capacity || 1) - (z.availableSlots || 0)) / (z.capacity || 1)) * 100}%` }}
                             />
                           </div>
-                          <Text className="text-xs font-bold whitespace-nowrap">Drum {z.availableSlots}/{z.capacity}</Text>
+                          <Text className="text-xs font-bold whitespace-nowrap">Available {z.availableSlots}/{z.capacity}</Text>
                         </div>
                       </div>
                     );

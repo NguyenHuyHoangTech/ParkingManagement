@@ -35,7 +35,7 @@ public class ZoneTrendController {
         }
 
         if (java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) > 31) {
-            throw new IllegalArgumentException("Khoảng thời gian xem biểu đồ mật độ bãi đỗ (Zone Trends) không được vượt quá 31 ngày để đảm bảo hiệu suất.");
+            throw new IllegalArgumentException("The time range for viewing the Zone Trends chart cannot exceed 31 days to ensure performance.");
         }
         
         return ResponseEntity.ok(ApiResponse.success(

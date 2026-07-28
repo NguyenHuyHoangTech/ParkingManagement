@@ -148,25 +148,8 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
    * ============================================================================
    * 2. TRUY VẤN ĐỘNG THEO TỪNG XE (DYNAMIC DATA FETCHING)
    * ============================================================================
-   * - routingStatusList: Tính toán đường đi tối ưu cho xe hiện tại (nếu có).
-   *   Phụ thuộc vào thông tin xe đang quét (scanData) và tầng hiện tại (activeGate.floorId).
    * - overstayCount: API định kỳ (10 giây/lần) đếm số lượng xe ở quá giờ để thông báo.
    */
-  const { data: routingStatusList } = useQuery({
-    queryKey: ['routingStatus', scanData?.vehicleType, scanData?.customerType, activeGate?.floorId],
-    queryFn: async () => {
-      if (!scanData?.vehicleType || !scanData?.customerType || !vehicleTypes) return null;
-      const vType = vehicleTypes.find((v: any) => v.typeName === scanData.vehicleType);
-      if (!vType) return null;
-      const custType = scanData.customerType === 'Monthly Pass' ? 'MONTHLY' : (scanData.customerType === 'BOOK' ? 'PREBOOKED' : 'WALK_IN');
-      const res = await axiosClient.get('/operation/gates/routing-status', {
-        params: { vehicleTypeId: vType.id, customerType: custType, floorId: activeGate?.floorId }
-      });
-      return res.data?.data || [];
-    },
-    enabled: !!scanData && !!vehicleTypes && !!activeGate?.floorId
-  });
-
   const { data: overstayCount = 0 } = useQuery({
     queryKey: ['overstay-count'],
     queryFn: async () => {

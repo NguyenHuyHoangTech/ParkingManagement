@@ -18,6 +18,7 @@ interface BuildingProfile {
   operatingStart: string;
   operatingEnd: string;
   rules: string;
+  description: string;
 }
 
 export const BuildingProfileScreen = () => {
@@ -27,7 +28,7 @@ export const BuildingProfileScreen = () => {
   const { connected } = useWebSocket();
   
   const [formData, setFormData] = useState<BuildingProfile>({
-    name: '', address: '', hotline: '', contactEmail: '', is247: false, operatingStart: '06:00', operatingEnd: '22:30', rules: ''
+    name: '', address: '', hotline: '', contactEmail: '', is247: false, operatingStart: '06:00', operatingEnd: '22:30', rules: '', description: ''
   });
   const [initialData, setInitialData] = useState<BuildingProfile | null>(null);
 
@@ -39,7 +40,8 @@ export const BuildingProfileScreen = () => {
     formData.is247 !== initialData.is247 ||
     formData.operatingStart !== initialData.operatingStart ||
     formData.operatingEnd !== initialData.operatingEnd ||
-    formData.rules !== initialData.rules
+    formData.rules !== initialData.rules ||
+    formData.description !== initialData.description
   ) : false;
 
 
@@ -123,6 +125,16 @@ export const BuildingProfileScreen = () => {
                 required
               />
             </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Building Description</label>
+              <textarea
+                name="description"
+                value={formData.description || ''}
+                onChange={handleChange}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+              ></textarea>
+            </div>
             
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
@@ -205,6 +217,7 @@ export const BuildingProfileScreen = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
               ></textarea>
             </div>
+
           </div>
           
           <div className="pt-4 flex justify-end">

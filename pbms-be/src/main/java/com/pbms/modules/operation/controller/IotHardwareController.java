@@ -1,3 +1,20 @@
+/**
+ * @Author: Nguyễn Huy Hoàng
+ * @Date: 2026-06-28
+ * @Description: REST Controller chuyên trách việc tiếp nhận tín hiệu trực tiếp từ thiết bị phần cứng thực tế (hoặc phần mềm giả lập IoT Simulator bằng NodeJS).
+ * Nó nhận dữ liệu quét biển số xe, thẻ RFID và kích hoạt bước 1 (bắn dữ liệu nháp qua WebSocket lên Web Frontend - GateIn/GateOut Console) 
+ * thông qua GateOperationService. File này đóng vai trò là "cửa ngõ" giao tiếp đầu tiên giữa Hardware (phần cứng) và Backend.
+ * 
+ * @Dependencies (Các thành phần được tiêm vào nội bộ):
+ * - GateOperationService: Xử lý nghiệp vụ lõi (bắn sự kiện WebSocket lên Web UI, tính toán bãi đỗ nháp).
+ * - ZoneMonitoringService: Quản lý, giám sát tình trạng sức chứa của bãi.
+ * - Các Repositories (SlotRepository, ParkingSessionRepository, GateRepository...): Phục vụ việc tra cứu dữ liệu gốc dưới Database.
+ * - SimpMessagingTemplate & ApplicationEventPublisher: Kênh phát sóng WebSocket và Event nội bộ.
+ * 
+ * @Interactions (Tương tác hệ thống thực tế):
+ * - IoT Simulator (NodeJS): Là nguồn gọi (Client) trực tiếp của các API trong file này (vd: POST /gates/checkin, POST /gates/checkout).
+ * - Frontend (React): Không gọi trực tiếp file này, nhưng bị tác động bởi WebSocket do file này gián tiếp phát ra.
+ */
 package com.pbms.modules.operation.controller;
 
 /**

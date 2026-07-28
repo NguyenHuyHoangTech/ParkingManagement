@@ -61,7 +61,7 @@ export const AdminLayout = () => {
       {
         key: 'rules',
         icon: <ReadOutlined />,
-        label: 'Nội Quy',
+        label: 'Rules',
         onClick: () => setIsRulesOpen(true),
       },
       {
