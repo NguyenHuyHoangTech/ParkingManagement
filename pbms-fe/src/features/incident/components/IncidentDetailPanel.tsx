@@ -16,7 +16,7 @@ interface IncidentDetailPanelProps {
   userRole: 'CUSTOMER' | 'STAFF';
   isManager?: boolean;
   onClose: () => void;
-  onActionComplete?: () => void;
+  onActionComplete?: (ticket?: any) => void;
 }
 
 export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket, userRole, isManager, onClose, onActionComplete }) => {
@@ -200,12 +200,12 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
       if (ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > 0) {
         payload.discountAmount = p1DiscountAmount;
       }
-      await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, payload);
+      return await axiosClient.put(`/incident/incidents/${ticket.id}/process-phase1`, payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       message.success('Phase 1 confirmed');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      if (onActionComplete) onActionComplete(); else onClose();
+      if (onActionComplete) onActionComplete(res?.data?.data); else onClose();
     }
   });
 
@@ -225,12 +225,12 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         payload.discountAmount = feeDiscount;
       }
       
-      await axiosClient.put(`/incident/incidents/${ticket.id}/resolve`, payload);
+      return await axiosClient.put(`/incident/incidents/${ticket.id}/resolve`, payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       message.success('Incident resolved completely');
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      if (onActionComplete) onActionComplete(); else onClose();
+      if (onActionComplete) onActionComplete(res.data?.data); else onClose();
     },
     onError: (error: any) => {
       message.error(error.response?.data?.message || 'Error confirming cash payment. Please reload the page.');
@@ -358,17 +358,17 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
   const cancelMutation = useMutation({
     mutationFn: async () => {
       const docUrl = cancelFile ? await getBase64(cancelFile) : '';
-      await axiosClient.put(`/incident/incidents/${ticket.id}/cancel`, {
+      return await axiosClient.put(`/incident/incidents/${ticket.id}/cancel`, {
         reason: cancelReason,
         cancelType: cancelType,
         cancelImageUrl: docUrl
       });
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       message.success('Incident cancelled successfully');
       setCancelModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
-      if (onActionComplete) onActionComplete(); else onClose();
+      if (onActionComplete) onActionComplete(res?.data?.data); else onClose();
     },
     onError: (error: any) => {
       message.error(error.response?.data?.message || 'Error cancelling incident');
@@ -516,13 +516,14 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                         <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
                           Only Managers can approve and set penalties for this incident. If the report is invalid, you can Cancel it.
                         </div>
-                      ) : ticket.type === 'FEE_DISPUTE' && !isManager ? (
-                        <div className="text-center p-3 bg-red-50 text-red-600 rounded font-medium">
-                          Only Managers can approve fee discounts. If the report is invalid, you can Cancel it.
-                        </div>
                       ) : (
                         <Form layout="vertical">
-                          {ticket.type === 'FEE_DISPUTE' && isManager && (
+                          {ticket.type === 'FEE_DISPUTE' && !isManager && (
+                            <div className="text-center p-3 mb-4 bg-red-50 text-red-600 rounded font-medium">
+                              Only Managers can approve fee discounts. You can calculate the fee to verify, and Cancel if invalid.
+                            </div>
+                          )}
+                          {ticket.type === 'FEE_DISPUTE' && (
                             <>
                               {!isFeeVisible ? (
                                 <div className="bg-slate-50 p-6 rounded-lg mb-4 border border-slate-200 text-center">
@@ -542,23 +543,25 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                                     overtimeMinutes={ticket.overtimeMinutes || 0}
                                     overtimeFee={ticket.overtimeFee || 0}
                                     penaltyFee={totalPenalty}
-                                    discountFee={p1DiscountAmount || ticket.discountFee || 0}
-                                    totalFee={calculatedParkingFee + totalPenalty - (p1DiscountAmount || 0)}
+                                    discountFee={isManager ? (p1DiscountAmount || ticket.discountFee || 0) : (ticket.discountFee || 0)}
+                                    totalFee={calculatedParkingFee + totalPenalty - (isManager ? (p1DiscountAmount || 0) : 0)}
                                     isLightMode={true}
                                   />
-                                  <Form.Item label="Discount Amount (VND) - Deducted from Total Fee" className="mt-4 mb-0 font-medium">
-                                    <InputNumber 
-                                      className="w-full" 
-                                      size="large" 
-                                      min={0}
-                                      max={calculatedParkingFee}
-                                      value={p1DiscountAmount} 
-                                      onChange={v => setP1DiscountAmount(v || 0)} 
-                                    />
-                                    {p1DiscountAmount > calculatedParkingFee && (
-                                      <div className="text-red-500 text-sm mt-1">Discount amount cannot exceed current total fee.</div>
-                                    )}
-                                  </Form.Item>
+                                  {isManager && (
+                                    <Form.Item label="Discount Amount (VND) - Deducted from Total Fee" className="mt-4 mb-0 font-medium">
+                                      <InputNumber 
+                                        className="w-full" 
+                                        size="large" 
+                                        min={0}
+                                        max={calculatedParkingFee}
+                                        value={p1DiscountAmount} 
+                                        onChange={v => setP1DiscountAmount(v || 0)} 
+                                      />
+                                      {p1DiscountAmount > calculatedParkingFee && (
+                                        <div className="text-red-500 text-sm mt-1">Discount amount cannot exceed current total fee.</div>
+                                      )}
+                                    </Form.Item>
+                                  )}
                                 </div>
                               )}
                             </>
@@ -600,23 +603,27 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
                               </Radio.Group>
                             </Form.Item>
                           )}
-                          <Form.Item label="Notes (Sent to Customer)" className="mt-4">
-                            <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Enter notes or instructions for the customer" />
-                          </Form.Item>
-                          <Form.Item label="Upload Image (Optional)">
-                            <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
-                              <Button icon={<UploadOutlined />}>Select Image</Button>
-                            </Upload>
-                          </Form.Item>
-                          <Button 
-                            type="primary" 
-                            onClick={() => processPhase1Mutation.mutate()} 
-                            loading={processPhase1Mutation.isPending} 
-                            disabled={ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > calculatedParkingFee}
-                            className="w-full"
-                          >
-                            Confirm & Process (Phase 1)
-                          </Button>
+                          {!(ticket.type === 'FEE_DISPUTE' && !isManager) && (
+                            <>
+                              <Form.Item label="Notes (Sent to Customer)" className="mt-4">
+                                <TextArea rows={2} style={{ wordBreak: 'break-all' }} value={p1Notes} onChange={e => setP1Notes(e.target.value)} placeholder="Enter notes or instructions for the customer" />
+                              </Form.Item>
+                              <Form.Item label="Upload Image (Optional)">
+                                <Upload beforeUpload={f => { setP1File(f); return false; }} maxCount={1} listType="picture" accept="image/*" capture="environment">
+                                  <Button icon={<UploadOutlined />}>Select Image</Button>
+                                </Upload>
+                              </Form.Item>
+                              <Button 
+                                type="primary" 
+                                onClick={() => processPhase1Mutation.mutate()} 
+                                loading={processPhase1Mutation.isPending} 
+                                disabled={ticket.type === 'FEE_DISPUTE' && p1DiscountAmount > calculatedParkingFee}
+                                className="w-full"
+                              >
+                                Confirm & Process (Phase 1)
+                              </Button>
+                            </>
+                          )}
                         </Form>
                       )}
                     </div>

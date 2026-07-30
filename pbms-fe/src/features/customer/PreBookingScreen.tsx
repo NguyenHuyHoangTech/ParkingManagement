@@ -143,7 +143,7 @@ export const PreBookingScreen = () => {
   const [selectedGateway, setSelectedGateway] = useState<string>('PAYPAL');
 
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
-  const [countdown, setCountdown] = useState(900);
+  const [countdown, setCountdown] = useState(300);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyCooldown, setVerifyCooldown] = useState(0);
@@ -286,7 +286,7 @@ export const PreBookingScreen = () => {
     setIsPaymentSuccess(false);
     setPaymentUrl('');
     setPaymentOrderId('');
-    setCountdown(900);
+    setCountdown(300);
     generateLinkMutation.mutate();
   };
 

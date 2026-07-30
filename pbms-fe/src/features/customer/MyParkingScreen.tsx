@@ -379,7 +379,7 @@ export const MyParkingScreen = () => {
   const [renewGateway, setRenewGateway] = useState('PAYPAL');
 
   const [isRenewQRModalVisible, setIsRenewQRModalVisible] = useState(false);
-  const [renewCountdown, setRenewCountdown] = useState(900);
+  const [renewCountdown, setRenewCountdown] = useState(300);
   const [isRenewSuccess, setIsRenewSuccess] = useState(false);
   const [isRenewVerifying, setIsRenewVerifying] = useState(false);
   const [verifyCooldown, setVerifyCooldown] = useState(0);
@@ -431,7 +431,7 @@ export const MyParkingScreen = () => {
   const handleConfirmRenew = (totalFee: number) => {
     setIsRenewQRModalVisible(true);
     setIsRenewSuccess(false);
-    setRenewCountdown(900);
+    setRenewCountdown(300);
     setRenewPaymentUrl('');
     setRenewPaymentToken('');
     generateRenewLinkMutation.mutate(totalFee);

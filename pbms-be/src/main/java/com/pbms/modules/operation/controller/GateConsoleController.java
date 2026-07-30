@@ -67,7 +67,7 @@ import com.pbms.modules.operation.dto.CheckInRequestDTO;
 import com.pbms.modules.operation.dto.CheckOutRequestDTO;
 import com.pbms.modules.operation.dto.GateResponseDTO;
 import com.pbms.modules.operation.service.GateOperationService;
-import java.util.List;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

@@ -113,7 +113,7 @@ export const NotificationDropdown: React.FC = () => {
           message: 'System Alert',
           description: displayMessage,
           placement: window.innerWidth < 768 ? 'top' : 'topRight',
-          duration: 10,
+          duration: 3,
           key: displayMessage,
         });
 

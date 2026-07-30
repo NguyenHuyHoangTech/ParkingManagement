@@ -55,7 +55,9 @@ public interface ParkingSessionRepository extends JpaRepository<ParkingSession, 
     Optional<ParkingSession> findTopByReservationIdOrderByTimeInDesc(Long reservationId);
 
     Page<ParkingSession> findByTimeInBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
-    
+    Page<ParkingSession> findByTimeInBetweenAndStatus(LocalDateTime start, LocalDateTime end, String status, Pageable pageable);
+    Page<ParkingSession> findByStatus(String status, Pageable pageable);
+
     @QueryHints(value = { @QueryHint(name = "org.hibernate.readOnly", value = "true"),
                           @QueryHint(name = "org.hibernate.fetchSize", value = "500"),
                           @QueryHint(name = "org.hibernate.cacheable", value = "false") })

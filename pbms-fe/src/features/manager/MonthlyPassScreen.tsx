@@ -102,7 +102,7 @@ export const MonthlyPassScreen = () => {
               notification.warning({
                 message: 'Monthly Zone Overload Warning',
                 description: data.message,
-                duration: 0,
+                duration: 3,
                 placement: 'topRight',
                 style: { borderLeft: '4px solid #faad14' }
               });

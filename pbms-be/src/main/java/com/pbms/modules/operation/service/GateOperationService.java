@@ -603,6 +603,7 @@ public class GateOperationService {
         com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = new com.pbms.modules.operation.dto.CheckOutSessionInfoDTO();
         info.setPlateNumberIn(session.getPlate());
         info.setRfid(session.getRfidCard() != null ? session.getRfidCard().getCardCode() : "N/A");
+        info.setCardId(session.getRfidCard() != null ? session.getRfidCard().getCardId() : "N/A");
         info.setVehicleType(session.getVehicleType() != null ? session.getVehicleType().getTypeName() : "UNKNOWN");
         String rfidCode = session.getRfidCard() != null ? session.getRfidCard().getCardCode() : null;
         String customerType = determineCustomerType(session.getPlate(), rfidCode, session.getVehicleType());
@@ -710,10 +711,52 @@ public class GateOperationService {
             info.setOvertimeMinutes(0L);
         }
 
-        java.math.BigDecimal penaltyFee = incidentTicketRepository.findBySessionId(session.getId()).stream()
+        java.util.List<com.pbms.modules.incident.domain.IncidentTicket> tickets = incidentTicketRepository.findBySessionId(session.getId());
+
+        java.util.List<com.pbms.modules.incident.domain.IncidentTicket> validTickets = tickets.stream()
+                .filter(ticket -> "WAITING_CHECKOUT".equals(ticket.getStatus()) ||
+                        ("PENDING".equals(ticket.getStatus()) && "OVERSTAY".equals(ticket.getIssueType())))
+                .collect(java.util.stream.Collectors.toList());
+
+        java.math.BigDecimal penaltyFee = validTickets.stream()
                 .map(ticket -> ticket.getFineAmount())
                 .filter(java.util.Objects::nonNull)
                 .reduce(java.math.BigDecimal.ZERO, (a, b) -> a.add(b));
+
+        java.util.List<String> warningsList = new java.util.ArrayList<>();
+        
+        if (info.getOvertimeMinutes() != null && info.getOvertimeMinutes() > 0) {
+            warningsList.add("⚠️ Vehicle has exceeded allowed parking time by " + info.getOvertimeMinutes() + " minutes.");
+        }
+        
+        try {
+            int overstayLimitHours = Integer.parseInt(systemConfigService.getConfigByKey("OVERSTAY_HOURS_LIMIT").getConfigValue());
+            if (info.getDurationMinutes() != null && info.getDurationMinutes() > (overstayLimitHours * 60)) {
+                long overstayMins = info.getDurationMinutes() - (overstayLimitHours * 60);
+                warningsList.add("⚠️ Vehicle has been parked continuously for more than " + overstayLimitHours + " hours (Overstay: " + overstayMins + " minutes).");
+            }
+        } catch (Exception e) {
+            log.warn("Could not calculate dynamic overstay warning", e);
+        }
+
+        boolean isLostOrDamaged = false;
+        for (com.pbms.modules.incident.domain.IncidentTicket ticket : validTickets) {
+            
+            if ("LOST_CARD".equals(ticket.getIssueType()) || "DAMAGED_CARD".equals(ticket.getIssueType())) {
+                isLostOrDamaged = true;
+            }
+
+            String warningMsg = "[" + ticket.getIssueType() + "] " + ticket.getDescription();
+            if (ticket.getFineAmount() != null && ticket.getFineAmount().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                warningMsg += " (Fine: " + String.format("%,.0f", ticket.getFineAmount().doubleValue()) + " VND)";
+            }
+            warningsList.add(warningMsg);
+        }
+        info.setWarnings(warningsList);
+
+        if (isLostOrDamaged) {
+            info.setCardId("Lost / Damaged Card");
+        }
 
         if (session.getDiscount() != null) {
             info.setDiscountFee(session.getDiscount());
@@ -1210,10 +1253,15 @@ public class GateOperationService {
         }
 
         BigDecimal penaltyFee = BigDecimal.ZERO;
-        List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = incidentTicketRepository
-                .findBySessionId(session.getId()).stream()
+        List<com.pbms.modules.incident.domain.IncidentTicket> allSessionTickets = incidentTicketRepository.findBySessionId(session.getId());
+        
+        List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = allSessionTickets.stream()
                 .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()) ||
                         ("PENDING".equals(t.getStatus()) && "OVERSTAY".equals(t.getIssueType())))
+                .collect(java.util.stream.Collectors.toList());
+                
+        List<com.pbms.modules.incident.domain.IncidentTicket> pendingTicketsToCancel = allSessionTickets.stream()
+                .filter(t -> "PENDING".equals(t.getStatus()) && !"OVERSTAY".equals(t.getIssueType()))
                 .collect(java.util.stream.Collectors.toList());
 
         for (com.pbms.modules.incident.domain.IncidentTicket t : waitingTickets) {
@@ -1235,6 +1283,14 @@ public class GateOperationService {
                     log.info("Vehicle {} removed from blacklist upon check-out", currentPlate);
                 });
             }
+        }
+        
+        for (com.pbms.modules.incident.domain.IncidentTicket t : pendingTicketsToCancel) {
+            t.setStatus("CANCELLED");
+            String oldNotes = t.getResolutionNotes() != null ? t.getResolutionNotes() + "\n" : "";
+            t.setResolutionNotes(oldNotes + "[CANCELLED] Automatically cancelled because the vehicle has checked out before the incident was fully processed.");
+            t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+            saveAndBroadcast(t);
         }
 
         if (session.getDiscount() != null && session.getDiscount().compareTo(BigDecimal.ZERO) > 0) {

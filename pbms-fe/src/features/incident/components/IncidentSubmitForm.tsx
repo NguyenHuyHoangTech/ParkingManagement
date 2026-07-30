@@ -148,9 +148,9 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
       return;
     }
 
-    const isLostOrDamaged = selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION';
+    const requiresNoCardCode = selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER';
     let rfid = '';
-    if (!isLostOrDamaged) {
+    if (!requiresNoCardCode) {
       rfid = form.getFieldValue('code');
       if (!rfid) {
         message.warning('Please enter card code to verify');
@@ -161,7 +161,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
     setIsCheckingPlate(true);
     try {
       let res;
-      if (isLostOrDamaged) {
+      if (requiresNoCardCode) {
         res = await axiosClient.get(`/incident/incidents/check-plate`, { params: { plate: plate.toUpperCase(), vehicleTypeId } });
       } else {
         res = await axiosClient.get(`/incident/incidents/check-plate-rfid`, { params: { plate: plate.toUpperCase(), rfid, vehicleTypeId } });
@@ -172,7 +172,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
         message.success('Verification successful! Please provide incident details below.');
       } else {
         setIsPlateVerified(false);
-        message.error(isLostOrDamaged ? 'No vehicle found with this plate in parking!' : 'Plate and Card Code do not match or not found in parking!');
+        message.error(requiresNoCardCode ? 'No vehicle found with this plate in parking!' : 'Plate and Card Code do not match or not found in parking!');
       }
     } catch (err) {
       setIsPlateVerified(false);
@@ -286,13 +286,13 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
               <Form.Item 
                 label="Actual License Plate"
                 required
-                className={`mb-0 col-span-1 ${selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' ? 'md:col-span-2' : ''}`}
+                className={`mb-0 col-span-1 ${(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') ? 'md:col-span-2' : ''}`}
               >
                 <div className="flex gap-2">
                     <Form.Item name="plate" rules={[{ required: true, message: 'Please enter license plate' }]} noStyle>
                       <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="Ex: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={(e) => { setIsPlateVerified(false); form.setFieldsValue({ plate: normalizePlateNumber(e.target.value) }); }} />
                     </Form.Item>
-                  {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION') && (
+                  {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') && (
                     <Button type="primary" size="large" className="h-12" loading={isCheckingPlate} onClick={handleCheckPlate}>
                       Verify
                     </Button>

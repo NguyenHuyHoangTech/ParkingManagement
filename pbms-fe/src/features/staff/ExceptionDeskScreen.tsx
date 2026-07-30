@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Typography, Button, Badge, List, Tag, Modal, InputNumber, Card, Select, FloatButton } from 'antd';
+import { Typography, Button, Badge, List, Tag, Modal, InputNumber, Card, Select, FloatButton, message } from 'antd';
 import { WarningOutlined, PlusOutlined, CreditCardOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../core/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +22,7 @@ export const ExceptionDeskScreen = () => {
   const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [queueFilter, setQueueFilter] = useState<string>('ALL');
+  const [overstayValue, setOverstayValue] = useState<number | null>(null);
 
   // Handle mobile hardware back button using History API
   useEffect(() => {
@@ -76,6 +77,10 @@ export const ExceptionDeskScreen = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['system_configs'] });
+      message.success('Configuration saved successfully!');
+    },
+    onError: () => {
+      message.error('Failed to save configuration.');
     }
   });
 
@@ -150,17 +155,32 @@ export const ExceptionDeskScreen = () => {
     queryClient.invalidateQueries({ queryKey: ['incidents'] });
     setSelectedCategory('ALL');
     setQueueFilter('ALL');
-    setShouldSelectFirstTicket(true);
+    
+    if (newTicket) {
+      setSelectedTicket(newTicket);
+      setShouldSelectFirstTicket(false);
+    } else {
+      setShouldSelectFirstTicket(true);
+    }
+    
     if (window.location.hash === '#create') {
       window.history.back();
     }
   };
 
-  const handleActionComplete = () => {
+  const handleActionComplete = (actionTicket?: any) => {
     queryClient.invalidateQueries({ queryKey: ['incidents'] });
-    setSelectedCategory('ALL');
-    setQueueFilter('ALL');
-    setShouldSelectFirstTicket(true);
+    
+    if (actionTicket) {
+      setSelectedTicket(actionTicket);
+      setShouldSelectFirstTicket(false);
+      setSelectedCategory('ALL');
+      setQueueFilter('ALL');
+    } else {
+      setSelectedCategory('ALL');
+      setQueueFilter('ALL');
+      setShouldSelectFirstTicket(true);
+    }
   };
 
 
@@ -195,15 +215,32 @@ export const ExceptionDeskScreen = () => {
                     <Text className="text-xs text-gray-600">Threshold (Hours):</Text>
                     <InputNumber
                       size="small"
-                      defaultValue={getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
+                      value={overstayValue !== null ? overstayValue : getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
                       min={1}
+                      onChange={(val) => setOverstayValue(val as number)}
                       onPressEnter={(e: any) => {
                         const config = configsData.find((c: any) => c.configKey === 'OVERSTAY_HOURS_LIMIT');
-                        if (config) {
+                        if (config && e.target.value) {
                           updateConfigMutation.mutate({ id: config.id, value: e.target.value });
+                          setOverstayValue(null);
                         }
                       }}
                     />
+                    <Button 
+                      size="small" 
+                      type="primary" 
+                      loading={updateConfigMutation.isPending}
+                      onClick={() => {
+                        const config = configsData.find((c: any) => c.configKey === 'OVERSTAY_HOURS_LIMIT');
+                        if (config) {
+                          const valToSave = overstayValue !== null ? overstayValue : getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72);
+                          updateConfigMutation.mutate({ id: config.id, value: valToSave.toString() });
+                          setOverstayValue(null);
+                        }
+                      }}
+                    >
+                      Save
+                    </Button>
                   </div>
                 </div>
               )}
@@ -479,15 +516,31 @@ export const ExceptionDeskScreen = () => {
               <Text className="text-sm text-gray-600">Threshold (Hours):</Text>
               <InputNumber
                 style={{ width: 100 }}
-                defaultValue={getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
+                value={overstayValue !== null ? overstayValue : getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72)}
                 min={1}
+                onChange={(val) => setOverstayValue(val as number)}
                 onPressEnter={(e: any) => {
                   const config = configsData.find((c: any) => c.configKey === 'OVERSTAY_HOURS_LIMIT');
-                  if (config) {
+                  if (config && e.target.value) {
                     updateConfigMutation.mutate({ id: config.id, value: e.target.value });
+                    setOverstayValue(null);
                   }
                 }}
               />
+              <Button 
+                type="primary" 
+                loading={updateConfigMutation.isPending}
+                onClick={() => {
+                  const config = configsData.find((c: any) => c.configKey === 'OVERSTAY_HOURS_LIMIT');
+                  if (config) {
+                    const valToSave = overstayValue !== null ? overstayValue : getPenaltyConfig('OVERSTAY_HOURS_LIMIT', 72);
+                    updateConfigMutation.mutate({ id: config.id, value: valToSave.toString() });
+                    setOverstayValue(null);
+                  }
+                }}
+              >
+                Save
+              </Button>
             </div>
           </div>
         )}

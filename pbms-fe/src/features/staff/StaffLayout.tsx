@@ -90,7 +90,7 @@ export const StaffLayout = () => {
               message: '🚨 Zone Capacity Conflict!',
               description: data.message + ' (Check the queue to retry)',
               placement: window.innerWidth < 768 ? 'top' : 'topRight',
-              duration: 0
+              duration: 3
             });
           } else if (data.type === 'ZONE_RESERVED') {
             const plate = data.plate || '';
@@ -103,28 +103,28 @@ export const StaffLayout = () => {
                 message: '⏰ Reservation expired',
                 description: plate ? `Reservation for ${plate} (zone ${zoneName}) has expired. Slot released.` : 'A reservation has expired and the slot is released.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
-                duration: 5
+                duration: 3
               });
             } else if (msg.includes('arriving')) {
               notification.info({
                 message: '⏱️ Vehicle arriving',
                 description: plate ? `Vehicle ${plate} is arriving at zone ${zoneName} shortly.` : 'A reserved vehicle is arriving.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
-                duration: 5
+                duration: 3
               });
             } else if (msg.includes('arrived')) {
               notification.success({
                 message: '🚗 Reserved vehicle arrived!',
                 description: plate ? `Vehicle ${plate} has arrived and is routed to zone ${zoneName}.` : 'Reserved vehicle arrived.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
-                duration: 5
+                duration: 3
               });
             } else {
               notification.success({
                 message: '✅ Reservation confirmed!',
                 description: plate ? `Reservation for ${plate} at zone ${zoneName} is confirmed.` : 'Reservation confirmed.',
                 placement: window.innerWidth < 768 ? 'top' : 'topRight',
-                duration: 5
+                duration: 3
               });
             }
             if (plate) {
@@ -151,7 +151,7 @@ export const StaffLayout = () => {
               message: '🚨 Monthly Zone Violation',
               description: data.message,
               placement: window.innerWidth < 768 ? 'top' : 'topRight',
-              duration: 5
+              duration: 3
             });
           }
         } catch (e) { }

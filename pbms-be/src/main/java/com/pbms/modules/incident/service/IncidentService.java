@@ -38,6 +38,7 @@ public class IncidentService {
     private final com.pbms.modules.finance.repository.TransactionRepository transactionRepository;
     private final com.pbms.modules.operation.repository.StaffWorkSessionRepository staffWorkSessionRepository;
     private final com.pbms.modules.operation.repository.VehicleRepository vehicleRepository;
+    private final com.pbms.modules.operation.repository.VehicleTypeRepository vehicleTypeRepository;
     private final org.springframework.context.ApplicationContext applicationContext;
 
     private com.pbms.modules.identity.domain.User getCurrentUser() {
@@ -154,14 +155,18 @@ public class IncidentService {
                 if (session.getRfidCard() != null) {
                     session.getRfidCard().setAssignedPlate(request.getCorrectPlateNumber());
                 }
-                // Keep ticket in PENDING status so staff can add photo and explanation in Phase 1
+                
+                if (request.getVehicleTypeId() != null && (session.getVehicleType() == null || !session.getVehicleType().getId().equals(request.getVehicleTypeId()))) {
+                    com.pbms.modules.operation.domain.VehicleType vt = vehicleTypeRepository.findById(request.getVehicleTypeId())
+                            .orElseThrow(() -> new IllegalArgumentException("Vehicle Type not found"));
+                    session.setVehicleType(vt);
+                }
+
+                ticket.setStatus("RESOLVED");
+                ticket.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
+                ticket.setResolutionNotes("Staff updated correct vehicle info directly at Gate.");
             } 
             else if ("LOST_CARD".equals(request.getIssueType())) {
-                if (session.getRfidCard() != null) {
-                    session.getRfidCard().setStatus("LOST");
-                    rfidCardRepository.save(session.getRfidCard());
-                }
-                
                 BigDecimal fineToApply = request.getFineAmount();
                 if (fineToApply == null) {
                     fineToApply = new BigDecimal("200000"); // default
@@ -171,15 +176,10 @@ public class IncidentService {
                         log.warn("Could not find PENALTY_LOST_CARD config, using default");
                     }
                 }
-                session.setPenaltyFee(fineToApply);
                 ticket.setFineAmount(fineToApply);
             }
             else if ("DAMAGED_CARD".equals(request.getIssueType())) {
-                if (session.getRfidCard() != null) {
-                    session.getRfidCard().setStatus("DAMAGED");
-                    rfidCardRepository.save(session.getRfidCard());
-                }
-                
+                // Do nothing to the card in Phase 1. Update status in Phase 2.
             }
         }
 
@@ -259,6 +259,30 @@ public class IncidentService {
                 }
                 sessionRepository.save(session);
             }
+            
+            String targetPlateForBlacklist = session != null ? session.getPlate() : request.getPlate();
+            if (targetPlateForBlacklist != null && !targetPlateForBlacklist.isBlank()) {
+                java.util.Optional<com.pbms.modules.operation.domain.Vehicle> optV = vehicleRepository.findByPlateNumber(targetPlateForBlacklist);
+                if (optV.isPresent()) {
+                    com.pbms.modules.operation.domain.Vehicle v = optV.get();
+                    v.setIsBlacklisted(true);
+                    vehicleRepository.save(v);
+                } else {
+                    // Create new vehicle if it doesn't exist
+                    com.pbms.modules.operation.domain.Vehicle newVehicle = new com.pbms.modules.operation.domain.Vehicle();
+                    newVehicle.setPlateNumber(targetPlateForBlacklist.trim().toUpperCase());
+                    if (session != null) {
+                        newVehicle.setVehicleType(session.getVehicleType());
+                    } else if (request.getVehicleTypeId() != null) {
+                        vehicleTypeRepository.findById(request.getVehicleTypeId()).ifPresent(newVehicle::setVehicleType);
+                    }
+                    newVehicle.setIsBlacklisted(true);
+                    vehicleRepository.save(newVehicle);
+                }
+            }
+            
+            ticket.setStatus("WAITING_CHECKOUT"); // Wait until they come back and pay at checkout
+            ticket.setResolutionNotes("[CONSOLE] Vehicle blacklisted and session closed. Penalty fee applied, waiting for payment at next checkout.");
         }
 
         return saveAndBroadcast(ticket);
@@ -880,8 +904,6 @@ public class IncidentService {
             log.warn("Could not find PENALTY_LOST_CARD config, using default 200000");
         }
         BigDecimal fineAmount = fee != null ? fee : defaultFine;
-        session.setPenaltyFee(fineAmount);
-        sessionRepository.save(session);
 
         com.pbms.modules.identity.domain.User user = null;
         if (email != null && !email.isBlank()) {

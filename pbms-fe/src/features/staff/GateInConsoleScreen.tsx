@@ -318,7 +318,7 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         }
 
         if (payload.isBlacklisted) {
-          derivedWarnings.push(`⚠️ BLACKLISTED VEHICLE! Reason: ${payload.blacklistReason || 'None provided'}`);
+          derivedWarnings.push(`⚠️ Blacklisted vehicle detected!`);
         }
 
         setScanData({
@@ -620,13 +620,6 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
       {/* TASK 1 & 3: Middle Zone (Info & Alerts) - Flexible Space */}
       <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2 bg-slate-50 custom-scrollbar">
-        {scanData?.isBlacklisted && (
-          <div className="bg-red-100 border border-red-500 text-red-700 p-2 font-bold text-center rounded-lg animate-pulse shadow-sm flex-none">
-            <WarningOutlined className="mr-2" />
-            <span className="text-sm">WARNING: BLACK LISTED VEHICLES! Reject GIVE IN!</span>
-          </div>
-        )}
-
         <div className={`p-2 rounded-lg shadow-sm flex-none text-xs flex flex-col gap-1 overflow-hidden border ${(scanData?.warnings?.length || 0) > 0 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
           <div className="font-bold flex items-center justify-between">
             <div className="flex items-center">

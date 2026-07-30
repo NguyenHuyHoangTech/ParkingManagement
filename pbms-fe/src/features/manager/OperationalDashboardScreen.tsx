@@ -21,6 +21,7 @@ export const OperationalDashboardScreen = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTrafficDate, setSelectedTrafficDate] = useState<any>(simulatedDayjs());
   const [hourlyTrafficCategory, setHourlyTrafficCategory] = useState<string>('ALL');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('ALL');
 
   // === Operational live data ===
   const { data: vehicleTypes } = useQuery({
@@ -32,11 +33,14 @@ export const OperationalDashboardScreen = () => {
   });
 
   const { data: historyData, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['parking-history', historyPage, historySize, historyDateRange?.[0]?.format('YYYY-MM-DD'), historyDateRange?.[1]?.format('YYYY-MM-DD')],
+    queryKey: ['parking-history', historyPage, historySize, historyDateRange?.[0]?.format('YYYY-MM-DD'), historyDateRange?.[1]?.format('YYYY-MM-DD'), historyStatusFilter],
     queryFn: async () => {
       let url = `/operation/parking-sessions/all?page=${historyPage - 1}&size=${historySize}`;
       if (historyDateRange && historyDateRange[0] && historyDateRange[1]) {
         url += `&startDate=${historyDateRange[0].format('YYYY-MM-DD')}&endDate=${historyDateRange[1].format('YYYY-MM-DD')}`;
+      }
+      if (historyStatusFilter !== 'ALL') {
+        url += `&status=${historyStatusFilter}`;
       }
       const res = await axiosClient.get(url);
       return res.data.data;
@@ -472,6 +476,18 @@ export const OperationalDashboardScreen = () => {
                 format="DD/MM/YYYY"
                 allowClear={true}
               />
+              <Select
+                value={historyStatusFilter}
+                onChange={(val) => {
+                  setHistoryStatusFilter(val);
+                  setHistoryPage(1);
+                }}
+                style={{ width: 140 }}
+              >
+                <Select.Option value="ALL">All Status</Select.Option>
+                <Select.Option value="ACTIVE">Parked</Select.Option>
+                <Select.Option value="COMPLETED">Completed</Select.Option>
+              </Select>
               <Button type="primary" icon={<DownloadOutlined />} loading={isExporting} onClick={handleExportCSV}>
                 Export CSV
               </Button>
@@ -496,6 +512,7 @@ export const OperationalDashboardScreen = () => {
           size="middle"
         >
           <Table.Column title="ID" dataIndex="id" width={60} />
+          <Table.Column title="Card ID" dataIndex="cardId" render={(val) => val ? <Tag color="purple">{val}</Tag> : '-'} />
           <Table.Column title="License Plate" dataIndex="plate" render={(val) => <strong className="text-blue-700">{val}</strong>} />
           <Table.Column title="Vehicle Type" dataIndex="vehicleType" />
           <Table.Column title="Entry Time" dataIndex="timeIn" render={(val) => val ? simulatedDayjs(val).format('HH:mm:ss DD/MM/YYYY') : '-'} />

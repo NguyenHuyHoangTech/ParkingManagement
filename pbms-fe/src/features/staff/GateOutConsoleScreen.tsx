@@ -160,7 +160,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
   const [countdown, setCountdown] = useState<number>(0); // Số giây đếm ngược hiển thị trên màn hình
   const [isExpired, setIsExpired] = useState<boolean>(false); // Cờ báo Hóa đơn đã hết hạn, cần làm mới (Refresh Price)
 
-  const handleRefreshPriceRef = useRef<(() => void) | null>(null);
+  const handleRefreshPriceRef = useRef<(() => Promise<void>) | null>(null);
 
   /**
    * ============================================================================
@@ -259,7 +259,9 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           setPaymentUrl(null);
           setPaymentQrCode('');
           setPaymentOrderId('');
-          isProcessingRef.current = false;
+          setTimeout(() => {
+            isProcessingRef.current = false;
+          }, 5000);
         }
       });
 
@@ -322,6 +324,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             isBlacklisted: false,
             warnings: info.warnings || [],
             rfid: info.rfid || payload.rfid || '---',
+            cardId: info.cardId || payload.cardId || payload.rfid || '---',
             customerType: info.customerType || 'Haunt',
             vehicleType: info.vehicleType || 'UNKNOWN',
             routing: info.suggestedZoneName || '',
@@ -361,6 +364,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
             isBlacklisted: false,
             warnings: ['No vehicle information found'],
             rfid: payload.rfid || '---',
+            cardId: payload.cardId || payload.rfid || '---',
             customerType: payload.customerType === 'PREBOOKED' ? 'BOOK' : (payload.customerType === 'MONTHLY' ? 'Monthly Pass' : (payload.customerType || 'Haunt')),
             vehicleType: payload.vehicleType || 'CAR',
             routing: '',
@@ -506,13 +510,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       setPaymentUrl(null);
       setPaymentQrCode('');
       setPaymentOrderId('');
-      isProcessingRef.current = false;
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 5000);
     } catch (error: any) {
       const errMsg = error.response?.data?.message || 'Error checking out vehicle.';
       if (errMsg.includes('Quote has expired') || errMsg.includes('refresh the page')) {
         message.warning('The price has been refreshed. Please review and confirm the accurate collection amount.');
         if (handleRefreshPriceRef.current) {
-          handleRefreshPriceRef.current();
+          await handleRefreshPriceRef.current();
         }
       } else {
         message.error(errMsg);
@@ -608,12 +614,13 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
    * B3: Reset lại đồng hồ đếm ngược (Ví dụ: Cho khách thêm 5 phút nữa để quét mã MoMo).
    * ============================================================================
    */
-  const handleRefreshPrice = useCallback(() => {
+  const handleRefreshPrice = useCallback(async () => {
     if (!scanData?.rfid && !scanData?.plateNumber) return;
     setIsLoading(true);
-    axiosClient.get('/operation/gates/checkout-session-info', {
-      params: { rfid: scanData?.rfid, plate: scanData?.plateNumber }
-    }).then(res => {
+    try {
+      const res = await axiosClient.get('/operation/gates/checkout-session-info', {
+        params: { rfid: scanData?.rfid, plate: scanData?.plateNumber }
+      });
       const info = res.data.data;
       setScanData((prev: any) => ({
         ...prev,
@@ -624,7 +631,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         expectedFee: info.expectedFee || 0,
         parkingFee: (info.expectedFee || 0) + (info.overtimeFee || 0),
         checkoutToken: info.checkoutToken || null,
-        expiresInSeconds: info.expiresInSeconds || 0
+        expiresInSeconds: info.expiresInSeconds || 0,
+        overtimeMinutes: info.overtimeMinutes || 0,
+        duration: info.durationMinutes || 0,
+        warnings: info.warnings || prev.warnings || []
       }));
       if (info.expiresInSeconds && info.checkoutToken) {
         setExpiresAt(Date.now() + info.expiresInSeconds * 1000);
@@ -632,11 +642,11 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         setExpiresAt(null);
       }
       message.success("Price has been refreshed!");
-    }).catch(err => {
+    } catch (err: any) {
       message.error(err.response?.data?.message || 'Failed to refresh price');
-    }).finally(() => {
+    } finally {
       setIsLoading(false);
-    });
+    }
   }, [scanData?.rfid, scanData?.plateNumber]);
 
   useEffect(() => {
@@ -834,16 +844,16 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                   </div>
 
                   {/* Warnings Section */}
-                  <div className={`p-2 rounded-lg shadow-sm flex-none flex flex-col gap-1 border overflow-hidden ${scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                  <div className={`p-2 rounded-lg shadow-sm flex-none flex flex-col gap-1 border overflow-hidden ${scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' || scanData.customerType === 'PREBOOKED' ? 'bg-orange-50 border-orange-400 text-orange-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
                     <div className="font-bold flex items-center justify-between text-xs">
                       <div className="flex items-center">
-                        {scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' ? <WarningOutlined className="mr-1 text-sm" /> : <CheckCircleOutlined className="mr-1 text-sm" />}
+                        {scanData.warnings?.length > 0 || scanData.customerType === 'BOOK' || scanData.customerType === 'PREBOOKED' ? <WarningOutlined className="mr-1 text-sm" /> : <CheckCircleOutlined className="mr-1 text-sm" />}
 
                         WARNING / NOTE:
                       </div>
                     </div>
                     <div className="flex-1 overflow-y-auto max-h-[80px] min-h-[30px] text-xs custom-scrollbar">
-                      {scanData.customerType === 'BOOK' && (
+                      {(scanData.customerType === 'BOOK' || scanData.customerType === 'PREBOOKED') && (
                         <div className="mb-1 font-medium">
                           <strong>Guests who book in advance:</strong><br />
 
@@ -857,7 +867,7 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                           {(scanData.warnings || []).map((w: string, idx: number) => <li key={idx} className="font-medium" title={w}>{w}</li>)}
                         </ul>
                       ) : (
-                        scanData.customerType !== 'BOOK' && <span className="text-green-600 font-medium">The car does not have any fines or warnings</span>
+                        scanData.customerType !== 'BOOK' && scanData.customerType !== 'PREBOOKED' && <span className="text-green-600 font-medium">The car does not have any fines or warnings</span>
                       )}
                     </div>
                   </div>
@@ -963,9 +973,9 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
                       buttonStyle="solid"
                       className="flex w-full bg-slate-700 rounded-lg p-1 border border-slate-600 shadow-inner"
                     >
-                      <Radio.Button value="CASH" className="flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 !text-slate-800 bg-white shadow-sm rounded-l-md">Cash</Radio.Button>
-                      <Radio.Button value="PAYPAL" className="flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 border-l border-slate-600 !text-slate-200">PayPal</Radio.Button>
-                      <Radio.Button value="PAYOS" className="flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 border-l border-slate-600 !text-slate-200 rounded-r-md">PayOS QR</Radio.Button>
+                      <Radio.Button value="CASH" className={`flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 rounded-l-md ${paymentMethod === 'CASH' ? '!text-slate-800 bg-white shadow-sm' : '!text-slate-300 bg-transparent'}`}>Cash</Radio.Button>
+                      <Radio.Button value="PAYPAL" className={`flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 border-l border-slate-600 ${paymentMethod === 'PAYPAL' ? '!text-slate-800 bg-white shadow-sm' : '!text-slate-300 bg-transparent'}`}>PayPal</Radio.Button>
+                      <Radio.Button value="PAYOS" className={`flex-1 text-center font-bold text-base h-12 leading-[40px] border-0 border-l border-slate-600 rounded-r-md ${paymentMethod === 'PAYOS' ? '!text-slate-800 bg-white shadow-sm' : '!text-slate-300 bg-transparent'}`}>PayOS QR</Radio.Button>
                     </Radio.Group>
                   </div>
 

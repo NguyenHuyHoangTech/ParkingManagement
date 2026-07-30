@@ -200,7 +200,8 @@ public class ParkingSessionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String status) {
         
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timeIn"));
         Page<ParkingSession> sessionPage;
@@ -208,9 +209,17 @@ public class ParkingSessionController {
         if (startDate != null && endDate != null) {
             LocalDateTime start = startDate.atStartOfDay();
             LocalDateTime end = endDate.atTime(LocalTime.MAX);
-            sessionPage = parkingSessionRepository.findByTimeInBetween(start, end, pageRequest);
+            if (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL")) {
+                sessionPage = parkingSessionRepository.findByTimeInBetweenAndStatus(start, end, status.toUpperCase(), pageRequest);
+            } else {
+                sessionPage = parkingSessionRepository.findByTimeInBetween(start, end, pageRequest);
+            }
         } else {
-            sessionPage = parkingSessionRepository.findAll(pageRequest);
+            if (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL")) {
+                sessionPage = parkingSessionRepository.findByStatus(status.toUpperCase(), pageRequest);
+            } else {
+                sessionPage = parkingSessionRepository.findAll(pageRequest);
+            }
         }
         
         List<Map<String, Object>> content = sessionPage.getContent().stream()
@@ -303,6 +312,7 @@ public class ParkingSessionController {
         map.put("plate", ps.getPlate());
         map.put("vehicleType", ps.getVehicleType() != null ? ps.getVehicleType().getTypeName() : null);
         map.put("rfid", ps.getRfidCard() != null ? ps.getRfidCard().getCardCode() : null);
+        map.put("cardId", ps.getRfidCard() != null ? ps.getRfidCard().getCardId() : null);
         map.put("timeIn", ps.getTimeIn());
         map.put("timeOut", ps.getTimeOut());
         map.put("gateInName", ps.getGateIn() != null ? ps.getGateIn().getGateName() : null);
