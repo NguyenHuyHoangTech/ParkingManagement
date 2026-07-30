@@ -484,8 +484,8 @@ public class ReservationService {
             if ("ACTIVE".equals(ps.getStatus())) {
                 if (!"COMPLETED".equals(res.getStatus())) {
                     log.info("Reservation {} completed. Car still in lot. Switching to guest pricing.", res.getId());
-                    res.setStatus("COMPLETED");
-                    reservationRepository.save(res);
+                    log.info("Reservation {} completed. Car still in lot. Switching to guest pricing (kept as ACTIVE).", res.getId());
+                    // Do NOT set to COMPLETED here. Keep it ACTIVE so that checkout can calculate overtime fee.
                 }
             } else if ("COMPLETED".equals(ps.getStatus())) {
                 if (!"COMPLETED".equals(res.getStatus())) {

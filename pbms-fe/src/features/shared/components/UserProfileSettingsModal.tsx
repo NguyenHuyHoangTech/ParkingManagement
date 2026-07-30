@@ -5,12 +5,14 @@ import {
   LockOutlined, 
   GoogleOutlined, 
   SafetyCertificateOutlined,
-  SaveOutlined
+  SaveOutlined,
+  BugOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../../../core/store/useAuthStore';
 import { useMutation } from '@tanstack/react-query';
 import axiosClient from '../../../core/api/axiosClient';
 import { GoogleLogin } from '@react-oauth/google';
+import { GlobalReservationDebugWidget } from '../../debug/GlobalReservationDebugWidget';
 
 const { Title, Text } = Typography;
 
@@ -231,6 +233,16 @@ export const UserProfileSettingsModal: React.FC<UserProfileSettingsModalProps> =
                 </Button>
               </Form>
             </div>
+          </div>
+        </Tabs.TabPane>
+        {/* TAB 3: DEVELOPER / DEBUG */}
+        <Tabs.TabPane tab={<span><BugOutlined />Debug</span>} key="3">
+          <div className="mt-2 flex flex-col items-center justify-center space-y-4 py-8 bg-slate-50 border border-slate-200 rounded-lg">
+            <Title level={5} className="text-slate-700 text-center m-0">Reservation Timers & IoT Debugging</Title>
+            <Text className="text-slate-500 text-center block max-w-xs mb-4">
+              Open the debug console to fast-forward time or trigger IoT events.
+            </Text>
+            <GlobalReservationDebugWidget />
           </div>
         </Tabs.TabPane>
       </Tabs>

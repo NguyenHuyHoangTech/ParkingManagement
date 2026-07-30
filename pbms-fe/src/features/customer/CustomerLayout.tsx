@@ -111,10 +111,6 @@ export const CustomerLayout = () => {
                       </span>
                   </div>
 
-                  <div className="hidden lg:block shrink-0">
-                    <GlobalReservationDebugWidget />
-                  </div>
-
                   <div className="hidden lg:block pl-2 lg:pl-4 border-l border-slate-200 shrink-0">
                     <Dropdown menu={userMenu} placement="bottomRight" arrow>
                       <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 pr-3 rounded-full transition-colors">
@@ -124,12 +120,14 @@ export const CustomerLayout = () => {
                     </Dropdown>
                   </div>
 
-                  <Button 
-                    className="lg:hidden text-slate-600" 
-                    type="text" 
-                    icon={<MenuOutlined className="text-xl" />} 
-                    onClick={() => setIsMobileMenuOpen(true)} 
-                  />
+                  <div className="lg:hidden">
+                    <Button 
+                      className="text-slate-600" 
+                      type="text" 
+                      icon={<MenuOutlined className="text-xl" />} 
+                      onClick={() => setIsMobileMenuOpen(true)} 
+                    />
+                  </div>
               </div>
           </div>
       </header>

@@ -742,14 +742,14 @@ export const MyParkingScreen = () => {
                       <div className="flex items-center space-x-2 mb-2">
                         <Tag color={
                           displayStatus === 'PENDING' ? 'orange' :
-                            displayStatus === 'ACTIVE' ? 'blue' :
+                            displayStatus === 'ACTIVE' ? (dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isBefore(simulatedDayjs()) ? 'red' : 'blue') :
                               displayStatus === 'COMPLETED' ? 'green' :
                                 displayStatus === 'COMPLETED_UNUSED' ? 'default' :
                                   displayStatus === 'PENDING_REFUND' ? 'purple' :
                                     displayStatus === 'CANCELLED_REFUNDED' ? 'default' : 'red'
                         } className="m-0 font-bold text-[10px] md:text-xs">
                           {displayStatus === 'PENDING' ? 'PRE-BOOKING' :
-                            displayStatus === 'ACTIVE' ? 'IN-PARKING' :
+                            displayStatus === 'ACTIVE' ? (dayjs(item.expectedEntryTime).add(item.expectedDurationMinutes || 0, 'minute').isBefore(simulatedDayjs()) ? 'OVERDUE (IN-PARKING)' : 'IN-PARKING') :
                               displayStatus === 'COMPLETED' ? 'COMPLETED' :
                                 displayStatus === 'COMPLETED_UNUSED' ? 'NO SHOW' :
                                   displayStatus === 'PENDING_REFUND' ? 'PENDING REFUND' :
