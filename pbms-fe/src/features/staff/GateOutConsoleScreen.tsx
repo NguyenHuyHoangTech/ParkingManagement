@@ -508,7 +508,15 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       setPaymentOrderId('');
       isProcessingRef.current = false;
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error checking out vehicle.');
+      const errMsg = error.response?.data?.message || 'Error checking out vehicle.';
+      if (errMsg.includes('Quote has expired') || errMsg.includes('refresh the page')) {
+        message.warning('The price has been refreshed. Please review and confirm the accurate collection amount.');
+        if (handleRefreshPriceRef.current) {
+          handleRefreshPriceRef.current();
+        }
+      } else {
+        message.error(errMsg);
+      }
       isProcessingRef.current = false;
     } finally {
       setIsLoading(false);

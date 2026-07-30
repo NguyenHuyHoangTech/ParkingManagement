@@ -630,7 +630,7 @@ public class GateOperationService {
 
         java.time.LocalDateTime now = targetTime;
         java.time.LocalDateTime feeStartTime = determineFeeStartTime(session, rfidCode);
-        long duration = java.time.Duration.between(session.getTimeIn(), now).toMinutes();
+        long duration = calculateRoundedMinutes(session.getTimeIn(), now);
         if (duration < 0)
             duration = 0;
         info.setDurationMinutes(duration);
@@ -657,7 +657,7 @@ public class GateOperationService {
             info.setBookedTimeOut(bookedOut);
 
             if (now.isAfter(bookedOut)) {
-                long overtime = java.time.Duration.between(bookedOut, now).toMinutes();
+                long overtime = calculateRoundedMinutes(bookedOut, now);
                 info.setOvertimeMinutes(overtime);
                 if (session.getVehicleType() != null) {
                     try {
@@ -690,7 +690,7 @@ public class GateOperationService {
                 if (feeStartTime.isAfter(session.getTimeIn())) {
                     info.setExpectedFee(java.math.BigDecimal.ZERO);
                     info.setOvertimeFee(fee);
-                    info.setOvertimeMinutes(java.time.Duration.between(feeStartTime, now).toMinutes());
+                    info.setOvertimeMinutes(calculateRoundedMinutes(feeStartTime, now));
                     // Force UI to recognize as MONTHLY so it shows overtime nicely
                     info.setCustomerType("MONTHLY");
                 } else {
@@ -1187,7 +1187,7 @@ public class GateOperationService {
                     overtimeFee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(),
                             bookedOut,
                             session.getTimeOut());
-                    overtimeMinutes = java.time.Duration.between(bookedOut, session.getTimeOut()).toMinutes();
+                    overtimeMinutes = calculateRoundedMinutes(bookedOut, session.getTimeOut());
                 }
             } else {
                 String rfidCode = (request.getRfid() != null) ? request.getRfid()
@@ -1200,7 +1200,7 @@ public class GateOperationService {
                     overtimeFee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(),
                             feeStartTime,
                             session.getTimeOut());
-                    overtimeMinutes = java.time.Duration.between(feeStartTime, session.getTimeOut()).toMinutes();
+                    overtimeMinutes = calculateRoundedMinutes(feeStartTime, session.getTimeOut());
                 } else {
                     // Walk-in
                     fee = pricingCalculatorService.calculateParkingFee(session.getVehicleType().getId(), feeStartTime,
@@ -1377,5 +1377,11 @@ public class GateOperationService {
             log.error("Failed to broadcast incident update", e);
         }
         return saved;
+    }
+
+    private long calculateRoundedMinutes(java.time.LocalDateTime start, java.time.LocalDateTime end) {
+        if (end.isBefore(start)) return 0;
+        long seconds = java.time.Duration.between(start, end).getSeconds();
+        return seconds > 0 ? (seconds + 59) / 60 : 0;
     }
 }

@@ -440,7 +440,6 @@ const App = () => {
       } else if (selectedGate.gateType === 'OUT' || selectedGate.gateType === 'EXIT') {
         form.setFieldValue('actionType', 'OUT');
       }
-      form.setFieldValue('vehicleType', undefined); 
     }
   }, [selectedGateId, selectedGate, form]);
 

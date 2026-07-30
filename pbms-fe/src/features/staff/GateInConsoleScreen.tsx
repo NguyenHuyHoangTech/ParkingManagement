@@ -188,8 +188,8 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
       const subStaff = stompClient.subscribe('/topic/staff/notifications', (message) => {
         try {
           const data = JSON.parse(message.body);
-          if (data.type === 'RESERVATION_ARRIVED') {
-            // Re-fetch zonesMap so that pendingReservations count goes down
+          if (data.type === 'RESERVATION_ARRIVED' || data.type === 'RESERVATION_CREATED' || data.type === 'RESERVATION_CANCELLED' || data.type === 'ZONE_RESERVED') {
+            // Re-fetch zonesMap so that pendingReservations count updates
             queryClient.invalidateQueries({ queryKey: ['zonesMap'] });
           }
         } catch (e) { }

@@ -193,6 +193,8 @@ public class ReservationService {
         reservation = reservationRepository.save(reservation);
 
         scheduleReservationTasks(reservation);
+        
+        messagingTemplate.convertAndSend("/topic/staff/notifications", "{\"type\":\"RESERVATION_CREATED\"}");
 
         return mapToDTO(reservation);
     }
