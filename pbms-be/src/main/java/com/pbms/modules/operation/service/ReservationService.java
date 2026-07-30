@@ -88,6 +88,15 @@ public class ReservationService {
         if (request.getPlateNumber() == null || request.getPlateNumber().trim().isEmpty()) {
             throw new IllegalArgumentException("License plate cannot be empty.");
         }
+        
+        if (request.getExpectedEntryTime() == null) {
+            throw new IllegalArgumentException("Expected entry time is required.");
+        }
+        
+        java.time.LocalDateTime now = com.pbms.common.utils.TimeProvider.now();
+        if (request.getExpectedEntryTime().isBefore(now.plusMinutes(10))) {
+            throw new IllegalStateException("The reservation time must be at least 10 minutes from now.");
+        }
 
         Vehicle vehicle = vehicleRepository.findByPlateNumber(request.getPlateNumber()).orElse(null);
 

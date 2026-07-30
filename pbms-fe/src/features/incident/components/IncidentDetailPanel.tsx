@@ -148,7 +148,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
     }
   }, [ticket, systemConfigs]);
 
-  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER', 'LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
+  const isAutoCheckoutType = ['ZONE_VIOLATION', 'OVERSTAY', 'LPR_MISMATCH', 'SLOT_OCCUPIED', 'FIND_CAR', 'FEE_DISPUTE', 'BLACKLIST_VIOLATION', 'OTHER', 'LOST_CARD', 'DAMAGED_CARD', 'OTHER_FEEDBACK'].includes(ticket.type);
 
   const effectivePenaltyFee = (ticket.type === 'DAMAGED_CARD') 
     ? (damageCausePhase2 === 'USER' ? getDamagedCardPenalty() : 0)
@@ -966,7 +966,7 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
         const isMismatch = ['LPR_MISMATCH', 'TYPE_MISMATCH', 'MULTIPLE_MISMATCH'].includes(ticket.type);
         const isCardIncident = ['LOST_CARD', 'DAMAGED_CARD'].includes(ticket.type);
         const isActive = ticket.status === 'PENDING' || ticket.status === 'WAITING_CHECKOUT';
-        const canCancel = !isMismatch && isActive && (isCardIncident || ticket.status === 'PENDING' || isManager);
+        const canCancel = !isMismatch && isActive && (ticket.status === 'PENDING' || userRole === 'STAFF' || isManager);
         if (!canCancel) return null;
         return (
           <div className="p-4 border-t bg-slate-50 rounded-b-xl flex flex-col sm:flex-row justify-end gap-2">

@@ -161,7 +161,7 @@ export const HelpdeskScreen = () => {
               <List dataSource={filteredTickets} renderItem={(item: any) => (
                   <div className="p-4 mb-3 rounded-2xl cursor-pointer border bg-white border-gray-200 shadow-sm active:bg-gray-50 transition-colors" onClick={() => navigateToDetail(item)}>
                     <div className="flex justify-between items-start mb-2">
-                      <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text>
+                      <Text strong className="text-gray-800 text-base tracking-wider">{item.plate || item.rfid || (item.type === 'OTHER_FEEDBACK' ? 'FEEDBACK' : 'HOLLOW')}</Text>
                       <Text type="secondary" className="text-xs">{item.time ? new Date(item.time).toLocaleDateString('vi-VN') : ''}</Text>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -293,7 +293,7 @@ export const HelpdeskScreen = () => {
         <div className="flex-1 overflow-y-auto p-2">
           <List dataSource={filteredTickets} renderItem={(item: any) => (
               <div className={`p-3 mb-2 rounded-xl cursor-pointer border transition-all ${selectedTicket?.id === item.id ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-100' : 'bg-white border-gray-200 hover:border-blue-300'}`} onClick={() => setSelectedTicket(item)}>
-                <div className="flex justify-between items-start mb-1"><Text strong className="text-gray-800 tracking-wider">{item.plate || item.rfid || 'HOLLOW'}</Text><Text type="secondary" className="text-xs">{item.time ? new Date(item.time).toLocaleDateString('vi-VN') : ''}</Text></div>
+                <div className="flex justify-between items-start mb-1"><Text strong className="text-gray-800 tracking-wider">{item.plate || item.rfid || (item.type === 'OTHER_FEEDBACK' ? 'FEEDBACK' : 'HOLLOW')}</Text><Text type="secondary" className="text-xs">{item.time ? new Date(item.time).toLocaleDateString('vi-VN') : ''}</Text></div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   <Tag color={item.type === 'LOST_CARD' ? 'volcano' : item.type === 'BLACKLIST_VIOLATION' ? 'red' : 'orange'} className="m-0 border-0 text-[10px] sm:text-xs">{item.type}</Tag>
                   {item.status === 'CANCELLED' || item.status === 'REJECTED' ? (

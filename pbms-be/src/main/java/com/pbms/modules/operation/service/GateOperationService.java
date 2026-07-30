@@ -53,55 +53,83 @@ import java.util.Optional;
 
 /**
  * =========================================================================================
- * CHI TIẾT VÒNG ĐỜI VÀ KIẾN TRÚC XỬ LÝ REQUEST CỦA HỆ THỐNG (KÈM MINH CHỨNG CODE)
- * (Trình bày chi tiết luồng dữ liệu ánh xạ trực tiếp vào các dòng code trong file này)
+ * CHI TIẾT VÒNG ĐỜI VÀ KIẾN TRÚC XỬ LÝ REQUEST CỦA HỆ THỐNG (KÈM MINH CHỨNG
+ * CODE)
+ * (Trình bày chi tiết luồng dữ liệu ánh xạ trực tiếp vào các dòng code trong
+ * file này)
  * 
- * LƯU Ý QUAN TRỌNG: File này thiết kế theo kiến trúc "Human-in-the-loop" (Có nhân viên xác nhận). 
- * Hệ thống KHÔNG tự động mở cổng ngay khi Camera AI quét xong, mà chia làm 2 giai đoạn: 
- * Giai đoạn Trigger (Bắn nháp lên màn hình) và Giai đoạn Process (Lưu thật vào DB).
+ * LƯU Ý QUAN TRỌNG: File này thiết kế theo kiến trúc "Human-in-the-loop" (Có
+ * nhân viên xác nhận).
+ * Hệ thống KHÔNG tự động mở cổng ngay khi Camera AI quét xong, mà chia làm 2
+ * giai đoạn:
+ * Giai đoạn Trigger (Bắn nháp lên màn hình) và Giai đoạn Process (Lưu thật vào
+ * DB).
  * =========================================================================================
  * 
  * BƯỚC 1: KHỞI TẠO BỘ NÃO VÀ TIÊM PHỤ THUỘC (DEPENDENCY INJECTION)
- * - Minh chứng 1: Dòng 90 có khai báo `@Service`. Báo cho Spring Boot biết đây là một Bộ não 
- *   (Service Bean) xử lý nghiệp vụ lõi, cần được đúc sẵn trên RAM.
- * - Minh chứng 2: Dòng 91 có `@RequiredArgsConstructor`. Lệnh của Lombok giúp tự động sinh ra 
- *   Constructor để tiêm (Inject) 14 cái "Nhà kho". Đây chính là cách Service 
- *   móc nối với Database (như `gateRepository`, `sessionRepository`) mà không cần dùng từ khóa `new`.
+ * - Minh chứng 1: Dòng 90 có khai báo `@Service`. Báo cho Spring Boot biết đây
+ * là một Bộ não
+ * (Service Bean) xử lý nghiệp vụ lõi, cần được đúc sẵn trên RAM.
+ * - Minh chứng 2: Dòng 91 có `@RequiredArgsConstructor`. Lệnh của Lombok giúp
+ * tự động sinh ra
+ * Constructor để tiêm (Inject) 14 cái "Nhà kho". Đây chính là cách Service
+ * móc nối với Database (như `gateRepository`, `sessionRepository`) mà không cần
+ * dùng từ khóa `new`.
  * 
  * BƯỚC 2: TIẾP NHẬN YÊU CẦU TỪ LỄ TÂN (DELEGATION & BINDING)
- * - Minh chứng: Tại dòng 234, hàm `public GateResponseDTO triggerScanCheckIn(CheckInRequestDTO request)` 
- *   được gọi từ Controller. Dữ liệu xe cộ (biển số, ảnh chụp) đã được bóc tách sẵn nằm gọn trong biến `request`.
+ * - Minh chứng: Tại dòng 234, hàm `public GateResponseDTO
+ * triggerScanCheckIn(CheckInRequestDTO request)`
+ * được gọi từ Controller. Dữ liệu xe cộ (biển số, ảnh chụp) đã được bóc tách
+ * sẵn nằm gọn trong biến `request`.
  * 
  * BƯỚC 3: TRUY VẤN DỮ LIỆU THỰC TRẠNG (DATA FETCHING)
- * - Minh chứng: Dòng 235 `Gate gate = gateRepository.findById(request.getGateId())`. Bộ não bắt đầu 
- *   chọc vào CSDL để lấy thông tin chiếc cổng mà xe đang đứng chờ.
+ * - Minh chứng: Dòng 235 `Gate gate =
+ * gateRepository.findById(request.getGateId())`. Bộ não bắt đầu
+ * chọc vào CSDL để lấy thông tin chiếc cổng mà xe đang đứng chờ.
  * 
  * BƯỚC 4: THỰC THI LOGIC NGHIỆP VỤ LÕI (CORE BUSINESS LOGIC) - LÀM NHÁP
  * - (Không lưu ngay vào Database, hệ thống sẽ tính toán toàn bộ kịch bản trước)
- * - Minh chứng 1 (Phân loại khách): Dòng 247 `String customerType = determineCustomerType(...)`. 
- *   Bộ não suy luận xem đây là khách có vé tháng, khách đã đặt chỗ hay khách vãng lai.
- * - Minh chứng 2 (Tìm bãi thông minh): Dòng 256 gọi `suggestedZone = zoneRoutingService.suggestZone(...)`. 
- *   Gọi trí tuệ nhân tạo (AI) tìm bãi trống phù hợp nhất (dựa trên loại xe và loại khách) để dẫn đường.
- * - Minh chứng 3 (Kiểm tra danh sách đen): Dòng 305 chứa `vehicleRepository.findByPlateNumber(...)`. 
- *   Quét xem biển số xe này có đang nợ tiền phạt hoặc bị cấm vào bãi không.
+ * - Minh chứng 1 (Phân loại khách): Dòng 247 `String customerType =
+ * determineCustomerType(...)`.
+ * Bộ não suy luận xem đây là khách có vé tháng, khách đã đặt chỗ hay khách vãng
+ * lai.
+ * - Minh chứng 2 (Tìm bãi thông minh): Dòng 256 gọi `suggestedZone =
+ * zoneRoutingService.suggestZone(...)`.
+ * Gọi trí tuệ nhân tạo (AI) tìm bãi trống phù hợp nhất (dựa trên loại xe và
+ * loại khách) để dẫn đường.
+ * - Minh chứng 3 (Kiểm tra danh sách đen): Dòng 305 chứa
+ * `vehicleRepository.findByPlateNumber(...)`.
+ * Quét xem biển số xe này có đang nợ tiền phạt hoặc bị cấm vào bãi không.
  * 
  * BƯỚC 5: GIAO TIẾP NGOẠI VI (WEB-SOCKET REALTIME)
- * - Minh chứng: Dòng 327 `messagingTemplate.convertAndSend("/topic/gates/...", event);`. 
- * - Khác với Controller là trả về HTTP 200, Service ở pha này đẩy thẳng kết quả nháp (event) qua WebSocket 
- *   để bắn lên 2 file Frontend: `GateInConsoleScreen.tsx` (Màn hình cổng vào) và `GateOutConsoleScreen.tsx` 
- *   (Màn hình cổng ra). (Kiến trúc Human-in-the-loop).
+ * - Minh chứng: Dòng 327 `messagingTemplate.convertAndSend("/topic/gates/...",
+ * event);`.
+ * - Khác với Controller là trả về HTTP 200, Service ở pha này đẩy thẳng kết quả
+ * nháp (event) qua WebSocket
+ * để bắn lên 2 file Frontend: `GateInConsoleScreen.tsx` (Màn hình cổng vào) và
+ * `GateOutConsoleScreen.tsx`
+ * (Màn hình cổng ra). (Kiến trúc Human-in-the-loop).
  * 
  * BƯỚC 6: NHÂN VIÊN XÁC NHẬN & LƯU DATABASE CHÍNH THỨC (PERSISTENCE)
- * - Minh chứng 1 (Xác nhận): Dòng 677 `public GateResponseDTO processCheckIn(...)`. Hàm này CHỈ 
- *   được kích hoạt khi nhân viên lấy mắt thường kiểm tra ảnh đúng biển số và bấm nút "Xác nhận" trên UI.
- * - Minh chứng 2 (Chống trùng lặp): Dòng 797 `sessionRepository.findByPlateAndVehicleTypeIdAndStatus(...)`. 
- *   Ngăn chặn lỗi xe ảo (Ví dụ 1 xe đang nằm trong bãi nhưng bị Camera cổng khác quét nhầm biển).
- * - Minh chứng 3 (Lưu lịch sử): Dòng 823 `ParkingSession session = ParkingSession.builder()...` và 
- *   ngay sau đó (dòng 840) là lệnh `sessionRepository.save(session)`. Đây là lúc dữ liệu chính thức khắc xuống ổ cứng.
- * - Minh chứng 4 (Trả lệnh mở cổng): Cuối hàm (dòng 882), trả về lệnh `OPEN_BARRIER` cho IoT.
+ * - Minh chứng 1 (Xác nhận): Dòng 677 `public GateResponseDTO
+ * processCheckIn(...)`. Hàm này CHỈ
+ * được kích hoạt khi nhân viên lấy mắt thường kiểm tra ảnh đúng biển số và bấm
+ * nút "Xác nhận" trên UI.
+ * - Minh chứng 2 (Chống trùng lặp): Dòng 797
+ * `sessionRepository.findByPlateAndVehicleTypeIdAndStatus(...)`.
+ * Ngăn chặn lỗi xe ảo (Ví dụ 1 xe đang nằm trong bãi nhưng bị Camera cổng khác
+ * quét nhầm biển).
+ * - Minh chứng 3 (Lưu lịch sử): Dòng 823 `ParkingSession session =
+ * ParkingSession.builder()...` và
+ * ngay sau đó (dòng 840) là lệnh `sessionRepository.save(session)`. Đây là lúc
+ * dữ liệu chính thức khắc xuống ổ cứng.
+ * - Minh chứng 4 (Trả lệnh mở cổng): Cuối hàm (dòng 882), trả về lệnh
+ * `OPEN_BARRIER` cho IoT.
  * PHỤ LỤC 1: LUỒNG CHECK-OUT (XE RA) ÁP DỤNG KIẾN TRÚC TƯƠNG TỰ
- * - Tính toán nháp (Trigger): Hàm `triggerScanCheckOut(...)` (Bắn hóa đơn thu tiền lên màn hình).
- * - Thu tiền thật (Process): Hàm `processCheckOut(...)` (Đóng Session, giải phóng ô đỗ và Mở cổng).
+ * - Tính toán nháp (Trigger): Hàm `triggerScanCheckOut(...)` (Bắn hóa đơn thu
+ * tiền lên màn hình).
+ * - Thu tiền thật (Process): Hàm `processCheckOut(...)` (Đóng Session, giải
+ * phóng ô đỗ và Mở cổng).
  * 
  * =========================================================================================
  * PHỤ LỤC 2: DANH MỤC CÁC HÀM (METHODS) VÀ NƠI KÍCH HOẠT (CALLERS)
@@ -109,33 +137,45 @@ import java.util.Optional;
  * 
  * [NHÓM 1: CÁC HÀM TRIGGER (LÀM NHÁP VÀ BẮN WEBSOCKET)]
  * 1. triggerScanCheckIn(CheckInRequestDTO)
- *    - Chức năng: Xử lý logic nháp lúc xe vào, tìm bãi trống, đẩy hình ảnh lên UI.
- *    - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController (dòng 408).
+ * - Chức năng: Xử lý logic nháp lúc xe vào, tìm bãi trống, đẩy hình ảnh lên UI.
+ * - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController
+ * (dòng 408).
  * 2. triggerScanCheckOut(CheckOutRequestDTO)
- *    - Chức năng: Xử lý logic nháp lúc xe ra, tạm tính tiền, đẩy hóa đơn lên UI.
- *    - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController (dòng 439).
+ * - Chức năng: Xử lý logic nháp lúc xe ra, tạm tính tiền, đẩy hóa đơn lên UI.
+ * - Nơi gọi: Được kích hoạt từ thiết bị IoT thông qua IotHardwareController
+ * (dòng 439).
  * 
  * [NHÓM 2: CÁC HÀM PROCESS (CHỐT DATABASE SAU KHI NHÂN VIÊN XÁC NHẬN)]
  * 3. processCheckIn(CheckInRequestDTO)
- *    - Chức năng: Tạo mới ParkingSession, cập nhật trạng thái thẻ RFID, tạo vé phạt nếu cần.
- *    - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng 31).
+ * - Chức năng: Tạo mới ParkingSession, cập nhật trạng thái thẻ RFID, tạo vé
+ * phạt nếu cần.
+ * - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng
+ * 31).
  * 4. processCheckOut(CheckOutRequestDTO)
- *    - Chức năng: Đóng ParkingSession, tính lại tiền lần cuối, giải phóng Zone, lưu Transaction.
- *    - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng 37).
+ * - Chức năng: Đóng ParkingSession, tính lại tiền lần cuối, giải phóng Zone,
+ * lưu Transaction.
+ * - Nơi gọi: Được kích hoạt từ Web UI thông qua GateConsoleController (dòng
+ * 37).
  * 
  * [NHÓM 3: CÁC HÀM TÀI CHÍNH & TRUY VẤN (TÍNH TOÁN, KHÔNG SỬA ĐỔI DB CHÍNH)]
  * 5. getCheckOutSessionInfo(...) (2 hàm Overload)
- *    - Chức năng: Truy xuất thông tin phiên đỗ xe hiện tại và tính toán tiền phí.
- *    - Nơi gọi: Được gọi nội bộ và gọi từ GateConsoleController để lấy lại bảng giá trên màn hình.
+ * - Chức năng: Truy xuất thông tin phiên đỗ xe hiện tại và tính toán tiền phí.
+ * - Nơi gọi: Được gọi nội bộ và gọi từ GateConsoleController để lấy lại bảng
+ * giá trên màn hình.
  * 6. calculateTotalAmount(CheckOutSessionInfoDTO)
- *    - Chức năng: Phép cộng tổng (Phí đỗ + Phí quá giờ + Phí phạt - Giảm giá).
- *    - Nơi gọi: Được gọi từ PaymentValidatorService (khi khách hàng thanh toán online bằng ví MoMo).
+ * - Chức năng: Phép cộng tổng (Phí đỗ + Phí quá giờ + Phí phạt - Giảm giá).
+ * - Nơi gọi: Được gọi từ PaymentValidatorService (khi khách hàng thanh toán
+ * online bằng ví MoMo).
  * 
  * [NHÓM 4: CÁC HÀM HỖ TRỢ NỘI BỘ (PRIVATE HELPERS)]
- * 7. determineCustomerType(): Xác định khách hàng là MONTHLY, PREBOOKED hay WALK-IN.
- * 8. determineFeeStartTime(): Tính mốc thời gian bắt đầu tính tiền (quan trọng khi vé tháng hết hạn giữa chừng).
- * 9. getValidPendingReservations(): Tìm xem khách này có đang đặt chỗ trước không.
- * 10. saveAndBroadcast(IncidentTicket): Lưu sự cố (Ví dụ: khách đi lố giờ) và báo chuông cho màn hình bảo vệ.
+ * 7. determineCustomerType(): Xác định khách hàng là MONTHLY, PREBOOKED hay
+ * WALK-IN.
+ * 8. determineFeeStartTime(): Tính mốc thời gian bắt đầu tính tiền (quan trọng
+ * khi vé tháng hết hạn giữa chừng).
+ * 9. getValidPendingReservations(): Tìm xem khách này có đang đặt chỗ trước
+ * không.
+ * 10. saveAndBroadcast(IncidentTicket): Lưu sự cố (Ví dụ: khách đi lố giờ) và
+ * báo chuông cho màn hình bảo vệ.
  * =========================================================================================
  * 
  */
@@ -517,12 +557,13 @@ public class GateOperationService {
                             s.getId(),
                             java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
                             java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
-                    if (hasLostDamaged) {
+                    if (hasLostDamaged || s.getRfidCard() == null) {
                         session = s;
                         break;
                     }
                 }
             }
+
         }
 
         if (session == null) {
@@ -793,6 +834,14 @@ public class GateOperationService {
                                 + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
                     }
                 }
+                
+                if (earlyBookingNotice != null) {
+                    return GateResponseDTO.builder()
+                            .status("ERROR")
+                            .message("Vehicle has a future booking. Cannot check in as walk-in. Please cancel the booking first.")
+                            .build();
+                }
+
                 suggestedZone = zoneRoutingService.suggestZone(type, customerType, gate.getFloor());
             }
         }
@@ -894,8 +943,12 @@ public class GateOperationService {
         });
 
         Reservation activeRes = null;
+        log.info("[DEBUG] processCheckIn - reservations list size: {}", reservations.size());
         if (!reservations.isEmpty()) {
             activeRes = reservations.get(0);
+            log.info("[DEBUG] processCheckIn - activeRes set to ID: {}", activeRes.getId());
+        } else {
+            log.warn("[DEBUG] processCheckIn - reservations is empty! Plate: {}", request.getPlateNumber());
         }
 
         ParkingSession session = ParkingSession.builder()
@@ -967,11 +1020,13 @@ public class GateOperationService {
         }
 
         if (activeRes != null) {
+            log.info("[DEBUG] processCheckIn - About to set ACTIVE for reservation ID: {}", activeRes.getId());
             activeRes.setStatus("ACTIVE");
             if (suggestedZone != null && !suggestedZone.getId().equals(activeRes.getZone().getId())) {
                 activeRes.setZone(suggestedZone);
             }
             reservationRepository.save(activeRes);
+            log.info("[DEBUG] processCheckIn - Successfully saved ACTIVE for reservation ID: {}", activeRes.getId());
 
             String arrivedPlate = activeRes.getVehicle() != null ? activeRes.getVehicle().getPlateNumber() : "N/A";
             String arrivedZone = activeRes.getZone() != null ? activeRes.getZone().getZoneName() : "N/A";
@@ -979,6 +1034,8 @@ public class GateOperationService {
                     String.format(
                             "{\"type\":\"ZONE_RESERVED\", \"reservationId\":%d, \"plate\":\"%s\", \"zoneName\":\"%s\", \"message\":\"Vehicle arrived.\"}",
                             activeRes.getId(), arrivedPlate, arrivedZone));
+        } else {
+            log.warn("[DEBUG] processCheckIn - activeRes is NULL at save block! Plate: {}", request.getPlateNumber());
         }
 
         GateResponseDTO response = GateResponseDTO.builder()
@@ -1049,7 +1106,7 @@ public class GateOperationService {
                             s.getId(),
                             java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
                             java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
-                    if (hasLostDamaged) {
+                    if (hasLostDamaged || s.getRfidCard() == null) {
                         session = s;
                         break;
                     }
@@ -1163,8 +1220,9 @@ public class GateOperationService {
                 penaltyFee = penaltyFee.add(t.getFineAmount());
             }
             t.setStatus("RESOLVED");
-            t.setResolutionNotes("OVERSTAY".equals(t.getIssueType()) ? "Automatically closed as the vehicle has successfully exited"
-                    : "Resolved on checkout");
+            t.setResolutionNotes(
+                    "OVERSTAY".equals(t.getIssueType()) ? "Automatically closed as the vehicle has successfully exited"
+                            : "Resolved on checkout");
             t.setResolvedAt(com.pbms.common.utils.TimeProvider.now());
             saveAndBroadcast(t);
 

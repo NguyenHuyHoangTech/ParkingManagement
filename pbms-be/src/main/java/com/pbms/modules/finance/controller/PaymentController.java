@@ -244,8 +244,8 @@ public class PaymentController {
         try {
             PaymentExecutionResponse execRes = paymentValidatorService.executeAction(token);
             if (!execRes.isSuccess()) {
-                paymentValidatorService.processRefundForFailedAction(token, execRes.getMessage(), "SYSTEM_WEBHOOK");
-                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + execRes.getMessage() + "\"}");
+                com.pbms.modules.finance.dto.PaymentExecutionResponse refundResponse = paymentValidatorService.processRefundForFailedAction(token, execRes.getMessage(), "SYSTEM_WEBHOOK");
+                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + refundResponse.getMessage() + "\"}");
             } else {
                 messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"SUCCESS\"}");
             }
@@ -259,8 +259,8 @@ public class PaymentController {
                 errorMessage = e.getCause().getMessage();
             }
             try {
-                paymentValidatorService.processRefundForFailedAction(token, errorMessage, "SYSTEM_WEBHOOK");
-                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + errorMessage + "\"}");
+                com.pbms.modules.finance.dto.PaymentExecutionResponse refundResponse = paymentValidatorService.processRefundForFailedAction(token, errorMessage, "SYSTEM_WEBHOOK");
+                messagingTemplate.convertAndSend("/topic/payments/" + token, "{\"status\":\"FAILED\", \"message\":\"" + refundResponse.getMessage() + "\"}");
             } catch (Exception ignored) {}
         }
         

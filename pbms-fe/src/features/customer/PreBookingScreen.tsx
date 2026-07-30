@@ -1,7 +1,7 @@
 import { simulatedDayjs, useSystemTime, useSimulatedOffset, refreshSimulatedOffset } from '../../core/utils/timeProvider';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert } from 'antd';
+import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert, notification } from 'antd';
 import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -26,7 +26,7 @@ export const PreBookingScreen = () => {
 
   const [arrivalTime, setArrivalTime] = useState<dayjs.Dayjs>(() => {
     if (location.state?.arrivalTime) return dayjs(location.state.arrivalTime);
-    return simulatedDayjs().add(30, 'minute');
+    return simulatedDayjs().add(10, 'minute');
   });
   const [endTime, setEndTime] = useState<dayjs.Dayjs>(() => {
     if (location.state?.arrivalTime) return dayjs(location.state.arrivalTime).add(2, 'hour');
@@ -131,10 +131,10 @@ export const PreBookingScreen = () => {
   useEffect(() => {
     // If the offset changes (e.g., initial fetch from server), update the selected times
     if (!location.state?.arrivalTime) {
-      setArrivalTime(simulatedDayjs().add(earlyMins, 'minute'));
-      setEndTime(simulatedDayjs().add(earlyMins + defaultDurationMins, 'minute'));
+      setArrivalTime(simulatedDayjs().add(10, 'minute'));
+      setEndTime(simulatedDayjs().add(10 + defaultDurationMins, 'minute'));
     }
-  }, [systemOffset, earlyMins, defaultDurationMins, location.state]);
+  }, [systemOffset, defaultDurationMins, location.state]);
 
   const addDebugLog = (type: string, data: any) => {
     setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type, data }]);
@@ -224,14 +224,14 @@ export const PreBookingScreen = () => {
       addDebugLog('SUCCESS', data);
       setCountdown(5);
       setIsPaymentSuccess(true);
-      message.success('Payment Success! Your place has been reserved');
+      notification.success({ message: 'Success', description: 'Payment Success! Your place has been reserved', duration: 8 });
       setTimeout(() => {
         navigate('/customer/my-parking?tab=booking');
       }, 2000);
     },
     onError: (err: any) => {
       addDebugLog('ERROR', err.response?.data || err.message);
-      message.error(err.response?.data?.message || 'an error occurred when creating a booking');
+      notification.error({ message: 'Booking Failed', description: err.response?.data?.message || 'an error occurred when creating a booking', duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -270,7 +270,7 @@ export const PreBookingScreen = () => {
     onError: (err: any) => {
       console.error("Payment initialization error:", err);
       const errMsg = err.response?.data?.message || err.message || 'Error when creating payment link (Validation failed)';
-      message.error(errMsg);
+      notification.error({ message: 'Payment Error', description: errMsg, duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -279,7 +279,7 @@ export const PreBookingScreen = () => {
     if (!selectedVehicle) return message.error('Please select Vehicle type');
     if (!plateNumber) return message.error('Please enter vehicle License Plate');
     if (!selectedZone) return message.error('Please select Parking Zone');
-    if (arrivalTime.isBefore(simulatedDayjs().add(earlyMins - 1, 'minute'))) return message.error(`Estimated arrival time must be at least ${earlyMins} minutes later than current time`);
+    if (arrivalTime.isBefore(simulatedDayjs().add(10, 'minute'))) return message.error(`Estimated arrival time must be at least 10 minutes later than current time`);
     if (endTime.isBefore(arrivalTime)) return message.error('Exit Time must be after Entry Time');
 
     setIsQRModalVisible(true);
@@ -308,7 +308,7 @@ export const PreBookingScreen = () => {
         if (res.data?.data?.status === 'COMPLETED') {
           axiosClient.post('/finance/payments/execute-action', { token: paymentOrderId })
             .then(execRes => {
-              message.success('Booking confirmed successfully!');
+              notification.success({ message: 'Success', description: 'Booking confirmed successfully!', duration: 8 });
               setIsPaymentSuccess(true);
               setIsQRModalVisible(false);
               setTimeout(() => {
@@ -316,7 +316,7 @@ export const PreBookingScreen = () => {
               }, 2000);
             })
             .catch(execErr => {
-              message.error(execErr.response?.data?.message || 'System failed to book. Your payment has been queued for a refund.');
+              notification.error({ message: 'Booking Error', description: execErr.response?.data?.message || 'System failed to book. Your payment has been queued for a refund.', duration: 10 });
               setIsQRModalVisible(false);
             });
         } else {
@@ -327,7 +327,7 @@ export const PreBookingScreen = () => {
         if (err.response?.status === 400) {
           message.warning('Payment not yet received. Please try again later.');
         } else {
-          message.error('System is busy or unable to verify. Please try again in a moment.');
+          notification.error({ message: 'Verification Error', description: 'System is busy or unable to verify. Please try again in a moment.', duration: 8 });
         }
       })
       .finally(() => {
@@ -370,14 +370,14 @@ export const PreBookingScreen = () => {
             const payload = JSON.parse(stompMessage.body);
             setDebugLogs(prev => [...prev, { time: simulatedDayjs().format('HH:mm:ss'), type: 'WS_MESSAGE', data: payload }]);
             if (payload.status === 'SUCCESS') {
-              message.success('Booking confirmed successfully!');
+              notification.success({ message: 'Success', description: 'Booking confirmed successfully!', duration: 8 });
               setIsPaymentSuccess(true);
               setIsQRModalVisible(false);
               setTimeout(() => {
                 navigate('/customer/my-parking?tab=booking');
               }, 2000);
             } else if (payload.status === 'FAILED') {
-              message.error(payload.message || 'System failed to book. Your payment has been queued for a full refund.');
+              notification.error({ message: 'Booking Error', description: payload.message || 'System failed to book. Your payment has been queued for a full refund.', duration: 10 });
               setIsQRModalVisible(false);
             }
           });
@@ -452,7 +452,7 @@ export const PreBookingScreen = () => {
                     value={arrivalTime}
                     onChange={(val) => val && setArrivalTime(val)}
                     className="w-full h-12 rounded-lg text-lg"
-                    minDate={simulatedDayjs().add(30, 'minute')}
+                    minDate={simulatedDayjs().add(10, 'minute')}
                     inputReadOnly={true}
                   />
                 </div>
@@ -461,7 +461,7 @@ export const PreBookingScreen = () => {
                     type="datetime-local"
                     className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-base"
                     value={arrivalTime.format('YYYY-MM-DDTHH:mm')}
-                    min={simulatedDayjs().add(30, 'minute').format('YYYY-MM-DDTHH:mm')}
+                    min={simulatedDayjs().add(10, 'minute').format('YYYY-MM-DDTHH:mm')}
                     onChange={(e) => { if (e.target.value) setArrivalTime(dayjs(e.target.value)) }}
                   />
                 </div>

@@ -302,6 +302,19 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
 
         if (payload.earlyBookingNotice) {
           derivedWarnings.push(payload.earlyBookingNotice);
+          import('antd').then(({ Modal }) => {
+            Modal.warning({
+              title: 'Early Booking Arrival',
+              content: (
+                <div>
+                  <p className="text-red-600 font-bold mb-2">{payload.earlyBookingNotice}</p>
+                  <p>Please instruct the user to <b>cancel their booking</b> on their app if they wish to enter now as a walk-in, or ask them to wait until the booking time.</p>
+                  <p className="mt-2 text-slate-500 italic">The system will not allow entry until the booking is cancelled or the time arrives.</p>
+                </div>
+              ),
+              okText: 'Close',
+            });
+          });
         }
 
         if (payload.isBlacklisted) {
@@ -753,12 +766,12 @@ export const GateInConsoleScreen = ({ activeGate }: { activeGate: any }) => {
           type="primary"
           size="large"
           className="h-full flex-[2] text-xl font-bold rounded-lg bg-green-600 hover:bg-green-500 shadow-md border-b-2 border-green-800 active:border-b-0 active:translate-y-1 transition-all"
-          disabled={!scanData}
+          disabled={!scanData || scanData.warnings?.some((w: string) => w.startsWith('Notice: This vehicle has a booking at'))}
           loading={isLoading}
           onClick={handleCheckIn}
         >
 
-          Confirm & Put the car in
+          {scanData?.warnings?.some((w: string) => w.startsWith('Notice: This vehicle has a booking at')) ? 'Blocked: Cancel Booking First' : 'Confirm & Put the car in'}
         </Button>
       </div>
     </div>

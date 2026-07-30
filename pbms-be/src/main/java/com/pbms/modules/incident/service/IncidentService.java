@@ -672,7 +672,7 @@ public class IncidentService {
         }
 
         // Return mapped DTO which calculates the live fee without saving to database.
-        return mapToDTO(ticket);
+        return mapToDTO(ticket, true);
     }
 
     /**
@@ -688,9 +688,9 @@ public class IncidentService {
             throw new IllegalStateException("Ticket is already resolved or in an invalid state");
         }
 
-        if ("OTHER".equals(ticket.getIssueType()) || "OTHER_FEEDBACK".equals(ticket.getIssueType())) {
+        if ("OTHER".equals(ticket.getIssueType())) {
             if (!"MANAGER".equals(getCurrentUser().getRole()) && !"SUPER_ADMIN".equals(getCurrentUser().getRole())) {
-                throw new IllegalStateException("Only Managers have the right to approve other penalty incidents or feedback.");
+                throw new IllegalStateException("Only Managers have the right to approve other penalty incidents.");
             }
         }
 
@@ -947,6 +947,10 @@ public class IncidentService {
     }
 
     private IncidentTicketDTO mapToDTO(IncidentTicket ticket) {
+        return mapToDTO(ticket, false);
+    }
+
+    private IncidentTicketDTO mapToDTO(IncidentTicket ticket, boolean calculateLiveFee) {
         int phase = 3;
         if ("PENDING".equals(ticket.getStatus())) phase = 1;
         else if ("WAITING_CHECKOUT".equals(ticket.getStatus())) phase = 2;
@@ -998,19 +1002,30 @@ public class IncidentService {
             if (targetTime == null) targetTime = session.getTimeIn();
             if (targetTime == null) targetTime = com.pbms.common.utils.TimeProvider.now();
 
-            try {
-                com.pbms.modules.operation.service.GateOperationService gateOperationService = applicationContext.getBean(com.pbms.modules.operation.service.GateOperationService.class);
-                com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(session, targetTime);
-                customerType = checkoutInfo.getCustomerType();
-                durationMinutes = checkoutInfo.getDurationMinutes();
-                overtimeMinutes = checkoutInfo.getOvertimeMinutes();
-                expectedFee = checkoutInfo.getExpectedFee();
-                overtimeFee = checkoutInfo.getOvertimeFee();
-                discountFee = checkoutInfo.getDiscountFee();
-                sessionPenaltyFee = checkoutInfo.getFeePenalty();
-                checkoutToken = checkoutInfo.getCheckoutToken();
-            } catch (Exception e) {
-                log.warn("Could not calculate checkout info for session: {}", session.getId());
+            durationMinutes = java.time.Duration.between(session.getTimeIn(), targetTime).toMinutes();
+
+            if (calculateLiveFee) {
+                try {
+                    com.pbms.modules.operation.service.GateOperationService gateOperationService = applicationContext.getBean(com.pbms.modules.operation.service.GateOperationService.class);
+                    com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(session, targetTime);
+                    customerType = checkoutInfo.getCustomerType();
+                    durationMinutes = checkoutInfo.getDurationMinutes();
+                    overtimeMinutes = checkoutInfo.getOvertimeMinutes();
+                    expectedFee = checkoutInfo.getExpectedFee();
+                    overtimeFee = checkoutInfo.getOvertimeFee();
+                    discountFee = checkoutInfo.getDiscountFee();
+                    sessionPenaltyFee = checkoutInfo.getFeePenalty();
+                    checkoutToken = checkoutInfo.getCheckoutToken();
+                } catch (Exception e) {
+                    log.warn("Could not calculate checkout info for session: {}", session.getId());
+                }
+            } else if ("RESOLVED".equals(ticket.getStatus())) {
+                expectedFee = session.getParkingFee();
+                overtimeFee = session.getOvertimeFee();
+                overtimeMinutes = session.getOvertimeMinutes();
+                discountFee = session.getDiscount();
+                sessionPenaltyFee = session.getPenaltyFee();
+                customerType = "GUEST"; 
             }
         }
 

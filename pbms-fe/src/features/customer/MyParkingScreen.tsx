@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, Card, Typography, List, Divider, Button, Tag, Spin, message, Input, Space, Popconfirm, Empty, Timeline, Drawer, Alert, Form, Select, Radio, Modal, QRCode } from 'antd';
+import { Tabs, Card, Typography, List, Divider, Button, Tag, Spin, message, Input, Space, Popconfirm, Empty, Timeline, Drawer, Alert, Form, Select, Radio, Modal, QRCode, notification } from 'antd';
 import { ClockCircleOutlined, CarOutlined, CreditCardOutlined, SearchOutlined, IdcardOutlined, CloseCircleOutlined, HistoryOutlined, CheckCircleOutlined, EditOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -416,7 +416,7 @@ export const MyParkingScreen = () => {
     },
     onError: (err: any) => {
       const errorMsg = err.response?.data?.message || 'Error creating renewal payment link.';
-      message.error(errorMsg);
+      notification.error({ message: 'Error', description: errorMsg, duration: 8 });
       setIsRenewQRModalVisible(false);
     }
   });
@@ -456,7 +456,7 @@ export const MyParkingScreen = () => {
           axiosClient.post('/finance/payments/execute-action', { token: renewPaymentToken })
             .then(execRes => {
               setIsRenewSuccess(true);
-              message.success('Monthly pass renewed successfully!');
+              notification.success({ message: 'Success', description: 'Payment completed! Your ticket has been extended.', duration: 8 });
               queryClient.invalidateQueries({ queryKey: ['my-passes'] });
               setTimeout(() => {
                 setIsRenewQRModalVisible(false);
@@ -464,7 +464,7 @@ export const MyParkingScreen = () => {
               }, 2000);
             })
             .catch(err => {
-              message.error(err.response?.data?.message || 'System Error: Payment refunded.');
+              notification.error({ message: 'Payment Error', description: err.response?.data?.message || 'System Error: Payment refunded.', duration: 10 });
               setIsRenewSuccess(true); // Stop polling
               setIsRenewQRModalVisible(false);
               setRenewDrawerVisible(false);
@@ -477,7 +477,7 @@ export const MyParkingScreen = () => {
          if (err.response?.status === 400) {
            message.warning('Payment not yet received. Please try again later.');
          } else {
-           message.error('System is busy or unable to verify.');
+           notification.error({ message: 'Verification Error', description: 'System is busy or unable to verify.', duration: 8 });
          }
       })
       .finally(() => {
@@ -526,7 +526,7 @@ export const MyParkingScreen = () => {
                 setRenewDrawerVisible(false);
               }, 2000);
             } else if (payload.status === 'FAILED') {
-              message.error(payload.message || 'System Error: Payment refunded.');
+              notification.error({ message: 'Payment Error', description: payload.message || 'System Error: Payment refunded.', duration: 10 });
               setIsRenewSuccess(true);
               setIsRenewQRModalVisible(false);
               setRenewDrawerVisible(false);

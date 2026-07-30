@@ -1,7 +1,7 @@
 import { simulatedDayjs } from '../../core/utils/timeProvider';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, Row, Col, QRCode } from 'antd';
+import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, Row, Col, QRCode, notification } from 'antd';
 import { IdcardOutlined, CarOutlined, CreditCardOutlined, CheckCircleOutlined, UserOutlined, CalendarOutlined, NumberOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../../core/store/useAuthStore';
@@ -113,13 +113,13 @@ export const CustomerMonthlyPassScreen = () => {
     onSuccess: () => {
       setCountdown(5);
       setIsPaymentSuccess(true);
-      message.success('Payment Success! Your Monthly Pass has been activated');
+      notification.success({ message: 'Success', description: 'Registration Success! Your Monthly Pass has been created', duration: 10 });
       setTimeout(() => {
         navigate('/customer/my-parking?tab=monthly');
       }, 2000);
     },
     onError: () => {
-      message.error('an error occurred when registering for Monthly Pass');
+      notification.error({ message: 'Registration Failed', description: 'an error occurred when registering for Monthly Pass', duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -157,7 +157,7 @@ export const CustomerMonthlyPassScreen = () => {
     onError: (err: any) => {
       console.error("Payment initialization error:", err);
       const errMsg = err.response?.data?.message || err.message || 'Error when creating payment link';
-      message.error(errMsg);
+      notification.error({ message: 'Payment Error', description: errMsg, duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -202,7 +202,7 @@ export const CustomerMonthlyPassScreen = () => {
               }, 2000);
             })
             .catch(execErr => {
-              message.error(execErr.response?.data?.message || 'System failed to process ticket. Your payment has been queued for a refund.');
+              notification.error({ message: 'Processing Error', description: execErr.response?.data?.message || 'System failed to process ticket. Your payment has been queued for a refund.', duration: 10 });
               setIsQRModalVisible(false);
             });
         } else {
@@ -213,7 +213,7 @@ export const CustomerMonthlyPassScreen = () => {
         if (err.response?.status === 400) {
           message.warning('Payment not yet received. Please try again later.');
         } else {
-          message.error('System is busy or unable to verify.');
+          notification.error({ message: 'Verification Error', description: 'System is busy or unable to verify.', duration: 8 });
         }
       })
       .finally(() => {
@@ -261,7 +261,7 @@ export const CustomerMonthlyPassScreen = () => {
                 navigate('/customer/my-parking?tab=monthly');
               }, 2000);
             } else if (payload.status === 'FAILED') {
-              message.error(payload.message || 'System failed to process ticket. Your payment has been queued for a full refund.');
+              notification.error({ message: 'Processing Error', description: payload.message || 'System failed to process ticket. Your payment has been queued for a full refund.', duration: 10 });
               setIsQRModalVisible(false);
             }
           });
