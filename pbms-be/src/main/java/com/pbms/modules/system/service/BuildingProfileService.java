@@ -31,6 +31,8 @@ public class BuildingProfileService {
         existingProfile.setOperatingStart(updateData.getOperatingStart());
         existingProfile.setOperatingEnd(updateData.getOperatingEnd());
         existingProfile.setRules(updateData.getRules());
+        existingProfile.setDescription(updateData.getDescription());
+        existingProfile.setContactEmail(updateData.getContactEmail());
         
         return repository.save(existingProfile);
     }
