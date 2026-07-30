@@ -44,6 +44,10 @@ public class PricingCalculatorService {
             checkOutTime = checkInTime;
         }
 
+        if (Duration.between(checkInTime, checkOutTime).toMinutes() == 0) {
+            checkOutTime = checkInTime.plusMinutes(1);
+        }
+
         long totalMinutes = Duration.between(checkInTime, checkOutTime).toMinutes();
         List<String> breakdown = new ArrayList<>();
         DecimalFormat df = new DecimalFormat("#,###");

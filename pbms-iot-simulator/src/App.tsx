@@ -500,11 +500,19 @@ const App = () => {
       
       const base64Img = generateMockLicensePlateImage(values.plate, values.actionType, values.vehicleType);
       
+      let rfcode = values.rfid;
+      if (isOut && !rfcode && values.plate && activeSessions) {
+        const session = activeSessions.find((s: any) => s.plate === values.plate);
+        if (session && session.rfidCard) {
+          rfcode = session.rfidCard.cardCode;
+        }
+      }
+
       const payload = {
         gateId: values.gateId,
         plateNumber: values.plate,
         vehicleType: values.vehicleType,
-        rfcode: values.rfid,
+        rfcode: rfcode,
         imageBase64: base64Img,
         lprImageBase64: generateMockLprImage(values.plate)
       };

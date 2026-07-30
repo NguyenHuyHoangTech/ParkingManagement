@@ -834,11 +834,12 @@ public class GateOperationService {
                                 + earliest.getExpectedEntryTime().format(formatter) + " but it is not time yet.";
                     }
                 }
-                
+
                 if (earlyBookingNotice != null) {
                     return GateResponseDTO.builder()
                             .status("ERROR")
-                            .message("Vehicle has a future booking. Cannot check in as walk-in. Please cancel the booking first.")
+                            .message(
+                                    "Vehicle has a future booking. Cannot check in as walk-in. Please cancel the booking first.")
                             .build();
                 }
 
