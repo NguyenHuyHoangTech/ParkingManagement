@@ -657,6 +657,22 @@ export const SpaceMapScreen = () => {
   };
 
   const handleSave = () => {
+    // Validate unique zone names
+    const zoneNames = new Set<string>();
+    for (const zone of zones) {
+      if (zone.capacity === 0) continue;
+      const name = (zone.name || '').trim().toLowerCase();
+      if (!name) {
+        message.error(`Tên khu vực không được để trống!`);
+        return;
+      }
+      if (zoneNames.has(name)) {
+        message.error(`Tên khu vực (Zone) không được trùng nhau: ${zone.name}`);
+        return;
+      }
+      zoneNames.add(name);
+    }
+
     // Validate bounds and overlaps
     for (const zone of zones) {
       const activeFloor = floors.find(f => f.id === zone.floorId);

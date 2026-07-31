@@ -235,6 +235,21 @@ public class MapConfigurationService {
         List<Zone> currentZones = zoneRepository.findAll();
         Map<Long, Zone> zoneMap = currentZones.stream().collect(Collectors.toMap(z -> z.getId(), Function.identity()));
 
+        // Validate unique zone names
+        java.util.Set<String> activeZoneNames = new java.util.HashSet<>();
+        for (ZoneConfigDTO zDTO : mapConfig.getZones()) {
+            if (zDTO.getCapacity() > 0) {
+                String name = zDTO.getName() != null ? zDTO.getName().trim() : "";
+                if (name.isEmpty()) {
+                    throw new RuntimeException("Tên khu vực (Zone) không được để trống.");
+                }
+                if (activeZoneNames.contains(name.toLowerCase())) {
+                    throw new RuntimeException("Tên khu vực (Zone) không được trùng nhau: " + name);
+                }
+                activeZoneNames.add(name.toLowerCase());
+            }
+        }
+
         // Find deleted zones
         List<Long> incomingZoneIds = mapConfig.getZones().stream()
                 .filter(z -> z.getId() < 1000000000L)
