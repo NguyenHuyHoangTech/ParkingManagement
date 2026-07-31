@@ -557,13 +557,15 @@ public class IncidentService {
 
             // Update the card status based on incident type
             if (session.getRfidCard() != null) {
-                RfidCard card = session.getRfidCard();
+                com.pbms.modules.infrastructure.domain.RfidCard card = session.getRfidCard();
                 if ("LOST_CARD".equals(ticket.getIssueType())) {
                     card.setStatus("LOST");
                 } else if ("DAMAGED_CARD".equals(ticket.getIssueType())) {
                     card.setStatus("DAMAGED");
                 } else {
-                    card.setStatus("AVAILABLE");
+                    if (!"LOST".equals(card.getStatus()) && !"DAMAGED".equals(card.getStatus())) {
+                        card.setStatus("AVAILABLE");
+                    }
                 }
                 card.setAssignedPlate(null);
                 rfidCardRepository.save(card);
@@ -645,16 +647,24 @@ public class IncidentService {
         if (session != null) {
             boolean isBlacklistViolation = "BLACKLIST_VIOLATION".equals(ticket.getIssueType());
             boolean isCardIncident = "LOST_CARD".equals(ticket.getIssueType()) || "DAMAGED_CARD".equals(ticket.getIssueType());
+            
+            boolean hasOtherLockingIncidents = incidentTicketRepository.findBySessionId(session.getId()).stream()
+                    .anyMatch(t -> !t.getId().equals(id) && 
+                            ("PENDING".equals(t.getStatus()) || "WAITING_CHECKOUT".equals(t.getStatus())) &&
+                            ("LOST_CARD".equals(t.getIssueType()) || "DAMAGED_CARD".equals(t.getIssueType()) || "BLACKLIST_VIOLATION".equals(t.getIssueType()) || "ZONE_VIOLATION".equals(t.getIssueType())));
+
             if ("ACTIVE".equals(session.getStatus()) || "LOCKED".equals(session.getStatus()) || (isBlacklistViolation && "COMPLETED".equals(session.getStatus()))) {
-                if ("LOCKED".equals(session.getStatus()) || (isBlacklistViolation && "COMPLETED".equals(session.getStatus()))) {
-                    session.setStatus("ACTIVE");
-                    session.setTimeOut(null);
-                    session.setParkingFee(null);
-                    if ((isBlacklistViolation || isCardIncident) && session.getRfidCard() != null) {
-                        com.pbms.modules.infrastructure.domain.RfidCard card = session.getRfidCard();
-                        card.setStatus("IN_USE");
-                        card.setAssignedPlate(session.getPlate());
-                        rfidCardRepository.save(card);
+                if (!hasOtherLockingIncidents) {
+                    if ("LOCKED".equals(session.getStatus()) || (isBlacklistViolation && "COMPLETED".equals(session.getStatus()))) {
+                        session.setStatus("ACTIVE");
+                        session.setTimeOut(null);
+                        session.setParkingFee(null);
+                        if ((isBlacklistViolation || isCardIncident) && session.getRfidCard() != null) {
+                            com.pbms.modules.infrastructure.domain.RfidCard card = session.getRfidCard();
+                            card.setStatus("IN_USE");
+                            card.setAssignedPlate(session.getPlate());
+                            rfidCardRepository.save(card);
+                        }
                     }
                 }
                 if ("FEE_DISPUTE".equals(ticket.getIssueType())) {
@@ -1029,7 +1039,7 @@ public class IncidentService {
             if (calculateLiveFee) {
                 try {
                     com.pbms.modules.operation.service.GateOperationService gateOperationService = applicationContext.getBean(com.pbms.modules.operation.service.GateOperationService.class);
-                    com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(session, targetTime);
+                    com.pbms.modules.operation.dto.CheckOutSessionInfoDTO checkoutInfo = gateOperationService.getCheckOutSessionInfo(session, targetTime, true);
                     customerType = checkoutInfo.getCustomerType();
                     durationMinutes = checkoutInfo.getDurationMinutes();
                     overtimeMinutes = checkoutInfo.getOvertimeMinutes();
@@ -1039,7 +1049,7 @@ public class IncidentService {
                     sessionPenaltyFee = checkoutInfo.getFeePenalty();
                     checkoutToken = checkoutInfo.getCheckoutToken();
                 } catch (Exception e) {
-                    log.warn("Could not calculate checkout info for session: {}", session.getId());
+                    log.error("Could not calculate checkout info for session: " + session.getId(), e);
                 }
             } else if ("RESOLVED".equals(ticket.getStatus())) {
                 expectedFee = session.getParkingFee();

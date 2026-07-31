@@ -148,7 +148,7 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
       return;
     }
 
-    const requiresNoCardCode = selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER';
+    const requiresNoCardCode = userRole === 'STAFF' || selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER';
     let rfid = '';
     if (!requiresNoCardCode) {
       rfid = form.getFieldValue('code');
@@ -286,13 +286,13 @@ export const IncidentSubmitForm: React.FC<IncidentSubmitFormProps> = ({ onSucces
               <Form.Item 
                 label="Actual License Plate"
                 required
-                className={`mb-0 col-span-1 ${(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') ? 'md:col-span-2' : ''}`}
+                className={`mb-0 col-span-1 ${(userRole === 'STAFF' || selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') ? 'md:col-span-2' : ''}`}
               >
                 <div className="flex gap-2">
                     <Form.Item name="plate" rules={[{ required: true, message: 'Please enter license plate' }]} noStyle>
                       <Input size="large" prefix={<CarOutlined className="text-gray-400 mr-2" />} placeholder="Ex: 51G-123.45" className="h-12 font-mono uppercase" disabled={isCheckingPlate} onChange={(e) => { setIsPlateVerified(false); form.setFieldsValue({ plate: normalizePlateNumber(e.target.value) }); }} />
                     </Form.Item>
-                  {(selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') && (
+                  {(userRole === 'STAFF' || selectedCategory === 'LOST_CARD' || selectedCategory === 'DAMAGED_CARD' || selectedCategory === 'ZONE_VIOLATION' || selectedCategory === 'BLACKLIST_VIOLATION' || selectedCategory === 'OTHER') && (
                     <Button type="primary" size="large" className="h-12" loading={isCheckingPlate} onClick={handleCheckPlate}>
                       Verify
                     </Button>

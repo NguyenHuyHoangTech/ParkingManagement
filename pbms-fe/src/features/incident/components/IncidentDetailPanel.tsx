@@ -19,8 +19,16 @@ interface IncidentDetailPanelProps {
   onActionComplete?: (ticket?: any) => void;
 }
 
-export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket, userRole, isManager, onClose, onActionComplete }) => {
+export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket: initialTicket, userRole, isManager, onClose, onActionComplete }) => {
   const queryClient = useQueryClient();
+
+  const [liveTicket, setLiveTicket] = useState<any>(null);
+
+  useEffect(() => {
+    setLiveTicket(null);
+  }, [initialTicket?.id]);
+
+  const ticket = liveTicket || initialTicket;
 
   // Common States
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
@@ -347,11 +355,14 @@ export const IncidentDetailPanel: React.FC<IncidentDetailPanelProps> = ({ ticket
 
   const pauseFeeMutation = useMutation({
     mutationFn: async () => {
-      await axiosClient.put(`/incident/incidents/${ticket.id}/pause-fee`);
+      const res = await axiosClient.put(`/incident/incidents/${ticket.id}/pause-fee`);
+      return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       message.success('Current parking fee calculated');
-      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      if (res && res.data) {
+        setLiveTicket(res.data);
+      }
     }
   });
 

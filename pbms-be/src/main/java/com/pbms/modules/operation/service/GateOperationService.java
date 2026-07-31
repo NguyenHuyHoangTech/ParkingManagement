@@ -556,7 +556,7 @@ public class GateOperationService {
                     boolean hasLostDamaged = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
                             s.getId(),
                             java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
-                            java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+                            java.util.Arrays.asList("WAITING_CHECKOUT"));
                     if (hasLostDamaged || s.getRfidCard() == null) {
                         session = s;
                         break;
@@ -600,6 +600,11 @@ public class GateOperationService {
      */
     public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(ParkingSession session,
             java.time.LocalDateTime targetTime) {
+        return getCheckOutSessionInfo(session, targetTime, false);
+    }
+
+    public com.pbms.modules.operation.dto.CheckOutSessionInfoDTO getCheckOutSessionInfo(ParkingSession session,
+            java.time.LocalDateTime targetTime, boolean includePendingIncidents) {
         com.pbms.modules.operation.dto.CheckOutSessionInfoDTO info = new com.pbms.modules.operation.dto.CheckOutSessionInfoDTO();
         info.setPlateNumberIn(session.getPlate());
         info.setRfid(session.getRfidCard() != null ? session.getRfidCard().getCardCode() : "N/A");
@@ -716,7 +721,7 @@ public class GateOperationService {
 
         java.util.List<com.pbms.modules.incident.domain.IncidentTicket> validTickets = tickets.stream()
                 .filter(ticket -> "WAITING_CHECKOUT".equals(ticket.getStatus()) ||
-                        ("PENDING".equals(ticket.getStatus()) && "OVERSTAY".equals(ticket.getIssueType())))
+                        (includePendingIncidents && "PENDING".equals(ticket.getStatus())))
                 .collect(java.util.stream.Collectors.toList());
 
         java.math.BigDecimal penaltyFee = validTickets.stream()
@@ -1150,7 +1155,7 @@ public class GateOperationService {
                     boolean hasLostDamaged = incidentTicketRepository.existsBySessionIdAndIssueTypeInAndStatusIn(
                             s.getId(),
                             java.util.Arrays.asList("LOST_CARD", "DAMAGED_CARD"),
-                            java.util.Arrays.asList("PENDING", "WAITING_CHECKOUT"));
+                            java.util.Arrays.asList("WAITING_CHECKOUT"));
                     if (hasLostDamaged || s.getRfidCard() == null) {
                         session = s;
                         break;
@@ -1257,12 +1262,11 @@ public class GateOperationService {
         List<com.pbms.modules.incident.domain.IncidentTicket> allSessionTickets = incidentTicketRepository.findBySessionId(session.getId());
         
         List<com.pbms.modules.incident.domain.IncidentTicket> waitingTickets = allSessionTickets.stream()
-                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()) ||
-                        ("PENDING".equals(t.getStatus()) && "OVERSTAY".equals(t.getIssueType())))
+                .filter(t -> "WAITING_CHECKOUT".equals(t.getStatus()))
                 .collect(java.util.stream.Collectors.toList());
                 
         List<com.pbms.modules.incident.domain.IncidentTicket> pendingTicketsToCancel = allSessionTickets.stream()
-                .filter(t -> "PENDING".equals(t.getStatus()) && !"OVERSTAY".equals(t.getIssueType()))
+                .filter(t -> "PENDING".equals(t.getStatus()))
                 .collect(java.util.stream.Collectors.toList());
 
         for (com.pbms.modules.incident.domain.IncidentTicket t : waitingTickets) {
