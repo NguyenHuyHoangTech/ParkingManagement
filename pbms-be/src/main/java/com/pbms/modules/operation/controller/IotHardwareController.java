@@ -100,8 +100,10 @@ package com.pbms.modules.operation.controller;
  *   + Dòng 288 `messagingTemplate.convertAndSend(...)`: Gọi công cụ WebSocket bắn tín hiệu Real-time bắt toàn bộ giao diện Web phải cập nhật lại đồng hồ hiển thị.
  *   + Dòng 292 `eventPublisher.publishEvent(...)`: Dùng kiến trúc Event-Driven bắn 1 sự kiện ngầm trong nội bộ Backend (Ví dụ để đánh thức các hàm Dọn dẹp vé quá hạn).
  * 
- * PHỤ LỤC 4: HÀNH TRÌNH REQUEST ĐỒNG BỘ DỮ LIỆU (DATA SYNC VÀ DEBUG)
- * - Minh chứng Handler (GET): Hàm `syncData` (dòng 382) và `debugSession` (dòng 220) khai báo `@GetMapping`. 
+ * PHỤ LỤC 4: HÀNH TRÌNH REQUEST ĐỒNG BỘ DỮ LIỆU (DATA SYNC)
+ * - Minh chứng Handler (GET): Hàm `syncData` (dòng 382) khai báo `@GetMapping`.
+ *   (Hàm `debugSession` từng có ở đây đã bị xóa vì là code chết — không
+ *   FE/simulator nào gọi tới, xem lịch sử git.)
  * - Minh chứng Tối ưu hóa: Dòng 383 `@Transactional(readOnly = true)`. Báo cho bộ máy Hibernate biết đây chỉ là lệnh SELECT (không có thao tác Ghi/Xóa dữ liệu) để nó tối ưu hóa RAM và khóa (Lock) của cơ sở dữ liệu.
  * - Minh chứng Gom dữ liệu: Không có Service Delegation phức tạp. Các hàm này chỉ gọi trực tiếp các kho dữ liệu (như dòng 391 `slotRepository.findAll()`), nhét vào một cái túi bọc Hash Map khổng lồ và quăng ra bằng Jackson.
  * =========================================================================================
@@ -298,41 +300,6 @@ public class IotHardwareController {
         zoneMonitoringService.processSensorEvent(request.getSensorId(), request.getStatus());
         // Báo lại cho thiết bị là đã cập nhật xong
         return ResponseEntity.ok(ApiResponse.success("Processed", "Sensor update processed successfully"));
-    }
-
-    /**
-     * =========================================================================
-     * API: LẤY THÔNG TIN DEBUG PHIÊN ĐỖ XE (DEBUG SESSION)
-     * =========================================================================
-     * MỤC ĐÍCH:
-     * API này chỉ dùng cho mục đích kiểm thử (Testing) hoặc cho Tool IoT Simulator.
-     * Nó giúp nhà phát triển (hoặc thầy cô lúc chấm) xem nhanh dữ liệu của 1 phiên
-     * đỗ xe ngẫu nhiên
-     * (ở đây đang hardcode ID = 20) xem có thẻ RFID, có biển số hay không.
-     */
-    @GetMapping("/debug-session") // Lắng nghe method GET tại "/debug-session"
-    @Transactional(readOnly = true) // Đánh dấu đây là hàm chỉ Đọc dữ liệu (không sửa/xóa), giúp Spring tối ưu tốc
-                                    // độ Database.
-    public ResponseEntity<Map<String, Object>> debugSession() {
-        Map<String, Object> debug = new HashMap<>();
-
-        // Tìm thử phiên đỗ xe có ID = 20 trong Database
-        com.pbms.modules.operation.domain.ParkingSession s = sessionRepository.findById(20L).orElse(null);
-        if (s != null) {
-            // Nhét các thông tin biển số, loại xe, mã thẻ vào biến `debug`
-            debug.put("plate", s.getPlate());
-            debug.put("hasVehicleType", s.getVehicleType() != null);
-            if (s.getVehicleType() != null)
-                debug.put("vehicleTypeId", s.getVehicleType().getId());
-            debug.put("hasRfidCard", s.getRfidCard() != null);
-            if (s.getRfidCard() != null)
-                debug.put("rfidCardId", s.getRfidCard().getId());
-            if (s.getRfidCard() != null)
-                debug.put("rfidCardCode", s.getRfidCard().getCardCode());
-        }
-
-        // Trả kết quả JSON về cho công cụ Test
-        return ResponseEntity.ok(debug);
     }
 
     /**
@@ -648,6 +615,14 @@ public class IotHardwareController {
                 map.put("floorType", g.getFloor().getFloorType());
                 map.put("floorId", g.getFloor().getId());
             }
+            // Tọa độ + góc xoay trên sơ đồ — trước đây bị thiếu ở đây (khác với
+            // khối dựng "zones" ngay bên dưới, vốn luôn có đủ 3 trường này), khiến
+            // SimulatorMap.tsx (IoT Simulator) không có gì để đọc và mọi Gate bị vẽ
+            // dồn về tọa độ mặc định (0,0), chồng lên nhau thay vì đúng vị trí thật
+            // đã cấu hình trên Space Map.
+            map.put("layoutX", g.getLayoutX());
+            map.put("layoutY", g.getLayoutY());
+            map.put("rotation", g.getRotation());
             return map;
         }).toList());
 

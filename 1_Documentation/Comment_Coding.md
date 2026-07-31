@@ -81,8 +81,10 @@
  *   + Dòng 288 `messagingTemplate.convertAndSend(...)`: Gọi công cụ WebSocket bắn tín hiệu Real-time bắt toàn bộ giao diện Web phải cập nhật lại đồng hồ hiển thị.
  *   + Dòng 292 `eventPublisher.publishEvent(...)`: Dùng kiến trúc Event-Driven bắn 1 sự kiện ngầm trong nội bộ Backend (Ví dụ để đánh thức các hàm Dọn dẹp vé quá hạn).
  * 
- * PHỤ LỤC 4: HÀNH TRÌNH REQUEST ĐỒNG BỘ DỮ LIỆU (DATA SYNC VÀ DEBUG)
- * - Minh chứng Handler (GET): Hàm `syncData` (dòng 382) và `debugSession` (dòng 220) khai báo `@GetMapping`. 
+ * PHỤ LỤC 4: HÀNH TRÌNH REQUEST ĐỒNG BỘ DỮ LIỆU (DATA SYNC)
+ * - Minh chứng Handler (GET): Hàm `syncData` (dòng 382) khai báo `@GetMapping`.
+ *   (Hàm `debugSession` từng có ở đây đã bị xóa vì là code chết — không
+ *   FE/simulator nào gọi tới, xem lịch sử git.)
  * - Minh chứng Tối ưu hóa: Dòng 383 `@Transactional(readOnly = true)`. Báo cho bộ máy Hibernate biết đây chỉ là lệnh SELECT (không có thao tác Ghi/Xóa dữ liệu) để nó tối ưu hóa RAM và khóa (Lock) của cơ sở dữ liệu.
  * - Minh chứng Gom dữ liệu: Không có Service Delegation phức tạp. Các hàm này chỉ gọi trực tiếp các kho dữ liệu (như dòng 391 `slotRepository.findAll()`), nhét vào một cái túi bọc Hash Map khổng lồ và quăng ra bằng Jackson.
  * =========================================================================================

@@ -637,6 +637,7 @@ public class GateOperationService {
         info.setDurationMinutes(duration);
         info.setTimeOut(now);
 
+        // DEADCODE (obsolete functionType "IMPOUNDED" was removed from UI)
         boolean isExemptZone = false;
         if (session.getSuggestedZoneId() != null) {
             com.pbms.modules.infrastructure.domain.Zone z = zoneRepository.findById(session.getSuggestedZoneId())

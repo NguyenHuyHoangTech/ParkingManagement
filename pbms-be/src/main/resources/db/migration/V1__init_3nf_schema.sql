@@ -15,6 +15,7 @@ CREATE TABLE system_configs (
     config_key VARCHAR(255) NOT NULL UNIQUE,
     config_value VARCHAR(MAX) NOT NULL,
     description VARCHAR(500),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,6 +26,7 @@ CREATE TABLE building_profiles (
     hotline VARCHAR(50),
     operating_hours VARCHAR(255),
     rules VARCHAR(MAX),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -76,8 +76,10 @@ UPDATE dbo.parking_sessions SET pic_out_panorama = NULL WHERE LEN(pic_out_panora
 UPDATE dbo.parking_sessions SET pic_out_face = NULL WHERE LEN(pic_out_face) > 500;
 
 UPDATE dbo.incident_tickets SET uploaded_doc_url = NULL WHERE LEN(uploaded_doc_url) > 500;
-UPDATE dbo.incident_tickets SET resolution_image_url = NULL WHERE LEN(resolution_image_url) > 500;
-
+IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'resolution_image_url' AND Object_ID = Object_ID(N'dbo.incident_tickets'))
+BEGIN
+    EXEC('UPDATE dbo.incident_tickets SET resolution_image_url = NULL WHERE LEN(resolution_image_url) > 500;');
+END
 UPDATE dbo.vehicles SET blacklist_evidence_url = NULL WHERE LEN(blacklist_evidence_url) > 500;
 
 IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'pic_in_panorama' AND Object_ID = Object_ID(N'dbo.parking_sessions'))
@@ -92,7 +94,7 @@ IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'pic_out_face' AND Object_ID =
 IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'uploaded_doc_url' AND Object_ID = Object_ID(N'dbo.incident_tickets'))
     ALTER TABLE dbo.incident_tickets ALTER COLUMN uploaded_doc_url VARCHAR(500);
 IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'resolution_image_url' AND Object_ID = Object_ID(N'dbo.incident_tickets'))
-    ALTER TABLE dbo.incident_tickets ALTER COLUMN resolution_image_url VARCHAR(500);
+    EXEC('ALTER TABLE dbo.incident_tickets ALTER COLUMN resolution_image_url VARCHAR(500);');
 
 IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'blacklist_evidence_url' AND Object_ID = Object_ID(N'dbo.vehicles'))
     ALTER TABLE dbo.vehicles ALTER COLUMN blacklist_evidence_url VARCHAR(500);

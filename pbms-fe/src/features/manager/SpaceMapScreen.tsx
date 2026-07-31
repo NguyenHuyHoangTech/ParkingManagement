@@ -1,11 +1,19 @@
+/**
+ * ============================================================================
+ * [IMPORT LIBRARIES & UTILITIES] - Các thư viện và tiện ích hỗ trợ
+ * ============================================================================
+ * 1. React & Hooks: useState, useEffect, useRef... quản lý trạng thái và canvas ref.
+ * 2. Ant Design (antd): UI component cho Thanh công cụ và Cột thuộc tính (Inspector).
+ * 3. React-Konva & Konva: Engine đồ họa 2D Canvas (Stage, Layer, Group, Rect, Line...).
+ * 4. TanStack React Query: useQuery, useMutation cho việc tải & lưu cấu hình bản đồ.
+ * 5. STOMP WebSocket (useWebSocket): Lắng nghe kênh real-time /topic/slots/status.
+ * ============================================================================
+ */
 import React, { useState, useEffect, useRef } from 'react';
-import { Typography, Button, message, Spin, Input, Select, InputNumber, Collapse, Slider, Switch, Radio, notification, Badge, Tooltip, Modal } from 'antd';
+import { Typography, Button, message, Input, Select, InputNumber, Collapse, Switch, Badge, Modal } from 'antd';
 import {
   SaveOutlined, SyncOutlined, AimOutlined, PlusOutlined,
-  SettingOutlined, CompassOutlined, GatewayOutlined,
-  CloseCircleOutlined, SwapRightOutlined, SwapLeftOutlined,
-  StopOutlined, DeleteOutlined, ZoomInOutlined, ZoomOutOutlined,
-  LockOutlined, UnlockOutlined
+  CompassOutlined, GatewayOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import { Stage, Layer, Line, Group, Rect, Text as KonvaText, Label, Tag, Image as KonvaImage } from 'react-konva';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +21,45 @@ import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
 import { useWebSocket } from '../../core/websocket/useWebSocket';
 import Konva from 'konva';
+
+/**
+ * ============================================================================
+ * MÔ TẢ TỔNG QUAN VỀ LUỒNG DỮ LIỆU & TƯƠNG TÁC CỦA SPACE MAP SCREEN
+ * ============================================================================
+ *
+ * [PHẦN 1] MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
+ *    - Giao diện Thiết kế & Quản trị Không gian bãi đỗ (Interactive Space Map)
+ *      dành cho Quản lý (Manager), xây dựng trên engine đồ họa 2D Konva.js.
+ *    - Chịu trách nhiệm: Hiển thị sơ đồ mặt bằng bãi đỗ, phân chia khu vực (Zone),
+ *      bố trí cổng vào/ra (Gate), giám sát trạng thái từng ô đỗ (Slot) theo thời
+ *      gian thực và cho phép chỉnh sửa tọa độ (kéo thả, xoay, mở rộng kích thước).
+ *
+ * [PHẦN 2] GIẢI PHẪU VÒNG ĐỜI DỮ LIỆU (DATA FLOW LIFECYCLE) KÈM MINH CHỨNG:
+ *
+ * BƯỚC 1: TẢI CẤU HÌNH SƠ ĐỒ BÃI XE (LOAD MAP CONFIG)
+ * - Minh chứng (API): Gọi `GET /infrastructure/map/config` qua `useQuery` tải
+ *   toàn bộ Tầng (Floors), Khu vực (Zones), Cổng (Gates), Loại phương tiện (VehicleTypes)
+ *   và cấu trúc ma trận grid (`GRID_SIZE = 50px`).
+ *
+ * BƯỚC 2: GIÁM SÁT TRẠNG THÁI Ô ĐỖ THỜI GIAN THỰC (REAL-TIME WEBSOCKET SLOT SYNC)
+ * - Minh chứng (WebSocket): Đăng ký lắng nghe kênh `/topic/slots/status` qua STOMP.
+ *   Khi cảm biến siêu âm IoT báo ô đỗ thay đổi, sơ đồ lập tức chuyển màu ô:
+ *   + Xanh lá (`EMPTY`): Ô đỗ đang trống.
+ *   + Đỏ (`OCCUPIED`): Ô đỗ đang có xe đậu.
+ *   + Vàng/Xám (`DISABLED`): Ô đang bảo trì hoặc cấm đậu.
+ *
+ * BƯỚC 3: THAO TÁC CẤU HÌNH & KIỂM TRA VA CHẠM TỌA ĐỘ (DRAG & DROP WITH COLLISION)
+ * - Minh chứng (Konva Logic): Sử dụng `onDragMove` & `onDragEnd` kết hợp thuật
+ *   toán `checkIntersection` ngăn chặn các Zone/Gate bị đè lên nhau hoặc rơi khỏi
+ *   biên giới mặt bằng (Map Boundaries).
+ *
+ * BƯỚC 4: BẢO TRÌ Ô ĐỖ & LƯU CẤU HÌNH SƠ ĐỒ (SLOT MAINTENANCE & PERSISTENCE)
+ * - Minh chứng 1 (API Slot Status): Gọi `PUT /infrastructure/slots/{slotId}/status`
+ *   để bật/tắt trạng thái bảo trì (`DISABLED` / `EMPTY`).
+ * - Minh chứng 2 (API Map Save): Gọi `POST /infrastructure/map/save` gửi toàn bộ
+ *   cấu hình Floors, Zones, Gates, Slots về cơ sở dữ liệu 3NF.
+ * ============================================================================
+ */
 
 const URLImage = ({ src, x, y, width, height }: { src: string, x: number, y: number, width: number, height: number }) => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -32,6 +79,11 @@ const { Panel } = Collapse;
 // Constants & Types
 const GRID_SIZE = 50;
 
+/**
+ * ============================================================================
+ * [DTO DEFINITIONS] - CÁC INTERFACE DỮ LIỆU CỦA SPACE MAP SCREEN
+ * ============================================================================
+ */
 interface Floor {
   id: number;
   name: string;
@@ -68,7 +120,7 @@ interface Gate {
   id: string | number;
   floorId: number;
   name: string;
-  type: 'ENTRY' | 'EXIT' | 'ENTRY_EXIT' | 'PATROL';
+  type: 'ENTRY' | 'EXIT' | 'ENTRY_EXIT';
   status: 'IDLE' | 'OCCUPIED' | 'MAINTENANCE' | string;
   staffName?: string;
   layoutX: number;
@@ -100,10 +152,28 @@ const getVehicleDimensions = (typeId: number, vehicleTypes: VehicleType[]) => {
   return { width: 3 * GRID_SIZE, height: 6 * GRID_SIZE };
 };
 
+/**
+ * ============================================================================
+ * [MAIN COMPONENT] - SPACE MAP SCREEN
+ * ============================================================================
+ * Màn hình thiết kế, điều chỉnh sơ đồ không gian 2D và quản trị trạng thái
+ * các ô đỗ, cổng vào/ra theo tầng bãi đỗ.
+ * ============================================================================
+ */
 export const SpaceMapScreen = () => {
   const queryClient = useQueryClient();
 
-  // State
+  /**
+   * ============================================================================
+   * [QUẢN LÝ TRẠNG THÁI] - CÁC STATE NÒNG CỐT CỦA SƠ ĐỒ
+   * ============================================================================
+   * - zones, gates, floors, vehicleTypes: Dữ liệu cấu hình tải về từ Backend.
+   * - selectedEntity: Đối tượng đang chọn trên sơ đồ ('ZONE', 'SLOT', 'GATE' hay null)
+   *   để hiển thị thuộc tính chỉnh sửa trên Inspector bên phải.
+   * - collidingNodeId: ID của node đang xảy ra va chạm (đè lên node khác hoặc ngoài bản đồ).
+   * - isDirty: Cờ nhận biết cấu hình sơ đồ có sự thay đổi so với bản gốc trên DB.
+   * ============================================================================
+   */
   const [zones, setZones] = useState<Zone[]>([]);
   const [gates, setGates] = useState<Gate[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -208,7 +278,15 @@ export const SpaceMapScreen = () => {
 
   const { stompClient, connected } = useWebSocket();
 
-  // Fetch initial data via API
+  /**
+   * ============================================================================
+   * [API 1] TẢI CẤU HÌNH SƠ ĐỒ KHÔNG GIAN BÃI XE (MAP CONFIGURATION)
+   * ============================================================================
+   * Endpoint: `GET /infrastructure/map/config`
+   * Mục đích: Tải danh sách Tầng, Khu vực, Cổng, Loại phương tiện cùng tọa độ,
+   *          hướng xoay (rotation) và kích thước lưới để dựng sơ đồ Canvas.
+   * ============================================================================
+   */
   const { data: mapConfigData, refetch } = useQuery({
     queryKey: ['mapConfig'],
     queryFn: async () => {
@@ -236,7 +314,16 @@ export const SpaceMapScreen = () => {
     }
   }, [mapConfigData]);
 
-  // WebSocket for real-time slot updates
+  /**
+   * ============================================================================
+   * [WEBSOCKET LISTENER] LẮNG NGHE TRẠNG THÁI Ô ĐỖ THEO THỜI GIAN THỰC
+   * ============================================================================
+   * Channel: `/topic/slots/status`
+   * Mục đích: Lắng nghe sự kiện báo cáo từ cảm biến siêu âm (IoT Ultrasonic Sensor)
+   *          để tự động đổi màu ô đỗ trên bản đồ (`OCCUPIED` <-> `EMPTY`) mà không
+   *          cần tải lại trang hay polling liên tục.
+   * ============================================================================
+   */
   useEffect(() => {
     if (stompClient && connected) {
       const subscription = stompClient.subscribe('/topic/slots/status', (message) => {
@@ -273,7 +360,7 @@ export const SpaceMapScreen = () => {
   }, [selectedFloorId, zones, gates]);
 
   const visibleZones = zones.filter(z => z.floorId === selectedFloorId);
-  const visibleGates = gates.filter(g => g.floorId === selectedFloorId && g.type !== 'PATROL');
+  const visibleGates = gates.filter(g => g.floorId === selectedFloorId);
 
   // Handle resize
   useEffect(() => {
@@ -314,8 +401,18 @@ export const SpaceMapScreen = () => {
     }
   }, [mapCols, mapRows, containerSize]);
 
-  // -- Event Handlers --
-
+  /**
+   * ============================================================================
+   * [CANVAS EVENT HANDLERS & COLLISION ENGINE - BỘ XỬ LÝ TƯƠNG TÁC SƠ ĐỒ]
+   * ============================================================================
+   * - Quản lý camera viewport và hiệu ứng chuyển động (`Konva.Tween`):
+   *   + `handleZoomToBox` & `handleZoomZone`: Zoom cận cảnh và canh giữa viewport vào một khu vực.
+   * - Engine xử lý va chạm thời gian thực trong chế độ chỉnh sửa (Edit Mode):
+   *   + `checkIntersection`: Kiểm tra va chạm hình học (AABB - Axis-Aligned Bounding Box) giữa các đối tượng.
+   *   + `handleDragMove`: Lắng nghe tọa độ khi kéo thả, báo hiệu màu đỏ (`isColliding`) nếu đè lấn khu vực khác.
+   *   + `handleDragEnd`: Khôi phục vị trí ban đầu nếu người dùng thả chuột khi đang có va chạm.
+   * ============================================================================
+   */
   const handleZoomToBox = (boxX: number, boxY: number, boxW: number, boxH: number, padding: number = 50) => {
     if (!stageRef.current || !containerRef.current) return;
     const containerW = containerRef.current.clientWidth;
@@ -346,44 +443,6 @@ export const SpaceMapScreen = () => {
       }
     });
     tween.play();
-  };
-
-  const handleZoom = (factor: number) => {
-    if (!stageRef.current || !containerRef.current) return;
-    const oldScale = stageScale;
-    let newScale = oldScale * factor;
-    newScale = Math.max(defaultScale, Math.min(newScale, 5));
-
-    const center = {
-      x: containerRef.current.clientWidth / 2,
-      y: containerRef.current.clientHeight / 2,
-    };
-
-    const mousePointTo = {
-      x: (center.x - stagePos.x) / oldScale,
-      y: (center.y - stagePos.y) / oldScale,
-    };
-
-    setStageScale(newScale);
-    setStagePos({
-      x: center.x - mousePointTo.x * newScale,
-      y: center.y - mousePointTo.y * newScale,
-    });
-  };
-
-  const handleZoomFit = () => {
-    if (!containerRef.current) return;
-    const mapW = mapCols * GRID_SIZE;
-    const mapH = mapRows * GRID_SIZE;
-
-    const scale = Math.min(containerRef.current.clientWidth / mapW, containerRef.current.clientHeight / mapH) * 0.95;
-    const minScaleLocked = Math.min(scale, 1);
-
-    setStageScale(minScaleLocked);
-    setStagePos({
-      x: (containerRef.current.clientWidth - mapW * minScaleLocked) / 2,
-      y: (containerRef.current.clientHeight - mapH * minScaleLocked) / 2
-    });
   };
 
   const handleZoomZone = (zoneId: number) => {
@@ -421,7 +480,7 @@ export const SpaceMapScreen = () => {
     const node = e.target;
     const stage = node.getStage();
     const layer = node.getLayer();
-    const nodeRect = node.getClientRect({ skipTransform: false });
+    const nodeRect = node.getClientRect({ skipTransform: false, skipStroke: true, skipShadow: true });
     const mapW = mapCols * GRID_SIZE;
     const mapH = mapRows * GRID_SIZE;
 
@@ -443,7 +502,7 @@ export const SpaceMapScreen = () => {
       // Sibling collision check
       for (const child of layer.getChildren()) {
         if (child !== node && (child.name() === 'zoneGroup' || child.name() === 'gateGroup')) {
-          const otherRect = child.getClientRect({ skipTransform: false });
+          const otherRect = child.getClientRect({ skipTransform: false, skipStroke: true, skipShadow: true });
           if (checkIntersection(nodeRect, otherRect)) {
             hasCollision = true;
             break;
@@ -712,6 +771,29 @@ export const SpaceMapScreen = () => {
           return;
         }
       }
+
+      for (const gate of gates) {
+        if (gate.floorId !== zone.floorId) continue;
+        let gw = 3 * GRID_SIZE;
+        let gh = GRID_SIZE;
+        if (gate.vehicleTypeId) {
+          const vt = vehicleTypes.find(v => v.id === gate.vehicleTypeId);
+          if (vt) gw = vt.matrixWidth * GRID_SIZE;
+        }
+        if (gate.rotation === 90 || gate.rotation === 270) {
+          const temp = gw; gw = gh; gh = temp;
+        }
+
+        let gx = gate.layoutX; let gy = gate.layoutY;
+        if (gate.rotation === 90) gx -= gw;
+        else if (gate.rotation === 180) { gx -= gw; gy -= gh; }
+        else if (gate.rotation === 270) gy -= gh;
+
+        if (!(zx >= gx + gw || zx + zw <= gx || zy >= gy + gh || zy + zh <= gy)) {
+          message.error(`Zone ${zone.name} overlaps with Gate ${gate.name}!`);
+          return;
+        }
+      }
     }
 
     const payload = { floors, zones, gates, vehicleTypes: undefined }; // don't send vehicleTypes back
@@ -760,10 +842,34 @@ export const SpaceMapScreen = () => {
   const activeGate = selectedEntity?.type === 'GATE' ? gates.find(g => g.id === (selectedEntity as any).id) : null;
   const validVehicleTypes = vehicleTypes.filter(v => v.category === activeFloor?.type);
 
+  /**
+   * ============================================================================
+   * [GIAO DIỆN CHÍNH CỦA SPACE MAP SCREEN - RENDER PANEL]
+   * ============================================================================
+   * Bao gồm 2 không gian chính được phân chia cột rõ ràng:
+   * 1. KHÔNG GIAN BÊN TRÁI (75% - CANVAS WORKSPACE):
+   *    - Vùng vẽ bản đồ 2D Konva.js (Stage & Layer).
+   *    - Lưới tọa độ Grid (GRID_SIZE = 50px).
+   *    - Hiển thị các khối Khu vực (Zone), ô đỗ (Slot) và Cổng (Gate).
+   *    - Hỗ trợ cuộn chuột zoom/pan và kéo/thả đối tượng.
+   * 2. CỘT THUỘC TÍNH BÊN PHẢI (25% - RIGHT INSPECTOR PANEL):
+   *    - Cụm điều hướng & chọn tầng bãi đỗ.
+   *    - Inspector chỉnh sửa thuộc tính cho Zone, Slot, Gate đang chọn.
+   *    - Cụm nút thao tác LƯU CẤU HÌNH và đồng bộ trạng thái về Backend.
+   * ============================================================================
+   */
   return (
     <div className="flex h-full w-full bg-slate-50 overflow-hidden font-sans">
 
-      {/* COLUMN 2: MAIN CANVAS WORKSPACE (~75%) */}
+      {/* 
+       * ============================================================================
+       * [KHÔNG GIAN TRÁI - 75%] CANVAS WORKSPACE - BẢN ĐỒ KHÔNG GIAN 2D
+       * ============================================================================
+       * - Konva Stage: Xử lý sự kiện kéo (draggable), phóng to/thu nhỏ (scale/wheel).
+       * - Grid Layer: Lưới tọa độ dạng ô vuông 50px hỗ trợ căn chỉnh chuẩn xác.
+       * - Entity Layer: Vẽ và tương tác với các khối Zone, Slot (màu theo status) và Gate.
+       * ============================================================================
+       */}
       <div className="flex-1 relative cursor-grab active:cursor-grabbing bg-gray-200" ref={containerRef}>
         {containerSize.width > 0 && containerSize.height > 0 && (
           <Stage
@@ -971,8 +1077,8 @@ export const SpaceMapScreen = () => {
                     <Rect
                       width={gateW} height={gateH}
                       fill={gateColor}
-                      stroke={collidingNodeId === gate.id ? '#ef4444' : (isSelected ? '#facc15' : '#047857')}
-                      dash={collidingNodeId === gate.id ? [10, 5] : []}
+                      stroke={collidingNodeId === String(gate.id) ? '#ef4444' : (isSelected ? '#facc15' : '#047857')}
+                      dash={collidingNodeId === String(gate.id) ? [10, 5] : []}
                       strokeWidth={isSelected ? 4 : 2}
                       cornerRadius={6}
                       shadowColor="black"
@@ -998,7 +1104,14 @@ export const SpaceMapScreen = () => {
         )}
       </div>
 
-      {/* COLUMN 3: RIGHT INSPECTOR PANEL (~25%) */}
+      {/* 
+       * ============================================================================
+       * [KHÔNG GIAN PHẢI - 25%] RIGHT INSPECTOR PANEL - BẢNG QUẢN TRỊ THUỘC TÍNH
+       * ============================================================================
+       * Chứa các công cụ điều hướng, chuyển đổi Tầng, và chỉnh sửa thông số cho
+       * từng loại Entity (Zone / Slot / Gate) được bấm chọn từ sơ đồ bên trái.
+       * ============================================================================
+       */}
       <div className="w-80 border-l border-gray-200 bg-white flex flex-col h-full shadow-[-4px_0_15px_rgba(0,0,0,0.05)] z-10 shrink-0">
 
         {/* Header */}
@@ -1017,7 +1130,13 @@ export const SpaceMapScreen = () => {
             onChange={(keys) => setExpandedKeys(keys as string[])}
             className="bg-white"
           >
-            {/* --- SECTION 0: VIEWPORT --- */}
+            {/* 
+             * ============================================================================
+             * [INSPECTOR 0] VISION & NAVIGATION - ĐIỀU HƯỚNG BẢN ĐỒ
+             * ============================================================================
+             * Cho phép zoom toàn cảnh (Panoramic Zoom) hoặc nhảy camera đến từng Zone.
+             * ============================================================================
+             */}
             <Panel header={<Text strong>0e Vision & Navigation</Text>} key="0" className="border-b border-gray-100">
               <Button size="small" block icon={<AimOutlined />} className="mb-3" onClick={() => handleZoomToBox(0, 0, mapCols * GRID_SIZE, mapRows * GRID_SIZE)}>
 
@@ -1035,7 +1154,15 @@ export const SpaceMapScreen = () => {
               </Select>
             </Panel>
 
-            {/* --- SECTION 1: FLOOR CONFIG --- */}
+            {/* 
+             * ============================================================================
+             * [INSPECTOR 1] MANAGEMENT FLOOR - THIẾT LẬP THÔNG SỐ TẦNG BÃI XE
+             * ============================================================================
+             * Chuyển đổi giữa các Tầng (Floors), thêm Tầng mới, hoặc thay đổi kích
+             * thước lưới ma trận (mapCols, mapRows) cũng như giới hạn loại phương
+             * tiện được đỗ ở tầng này (FOUR_WHEEL / TWO_WHEEL).
+             * ============================================================================
+             */}
             <Panel header={<Text strong>1. Management Floor (Floor)</Text>} key="1" className="border-b border-gray-100 bg-slate-50/50">
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
@@ -1122,7 +1249,14 @@ export const SpaceMapScreen = () => {
               </div>
             </Panel>
 
-            {/* --- SECTION 2: ZONE CONFIG --- */}
+            {/* 
+             * ============================================================================
+             * [INSPECTOR 2] PARKING ZONE - THIẾT LẬP THÔNG SỐ KHU VỰC (ZONE)
+             * ============================================================================
+             * Chỉnh sửa tên khu vực, góc xoay (0/90/180/270), chức năng (WALK_IN,
+             * MONTHLY, BACKUP), loại phương tiện và tổng sức chứa (capacity).
+             * ============================================================================
+             */}
             <Panel
               header={<div className="flex justify-between items-center w-full pr-4">
                 <Text strong>2. Parking Zone (Zone)</Text>
@@ -1221,7 +1355,15 @@ export const SpaceMapScreen = () => {
               )}
             </Panel>
 
-            {/* --- SECTION 3: SLOT CONFIG --- */}
+            {/* 
+             * ============================================================================
+             * [INSPECTOR 3] SINGLE SLOT - GIÁM SÁT & BẢO TRÌ Ô ĐỖ (SLOT)
+             * ============================================================================
+             * Hiển thị trạng thái ô đỗ được chọn (EMPTY, OCCUPIED, DISABLED).
+             * Hỗ trợ bật/tắt chế độ Bảo trì (DISABLED) trực tiếp qua Switch, gọi
+             * API PUT /infrastructure/slots/{slotId}/status.
+             * ============================================================================
+             */}
             <Panel header={<Text strong>3e Single Slot (Slot)</Text>} key="3" className="border-b border-gray-100 bg-slate-50/50">
               {activeSlot && activeZone ? (
                 <div className="space-y-3">
@@ -1250,7 +1392,14 @@ export const SpaceMapScreen = () => {
               )}
             </Panel>
 
-            {/* --- SECTION 4: GATE COMMAND CENTER --- */}
+            {/* 
+             * ============================================================================
+             * [INSPECTOR 4] GATE INFORMATION - TRẠNG THÁI & THAO TÁC CỔNG (GATE)
+             * ============================================================================
+             * Hiển thị thông tin Cổng được chọn trên đường viền bãi xe (ENTRY,
+             * EXIT, ENTRY_EXIT), trạng thái trực ca của nhân viên và cho phép xoá mềm Cổng.
+             * ============================================================================
+             */}
             <Panel
               header={<div className="flex justify-between items-center w-full pr-4">
                 <Text strong className={activeGate ? "text-amber-600" : ""}>4e Gate Information (Gate)</Text>
@@ -1260,7 +1409,9 @@ export const SpaceMapScreen = () => {
             >
               {activeGate ? (
                 <div className="space-y-4">
-                  <div className={`p-3 rounded border ${activeGate.status === 'OCCUPIED' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  {/* Màu nền khớp đúng quy ước của Gate trên bản đồ: xanh lá =
+                      đang có nhân viên trực (OCCUPIED), xám = trống. */}
+                  <div className={`p-3 rounded border ${activeGate.status === 'OCCUPIED' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
                     <div className="flex items-center mb-1">
                       <GatewayOutlined className="mr-2 text-lg" />
                       <Input
@@ -1323,7 +1474,15 @@ export const SpaceMapScreen = () => {
           </Collapse>
         </div>
 
-        {/* BOTTOM ACTION */}
+        {/* 
+         * ============================================================================
+         * [BOTTOM ACTION BAR] THANH CÔNG CỤ LƯU CẤU HÌNH (SAVE CONFIGURATION)
+         * ============================================================================
+         * Nút Lưu sáng lên khi `isDirty === true` (có thay đổi tọa độ, số lượng ô đỗ,
+         * kích thước lưới hoặc cấu trúc tầng so với dữ liệu gốc).
+         * Gọi POST `/infrastructure/map/save` đồng bộ xuống DB 3NF.
+         * ============================================================================
+         */}
         <div className="p-4 border-t border-gray-200 bg-white shrink-0 shadow-[0_-4px_15px_rgba(0,0,0,0.05)]">
           <Button
             type="primary"

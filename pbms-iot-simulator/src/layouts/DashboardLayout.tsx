@@ -1,17 +1,26 @@
 import React from 'react';
-import { Layout, Menu, Typography, Space, Tag, Avatar } from 'antd';
-import { 
-  AppstoreOutlined, 
-  VideoCameraOutlined, 
-  CarOutlined, 
-  HistoryOutlined, 
-  SettingOutlined,
-  ApiOutlined
+import { Layout, Menu, Typography, Space, Tag, Avatar } from 'antd'; // Bộ khung UI Ant Design: Layout (khung trang), Menu (thanh điều hướng), Tag (huy hiệu trạng thái kết nối).
+import {
+  AppstoreOutlined,   // Icon cho tab "Sensor Map".
+  VideoCameraOutlined, // Icon cho tab "Gate Check-In" (camera mô phỏng cổng vào).
+  CarOutlined,        // Icon cho tab "Gate Check-Out".
+  HistoryOutlined,    // Icon cho tab "Active Vehicles" (lịch sử/danh sách xe).
+  SettingOutlined,    // Icon cho tab "Time Controller".
+  ApiOutlined         // Icon logo API ở góc trái Header.
 } from '@ant-design/icons';
 
 const { Header, Content } = Layout;
 const { Title } = Typography;
 
+/**
+ * Props điều khiển layout từ component cha (App.tsx):
+ * - children: nội dung của tab đang active, do App.tsx tự quyết định render gì.
+ * - activeKey/onMenuSelect: layout không tự giữ state tab đang chọn — nó chỉ
+ *   hiển thị theo `activeKey` và báo ngược lên App.tsx qua `onMenuSelect` khi
+ *   người dùng bấm tab khác (controlled component, không phải uncontrolled).
+ * - connectionStatus: trạng thái kết nối WebSocket (STOMP) tới Backend, do
+ *   App.tsx theo dõi và truyền xuống để hiển thị chấm Connected/Disconnected.
+ */
 interface DashboardLayoutProps {
   children: React.ReactNode;
   activeKey: string;
@@ -19,9 +28,32 @@ interface DashboardLayoutProps {
   connectionStatus: 'connected' | 'disconnected';
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
-  children, 
-  activeKey, 
+/**
+ * =========================================================================================
+ * KHUNG GIAO DIỆN CHUNG CỦA IOT HARDWARE SIMULATOR (DASHBOARD LAYOUT)
+ * =========================================================================================
+ *
+ * MỤC ĐÍCH:
+ * Component thuần hiển thị (presentational), không gọi API, không giữ state
+ * nghiệp vụ. Vẽ khung cố định gồm: Header (logo + menu ngang + trạng thái kết
+ * nối) và Content (vùng nội dung thay đổi theo tab đang chọn — do App.tsx bơm
+ * vào qua `children`).
+ *
+ * MÃ GIẢ CHI TIẾT:
+ * 1. Dựng danh sách `menuItems` cố định gồm 5 tab: Sensor Map, Gate Check-In,
+ *    Gate Check-Out, Active Vehicles, Time Controller — mỗi tab gắn 1 `key`
+ *    duy nhất mà App.tsx dùng làm giá trị `activeMenu` để quyết định render gì.
+ * 2. Header chia 3 vùng: logo + tên app (trái), menu ngang co giãn theo màn
+ *    hình (giữa, có thanh cuộn ngang trên mobile), và cụm trạng thái kết nối +
+ *    thông tin "System Admin" giả lập (phải).
+ * 3. `Tag` đổi màu xanh/đỏ theo `connectionStatus` để nhân viên demo biết ngay
+ *    WebSocket còn sống hay đã rớt kết nối tới Backend.
+ * 4. `Menu` dùng `selectedKeys={[activeKey]}` để tô sáng đúng tab đang chọn,
+ *    và `onSelect` gọi ngược `onMenuSelect(info.key)` để App.tsx đổi tab.
+ */
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  children,
+  activeKey,
   onMenuSelect,
   connectionStatus
 }) => {

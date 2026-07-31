@@ -103,17 +103,6 @@ export const ExceptionDeskScreen = () => {
     }
   }, [ticketsData]);
 
-  const { data: vehiclesData = [] } = useQuery({
-    queryKey: ['vehicles_blacklist'],
-    queryFn: async () => {
-      const res = await axiosClient.get('/operation/vehicles');
-      return res.data?.data || [];
-    },
-    enabled: selectedCategory === 'BLACKLIST'
-  });
-
-  const blacklistedVehicles = vehiclesData.filter((v: any) => v.isBlacklisted);
-
   const pendingTickets = useMemo(() => {
     return ticketsData.filter((t: any) =>
       t.phase === 1 &&

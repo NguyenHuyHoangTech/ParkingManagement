@@ -23,8 +23,8 @@ ALTER TABLE dbo.parking_sessions ADD
     plate_out VARCHAR(50) NULL,
     total_fee DECIMAL(18,2) NULL;
 
--- Make slot_id BIGINT to match slots table
-EXEC sp_rename 'dbo.parking_sessions.suggested_zone_id', 'slot_id', 'COLUMN';
+-- Add slot_id BIGINT to match slots table
+ALTER TABLE dbo.parking_sessions ADD slot_id BIGINT NULL;
 
 EXEC sp_rename 'dbo.vehicles.customer_id', 'user_id', 'COLUMN';
 ALTER TABLE dbo.vehicles ADD is_blacklisted BIT NOT NULL DEFAULT 0;

@@ -1,3 +1,13 @@
+/**
+ * ============================================================================
+ * [IMPORT LIBRARIES & UTILITIES] - Các thư viện và công cụ tiện ích
+ * ============================================================================
+ * 1. React & Hooks: useState, useEffect, useMemo... quản lý trạng thái, vòng đời và cache tính toán.
+ * 2. Ant Design (antd): Cung cấp các UI component phong phú (Select, Card, Switch, Modal, Table...).
+ * 3. Recharts: Thư viện vẽ biểu đồ đường (LineChart) trực quan hóa mật độ đỗ xe theo giờ.
+ * 4. Axios & Utilities: axiosClient (gửi HTTP Request), timeProvider (xử lý thời gian mô phỏng).
+ * ============================================================================
+ */
 import { useState, useEffect, useMemo } from 'react';
 import { 
   Typography, Select, Button, InputNumber, Input, 
@@ -23,53 +33,106 @@ import { simulatedDayjs, useSystemTime } from '../../core/utils/timeProvider';
 
 const { Title, Text } = Typography;
 
-// --- DTOs ---
+/**
+ * ============================================================================
+ * MÔ TẢ TỔNG QUAN VỀ LUỒNG DỮ LIỆU & TƯƠNG TÁC CỦA VEHICLE ROUTING SCREEN
+ * ============================================================================
+ *
+ * [PHẦN 1] MỤC ĐÍCH & VAI TRÒ CỦA COMPONENT:
+ *    - Giao diện quản lý và cấu hình điều phối xe tự động (Automatic Zone Coordination).
+ *    - Chịu trách nhiệm: Hiển thị biểu đồ tỷ lệ lấp đầy theo giờ từ cảm biến AI/IoT,
+ *      thiết lập luật ưu tiên & ngưỡng trần đỗ xe cho từng khung giờ, và cung cấp
+ *      công cụ AI Gemini tư vấn tối ưu hóa phân bổ không gian đỗ xe.
+ *
+ * [PHẦN 2] GIẢI PHẪU VÒNG ĐỜI DỮ LIỆU (DATA FLOW LIFECYCLE) KÈM MINH CHỨNG:
+ *
+ * BƯỚC 1: KHỞI TẠO DỮ LIỆU NỀN & CẤU HÌNH BẢN ĐỒ
+ * - Minh chứng 1 (API Bản đồ): Gọi `GET /infrastructure/map/config` (hàm fetchMapConfig)
+ *   để tải danh sách Tầng (floors), Khu vực (zones) và Loại phương tiện (vehicleTypes).
+ * - Minh chứng 2 (API Cấu hình): Gọi `GET /system/configs` (hàm fetchSystemConfig)
+ *   để đọc cờ `DISPLAY_ROUTING` xác định chế độ hiển thị biển báo ưu tiên tại cổng.
+ *
+ * BƯỚC 2: GIÁM SÁT TỶ LỆ LẤP ĐẦY TRÊN BIỂU ĐỒ (ZONE TRENDS MONITORING)
+ * - Minh chứng (API Trends): Gọi `GET /manager/zone-trends` (hàm fetchTrends)
+ *   lấy lịch sử mật độ sử dụng từng giờ của các khu vực vãng lai (WALK_IN),
+ *   vẽ ranh giới đỏ cảnh báo tại ngưỡng 90% (Critical Threshold).
+ *
+ * BƯỚC 3: CẤU HÌNH LUẬT ĐIỀU PHỐI THEO KHUNG GIỜ (TIMEFRAME ROUTING RULES)
+ * - Minh chứng (API Rules): Gọi `GET /manager/routing-rules` (hàm fetchRules) và
+ *   `PUT /manager/routing-rules` (hàm handleSave) để lưu các luật xếp hạng ưu tiên
+ *   và ngưỡng lấp đầy (fillThresholdPct) cho từng khung giờ vận hành.
+ *
+ * BƯỚC 4: TƯ VẤN ĐIỀU PHỐI THÔNG MINH QUA AI GEMINI (AI ADVISOR)
+ * - Minh chứng (API AI): Gọi `POST /manager/ai/routing-advice` (hàm handleAskAi)
+ *   gửi dữ liệu biểu đồ và cấu hình khung giờ lên máy chủ AI Gemini để nhận đề xuất
+ *   phân bổ lại luồng xe tự động tối ưu nhất.
+ * ============================================================================
+ */
+
+// ============================================================================
+// [PHẦN ĐỊNH NGHĨA DTOs] - Các kiểu dữ liệu trao đổi với Backend
+// ============================================================================
 interface ZoneTrendDTO {
-  timeWindow: string;
-  zoneId: number;
-  zoneName: string;
-  occupancyPct: number;
+  timeWindow: string;    // Khung giờ theo dõi (ví dụ: "08:00")
+  zoneId: number;        // Mã định danh khu vực đỗ xe
+  zoneName: string;      // Tên khu vực (ví dụ: "Khu A - Tầng 1")
+  occupancyPct: number;  // Tỷ lệ lấp đầy (%) tại thời điểm ghi nhận
 }
 
 interface RuleItemDTO {
-  id?: number;
-  zoneId: number;
-  zoneName: string;
-  fillThresholdPct: number;
-  suggestedZoneId?: number;
-  suggestedZoneName?: string;
+  id?: number;              // Mã định danh quy tắc (nếu đã lưu)
+  zoneId: number;           // Mã khu vực được áp dụng quy tắc
+  zoneName: string;         // Tên khu vực hiển thị
+  fillThresholdPct: number; // Ngưỡng tỷ lệ lấp đầy tối đa cho phép rẽ vào (%)
+  suggestedZoneId?: number; // Mã khu vực gợi ý chuyển tiếp khi vượt ngưỡng
+  suggestedZoneName?: string;// Tên khu vực gợi ý chuyển tiếp
 }
 
 interface TimeFrameRuleDTO {
-  timeFrameId: string;
-  name: string;
-  startTime: string | null;
-  endTime: string | null;
-  isDefault: boolean;
-  rules: RuleItemDTO[];
+  timeFrameId: string;    // Mã định danh khung giờ (hoặc ID tạm thời tf_xxx)
+  name: string;           // Tên hiển thị của khung giờ
+  startTime: string | null;// Giờ bắt đầu (HH:mm)
+  endTime: string | null;  // Giờ kết thúc (HH:mm)
+  isDefault: boolean;     // Cờ xác định khung giờ mặc định (áp dụng ngoài các khung giờ cụ thể)
+  rules: RuleItemDTO[];   // Danh sách quy tắc điều phối ứng với từng khu vực
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export const VehicleRoutingScreen = () => {
-  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
-  const [selectedVehicle, setSelectedVehicle] = useState<string>('');
+  /**
+   * ============================================================================
+   * [QUẢN LÝ TRẠNG THÁI] - CÁC STATE NÒNG CỐT CỦA MÀN HÌNH
+   * ============================================================================
+   * Nhóm 1: Bộ lọc & Lựa chọn cấu hình bãi xe
+   */
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);   // Tầng đang chọn trên dropdown
+  const [selectedVehicle, setSelectedVehicle] = useState<string>('');        // Loại phương tiện đang chọn (CAR, MOTO...)
   
-  const [floors, setFloors] = useState<any[]>([]);
-  const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
-  const [zones, setZones] = useState<any[]>([]);
-  const [calendarDates, setCalendarDates] = useState<any>(null);
+  const [floors, setFloors] = useState<any[]>([]);                           // Danh sách Tầng tải từ Map Config
+  const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);               // Danh sách Loại xe tải từ Map Config
+  const [zones, setZones] = useState<any[]>([]);                             // Danh sách Khu vực (Zones) bãi đỗ
+  const [calendarDates, setCalendarDates] = useState<any>(null);             // Giới hạn chọn ngày trên DatePicker
   
-  const [confirmedFloor, setConfirmedFloor] = useState<number | null>(null);
-  const [confirmedVehicle, setConfirmedVehicle] = useState<string>('');
+  /**
+   * Nhóm 2: Bộ nhớ đệm xác nhận (Confirmed State) - Tránh tải lại khi chưa bấm Confirm
+   */
+  const [confirmedFloor, setConfirmedFloor] = useState<number | null>(null); // Tầng đã xác nhận áp dụng
+  const [confirmedVehicle, setConfirmedVehicle] = useState<string>('');      // Loại xe đã xác nhận áp dụng
   
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [timeFrames, setTimeFrames] = useState<TimeFrameRuleDTO[]>([]);
-  const [initialTimeFrames, setInitialTimeFrames] = useState<TimeFrameRuleDTO[]>([]);
-  const [chartDataRaw, setChartDataRaw] = useState<ZoneTrendDTO[]>([]);
+  /**
+   * Nhóm 3: Trạng thái tải dữ liệu & Luật điều phối (Routing Rules)
+   */
+  const [loading, setLoading] = useState(false);                             // Cờ báo đang tải dữ liệu từ API
+  const [saving, setSaving] = useState(false);                               // Cờ báo đang lưu cấu hình xuống Backend
+  const [timeFrames, setTimeFrames] = useState<TimeFrameRuleDTO[]>([]);      // Danh sách khung giờ & luật điều phối hiện tại
+  const [initialTimeFrames, setInitialTimeFrames] = useState<TimeFrameRuleDTO[]>([]);// Bản sao cấu hình ban đầu để so sánh thay đổi
+  const [chartDataRaw, setChartDataRaw] = useState<ZoneTrendDTO[]>([]);      // Dữ liệu thô biểu đồ lấp đầy theo giờ
   
-  // Helper for deep comparison
+  /**
+   * Hàm so sánh sâu (Deep Comparison) kiểm tra người dùng có chỉnh sửa cấu hình hay chưa.
+   * Dùng để bật/tắt nút LƯU CẤU HÌNH (disabled={!isDirty}).
+   */
   const deepEqual = (obj1: any, obj2: any): boolean => {
     if (obj1 === obj2) return true;
     if (typeof obj1 !== 'object' || typeof obj2 !== 'object' || obj1 == null || obj2 == null) return false;
@@ -85,18 +148,34 @@ export const VehicleRoutingScreen = () => {
   const isDirty = initialTimeFrames.length > 0 && !deepEqual(timeFrames, initialTimeFrames);
   const [selectedTrendDateRange, setSelectedTrendDateRange] = useState<any>([simulatedDayjs().subtract(1, 'day'), simulatedDayjs()]);
   const simulatedToday = useSystemTime().format('YYYY-MM-DD');
+  
+  /**
+   * Nhóm 4: Cờ hiển thị điều phối trên biển báo IoT (System Config: DISPLAY_ROUTING)
+   */
   const [displayRouting, setDisplayRouting] = useState<boolean>(true);
 
-  // AI State
-  const [isAiModalVisible, setIsAiModalVisible] = useState(false);
-  const [extraContext, setExtraContext] = useState('');
-  const [aiResponse, setAiResponse] = useState<any>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
+  /**
+   * Nhóm 5: Trạng thái cỗ máy tư vấn AI Gemini (AI Advisor State)
+   */
+  const [isAiModalVisible, setIsAiModalVisible] = useState(false);           // Bật/tắt modal tư vấn AI
+  const [extraContext, setExtraContext] = useState('');                      // Ghi chú bổ sung từ người quản lý cho AI
+  const [aiResponse, setAiResponse] = useState<any>(null);                   // Kết quả phân tích và đề xuất từ AI Gemini
+  const [isAiLoading, setIsAiLoading] = useState(false);                     // Cờ báo đang gửi request sang máy chủ Gemini
 
   useEffect(() => {
     setSelectedTrendDateRange([simulatedDayjs().subtract(1, 'day'), simulatedDayjs()]);
   }, [simulatedToday]);
 
+  /**
+   * ============================================================================
+   * [API 1] LẤY CẤU HÌNH HIỂN THỊ ĐIỀU PHỐI (SYSTEM CONFIG: DISPLAY_ROUTING)
+   * ============================================================================
+   * MỤC ĐÍCH: Kiểm tra cờ hệ thống xem màn hình hướng dẫn rẽ tại các cổng có đang
+   * được bật hiển thị khu vực gợi ý hay không.
+   * CƠ CHẾ: Gọi `GET /system/configs`, lọc theo từ khóa `DISPLAY_ROUTING`. Nếu giá trị
+   * là 'FALSE', bảng điện tử tại cổng sẽ hiển thị "FREE", ngược lại hiển thị khu vực gợi ý.
+   * ============================================================================
+   */
   const fetchSystemConfig = async () => {
     try {
       const res = await axiosClient.get('/system/configs');
@@ -111,6 +190,16 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [API 2] BẬT/TẮT CỜ HIỂN THỊ ĐIỀU PHỐI (TOGGLE DISPLAY ROUTING)
+   * ============================================================================
+   * MỤC ĐÍCH: Cho phép quản lý bật hoặc tắt tính năng hiển thị chỉ dẫn khu vực
+   * đỗ trên biển báo IoT ngay tức thời.
+   * THỰC THI: Gửi request `PUT /system/configs/{id}` (hoặc POST tạo mới) cập nhật
+   * giá trị 'TRUE' / 'FALSE', đồng thời hiển thị thông báo phản hồi cho người dùng.
+   * ============================================================================
+   */
   const toggleDisplayRouting = async (checked: boolean) => {
     try {
       setLoading(true);
@@ -130,6 +219,16 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [API 3] TẢI LUẬT ĐIỀU PHỐI THEO LOẠI XE VÀ TẦNG (FETCH ROUTING RULES)
+   * ============================================================================
+   * MỤC ĐÍCH: Tải ma trận điều phối xe theo khung giờ từ Backend cho một loại phương tiện cụ thể.
+   * CƠ CHẾ: Gửi `GET /manager/routing-rules?vehicleType=...&floorId=...`.
+   * Kết quả nhận về được lưu vào cả `timeFrames` (để chỉnh sửa trên UI) và
+   * `initialTimeFrames` (để kiểm tra xem có thay đổi chưa).
+   * ============================================================================
+   */
   const fetchRules = async (vehicleType: string, floorId?: number) => {
     try {
       setLoading(true);
@@ -146,6 +245,16 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [API 4] TẢI DỮ LIỆU BIỂU ĐỒ LẤP ĐẦY THEO GIỜ (FETCH ZONE TRENDS)
+   * ============================================================================
+   * MỤC ĐÍCH: Kéo dữ liệu thống kê tỷ lệ lấp đầy theo thời gian thực (hoặc theo ngày chọn)
+   * của từng khu vực để vẽ lên biểu đồ đường Recharts.
+   * CƠ CHẾ: Gọi `GET /manager/zone-trends` kèm tham số thời gian (`startDate`, `endDate`)
+   * và lọc theo `vehicleTypeId`.
+   * ============================================================================
+   */
   const fetchTrends = async (overrideVehicleTypeId?: number) => {
     try {
       const targetVehicleTypeId = overrideVehicleTypeId || vehicleTypes.find(v => v.typeName === confirmedVehicle)?.id;
@@ -164,6 +273,14 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [API 5] TẢI CẤU HÌNH TỔNG THỂ BÃI XE (FETCH MAP CONFIG)
+   * ============================================================================
+   * MỤC ĐÍCH: Lấy thông tin bản đồ, danh sách tầng, khu vực đỗ và loại xe.
+   * Tự động chọn tầng đầu tiên làm tầng mặc định khi mới tải trang.
+   * ============================================================================
+   */
   const fetchMapConfig = async () => {
     try {
       const res = await axiosClient.get('/infrastructure/map/config');
@@ -183,9 +300,14 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
-  // Removed automatic fetch on selectedVehicle and selectedTrendDate change.
-  // We will fetch via a Confirm button.
-  
+  /**
+   * ============================================================================
+   * [NÚT XÁC NHẬN BỘ LỌC] - HANDLE CONFIRM
+   * ============================================================================
+   * MỤC ĐÍCH: Xác nhận áp dụng loại xe và tầng đã chọn để tải lại luật điều phối
+   * và dữ liệu biểu đồ. Tránh việc gọi API liên tục mỗi khi người dùng đổi dropdown.
+   * ============================================================================
+   */
   const handleConfirm = () => {
     setConfirmedFloor(selectedFloor);
     setConfirmedVehicle(selectedVehicle);
@@ -195,6 +317,9 @@ export const VehicleRoutingScreen = () => {
     fetchTrends();
   };
 
+  /**
+   * [EFFECT 1]: Khởi tạo tải cấu hình bản đồ và cờ hiển thị khi tải trang lần đầu
+   */
   useEffect(() => {
     fetchMapConfig();
     fetchSystemConfig();
@@ -210,7 +335,11 @@ export const VehicleRoutingScreen = () => {
     setSelectedFloor(val);
   };
 
-  // Whenever selectedFloor changes, update selectedVehicle to the first matching category
+  /**
+   * [EFFECT 2]: Tự động đồng bộ loại xe phù hợp với tầng vừa chọn
+   * Khi người dùng đổi tầng, tự động chọn loại phương tiện thuộc danh mục tầng đó
+   * và tải dữ liệu ngay trong lần tải trang đầu tiên.
+   */
   useEffect(() => {
     if (selectedFloor && floors.length > 0 && vehicleTypes.length > 0) {
       const floorObj = floors.find(f => f.id === selectedFloor);
@@ -234,7 +363,17 @@ export const VehicleRoutingScreen = () => {
     }
   }, [selectedFloor, floors, vehicleTypes]);
 
-  // --- CHART DATA TRANSFORMATION ---
+  /**
+   * ============================================================================
+   * [TÍNH TOÁN & CHUYỂN ĐỔI DỮ LIỆU BIỂU ĐỒ] - CHART DATA TRANSFORMATION
+   * ============================================================================
+   * MỤC ĐÍCH: Chuyển đổi danh sách dữ liệu thô (`chartDataRaw`) trả về từ API thành
+   * định dạng ma trận { timeWindow, ZoneA, ZoneB... } để tương thích với thư viện
+   * Recharts vẽ LineChart.
+   * CƠ CHẾ: Lọc các khu vực vãng lai (`WALK_IN`) của tầng và loại xe đã xác nhận,
+   * gom nhóm tỷ lệ lấp đầy (`occupancyPct`) theo từng mốc giờ (`timeWindow`).
+   * ============================================================================
+   */
   const { chartData, zoneNames } = useMemo(() => {
     const timeMap = new Map<string, any>();
     const zIds = new Set<number>();
@@ -278,7 +417,16 @@ export const VehicleRoutingScreen = () => {
     return { chartData: flattened, zoneNames: Array.from(zNamesMap.values()) };
   }, [chartDataRaw, selectedTrendDateRange, confirmedFloor, confirmedVehicle, vehicleTypes, zones]);
 
-  // --- ACTIONS ---
+  /**
+   * ============================================================================
+   * [CÁC THAO TÁC XỬ LÝ KHUNG GIỜ & LUẬT ĐIỀU PHỐI] - MATRIX MANIPULATION
+   * ============================================================================
+   */
+
+  /**
+   * [THAO TÁC 1]: Di chuyển thứ tự ưu tiên khu vực đỗ sang TRÁI / PHẢI
+   * Khu vực nằm bên trái có ưu tiên cao hơn (Priority #1, #2...).
+   */
   const moveZone = (frameId: string, index: number, direction: 'LEFT' | 'RIGHT') => {
     setTimeFrames(prev => prev.map(tf => {
       if (tf.timeFrameId !== frameId) return tf;
@@ -296,6 +444,9 @@ export const VehicleRoutingScreen = () => {
     }));
   };
 
+  /**
+   * [THAO TÁC 2]: Cập nhật ngưỡng lấp đầy tối đa (`fillThresholdPct`) cho khu vực
+   */
   const updateThreshold = (frameId: string, index: number, value: number | null) => {
     if (value === null) return;
     setTimeFrames(prev => prev.map(tf => {
@@ -306,6 +457,9 @@ export const VehicleRoutingScreen = () => {
     }));
   };
 
+  /**
+   * [THAO TÁC 3]: Cập nhật giờ bắt đầu / kết thúc của một khung giờ cụ thể
+   */
   const handleFrameChange = (frameId: string, field: 'startTime' | 'endTime', value: string) => {
     setTimeFrames(prev => prev.map(tf => {
       if (tf.timeFrameId !== frameId) return tf;
@@ -357,7 +511,15 @@ export const VehicleRoutingScreen = () => {
     setTimeFrames(prev => prev.filter(tf => tf.timeFrameId !== frameId));
   };
 
-  // VALIDATION LOGIC FOR OVERLAPPING
+  /**
+   * ============================================================================
+   * [KIỂM TRA TRÙNG LẶP KHUNG GIỜ] - OVERLAP VALIDATION
+   * ============================================================================
+   * MỤC ĐÍCH: Ngăn chặn lỗi người dùng cấu hình 2 khung giờ bị gối lên nhau
+   * (ví dụ: Khung A 07:00 - 10:00 và Khung B 09:00 - 12:00) gây xung đột phán đoán.
+   * THỰC THI: Quy đổi giờ HH:mm ra số phút từ đầu ngày và kiểm tra giao điểm khoảng.
+   * ============================================================================
+   */
   const checkOverlapping = () => {
     const specificFrames = timeFrames.filter(tf => !tf.isDefault);
     for (let i = 0; i < specificFrames.length; i++) {
@@ -385,6 +547,15 @@ export const VehicleRoutingScreen = () => {
     return false;
   };
 
+  /**
+   * ============================================================================
+   * [LƯU CẤU HÌNH LUẬT ĐIỀU PHỐI VỀ BACKEND] - SAVE CONFIGURATION
+   * ============================================================================
+   * MỤC ĐÍCH: Gửi cấu hình luật ưu tiên & ngưỡng lấp đầy của các khung giờ
+   * về Backend qua API `PUT /manager/routing-rules` để cập nhật cơ sở dữ liệu
+   * và có hiệu lực ngay lập tức tại cổng ra vào.
+   * ============================================================================
+   */
   const handleSave = async () => {
     if (checkOverlapping()) return;
 
@@ -415,6 +586,17 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [GỌI AI GEMINI TƯ VẤN ĐIỀU PHỐI] - ASK AI ROUTING ADVISOR
+   * ============================================================================
+   * MỤC ĐÍCH: Gửi yêu cầu tư vấn điều phối tự động sang máy chủ Google Gemini AI.
+   * CƠ CHẾ: Lọc chỉ gửi dữ liệu biểu đồ của các khu vực vãng lai (WALK_IN), kết hợp
+   * cấu hình khung giờ hiện tại và lời dặn bổ sung (`extraContext`) từ người dùng
+   * tới endpoint `POST /manager/ai/routing-advice`.
+   * HẬU XỬ LÝ: Dọn dẹp chuỗi JSON trả về từ LLM để hiển thị dưới dạng bảng trực quan.
+   * ============================================================================
+   */
   const handleAskAi = async () => {
     try {
       setIsAiLoading(true);
@@ -460,10 +642,34 @@ export const VehicleRoutingScreen = () => {
     }
   };
 
+  /**
+   * ============================================================================
+   * [GIAO DIỆN CHÍNH CỦA VEHICLE ROUTING SCREEN - RENDER PANEL]
+   * ============================================================================
+   * Bao gồm 5 thành phần kiến trúc giao diện lớn:
+   * 1. HEADER BAR: Chọn tầng, loại xe, bật/tắt biển báo hướng dẫn và nút Confirm.
+   * 2. CHART SECTION: Biểu đồ đường (LineChart) tỷ lệ lấp đầy khu vực theo giờ.
+   * 3. ROUTING MATRIX: Danh sách khung giờ và các ô quy tắc ưu tiên có thể kéo/thả.
+   * 4. BOTTOM ACTION BAR: Cụm nút bấm Lưu cấu hình và gọi Tư vấn AI Gemini.
+   * 5. AI ADVISOR MODAL: Cửa sổ nhập ngữ cảnh và xem đề xuất cấu hình từ AI.
+   * ============================================================================
+   */
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 pb-24 relative">
       
-      {/* HEADER */}
+      {/* 
+       * ============================================================================
+       * [THÀNH PHẦN 1] HEADER BAR - THANH ĐIỀU KHIỂN & BỘ LỌC TẦNG / LOẠI XE
+       * ============================================================================
+       * Chức năng:
+       * - Hiển thị tiêu đề và lời dẫn mô tả chức năng điều phối xe tự động.
+       * - Switch 'Routing Display': Bật/tắt chế độ hiển thị tên khu vực ưu tiên trên
+       *   biển báo IoT tại cổng (nếu tắt, biển báo chỉ hiện 'FREE').
+       * - Select Floor & Vehicle Type: Lọc cấu hình bãi xe theo tầng và loại phương tiện.
+       * - Nút Confirm: Chốt bộ lọc để gửi request tải lại Luật điều phối và Biểu đồ,
+       *   tránh việc gọi API dồn dập mỗi khi người dùng thao tác dropdown.
+       * ============================================================================
+       */}
       <div className="bg-white px-8 py-5 border-b border-gray-200 sticky top-0 z-10 flex justify-between items-center shadow-sm">
         <div>
           <Title level={2} className="m-0 text-gray-800">Automatic Zone Coordination</Title>
@@ -518,7 +724,19 @@ export const VehicleRoutingScreen = () => {
         </Space>
       </div>
 
-      {/* CHART SECTION */}
+      {/* 
+       * ============================================================================
+       * [THÀNH PHẦN 2] CHART SECTION - BIỂU ĐỒ GIÁM SÁT TỶ LỆ LẤP ĐẦY THEO GIỜ
+       * ============================================================================
+       * Chức năng:
+       * - Vẽ biểu đồ đường (Recharts LineChart) trực quan hóa mật độ đỗ xe trung bình
+       *   theo từng giờ trong ngày của các khu vực vãng lai (WALK_IN).
+       * - Bộ lọc ngày (RangePicker): Cho phép xem xu hướng lấp đầy trong khoảng thời gian
+       *   tối đa 31 ngày để người quản lý đưa ra quyết định đặt ngưỡng trần hợp lý.
+       * - ReferenceLine (Ngưỡng 90%): Đường đứt đoạn màu đỏ cảnh báo mức độ lấp đầy
+       *   nguy hiểm (Critical Threshold), vượt qua ngưỡng này bãi xe dễ xảy ra ùn tắc.
+       * ============================================================================
+       */}
       <div className="p-6 md:p-8 max-w-7xl mx-auto w-full">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8">
           <div className="flex justify-between items-start mb-6">
@@ -585,7 +803,22 @@ export const VehicleRoutingScreen = () => {
         </div>
       </div>
 
-      {/* ROUTING MATRIX */}
+      {/* 
+       * ============================================================================
+       * [THÀNH PHẦN 3] ROUTING MATRIX - MA TRẬN LUẬT ĐIỀU PHỐI THEO KHUNG GIỜ
+       * ============================================================================
+       * Chức năng:
+       * - Hiển thị danh sách các Thẻ (Card) tương ứng với từng Khung Giờ (Time Frame),
+       *   ví dụ: Khung cao điểm 07:00 - 10:00 hoặc Khung mặc định (Default Time Frame).
+       * - Bên trái mỗi Thẻ: Cấu hình Giờ bắt đầu (startTime) & Giờ kết thúc (endTime),
+       *   nút xóa Khung Giờ (trừ khung mặc định).
+       * - Bên phải mỗi Thẻ: Danh sách các ô Khu Vực Đỗ theo thứ tự ưu tiên từ Trái sang Phải
+       *   (#1 là ưu tiên cao nhất). Người dùng có thể:
+       *   + Chỉnh sửa Ngưỡng lấp đầy tối đa (Threshold - %): Xe chỉ được dẫn vào khu vực
+       *     khi mật độ hiện tại chưa vượt ngưỡng này.
+       *   + Kéo/thả di chuyển thứ tự ưu tiên sang Trái (CaretLeft) hoặc Phải (CaretRight).
+       * ============================================================================
+       */}
       <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full pt-0">
         <div className="flex justify-between items-center mb-6">
            <div>
@@ -718,7 +951,17 @@ export const VehicleRoutingScreen = () => {
         </Spin>
       </div>
 
-      {/* BOTTOM ACTION BAR */}
+      {/* 
+       * ============================================================================
+       * [THÀNH PHẦN 4] BOTTOM ACTION BAR - THANH CÔNG CỤ THAO TÁC CỐ ĐỊNH ĐÁY
+       * ============================================================================
+       * Chức năng:
+       * - Nút 'AI Suggestion': Mở Modal nhờ AI Gemini phân tích dữ liệu biểu đồ
+       *   và tư vấn cách sắp xếp ưu tiên khu vực / khung giờ.
+       * - Nút 'SAVE THE COORDINATE CONFIGURATION': Gửi request `PUT /manager/routing-rules`
+       *   để lưu cấu hình về Backend. Nút bị disable khi cấu hình chưa thay đổi (`!isDirty`).
+       * ============================================================================
+       */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-50 flex justify-end px-8">
          <Space size="large">
             <Text type="secondary" className="hidden sm:inline-block">The configuration will be synchronized to the Backend and Gate immediately</Text>
@@ -745,7 +988,17 @@ export const VehicleRoutingScreen = () => {
          </Space>
       </div>
 
-      {/* AI MODAL */}
+      {/* 
+       * ============================================================================
+       * [THÀNH PHẦN 5] AI ADVISOR MODAL - CỬA SỔ TƯ VẤN ĐIỀU PHỐI TỪ AI GEMINI
+       * ============================================================================
+       * Chức năng:
+       * - Cho phép người quản lý nhập thêm ngữ cảnh bãi xe (extraContext), ví dụ:
+       *   "Khu A gần thang máy cần ưu tiên, Khu B đang bảo trì...".
+       * - Gửi dữ liệu biểu đồ + luật hiện tại sang máy chủ Gemini AI để phân tích.
+       * - Hiển thị kết quả suy luận (Reasoning) và Bảng đề xuất khung giờ mới từ AI.
+       * ============================================================================
+       */}
       <Modal
         title={<span><RobotOutlined className="text-purple-600 mr-2"/> Zone Routing Advisor (AI)</span>}
         open={isAiModalVisible}

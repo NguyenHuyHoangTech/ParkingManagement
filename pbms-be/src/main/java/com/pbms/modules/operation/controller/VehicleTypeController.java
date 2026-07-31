@@ -44,11 +44,11 @@ public class VehicleTypeController {
         return ResponseEntity.ok(ApiResponse.success(service.updateVehicleType(id, dto), "Vehicle type updated successfully"));
     }
 
-    @DeleteMapping("/{id}")
-    @LogAudit(action = "DELETE", resource = "VehicleType", description = "Delete vehicle type")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        service.deleteVehicleType(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Deleted successfully"));
+    @PatchMapping("/{id}/status")
+    @LogAudit(action = "UPDATE", resource = "VehicleType", description = "Toggle vehicle type status (lock/unlock)")
+    public ResponseEntity<ApiResponse<Void>> toggleStatus(@PathVariable Long id) {
+        service.toggleVehicleTypeStatus(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Status updated successfully"));
     }
 
     @PostMapping("/{id}/icon")

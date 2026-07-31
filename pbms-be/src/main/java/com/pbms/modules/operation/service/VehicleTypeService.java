@@ -131,9 +131,27 @@ public class VehicleTypeService {
     }
 
     @Transactional
-    public void deleteVehicleType(Long id) {
+    public void toggleVehicleTypeStatus(Long id) {
         VehicleType vt = repository.findById(id).orElseThrow(() -> new RuntimeException("VehicleType not found"));
-        vt.setStatus("ACTIVE".equals(vt.getStatus()) ? "INACTIVE" : "ACTIVE");
+
+        boolean lockingNow = "ACTIVE".equals(vt.getStatus());
+
+        // Cùng chốt chặn với `updateVehicleType`: không cho KHÓA loại xe khi vẫn
+        // còn xe loại đó đang đỗ trong bãi. Trước đây chốt chặn chỉ nằm ở đường
+        // sửa qua modal (PUT), còn nút Lock/Unlock trên màn hình quản lý lại đi
+        // đường PATCH này nên bỏ qua hoàn toàn — tức là quy tắc nghiệp vụ bị vô
+        // hiệu đúng ở cách thao tác phổ biến nhất. Khóa nhầm sẽ khiến mọi xe
+        // cùng loại không check-in được nữa (`GateOperationService` chặn với
+        // "Vehicle type is blocked/inactive").
+        // Chiều MỞ KHÓA không cần kiểm tra: mở lại luôn là thao tác an toàn.
+        if (lockingNow) {
+            long activeSessions = sessionRepository.countByVehicleTypeIdAndStatus(id, "ACTIVE");
+            if (activeSessions > 0) {
+                throw new RuntimeException("Cannot lock this vehicle type while there are vehicles of this type currently parking.");
+            }
+        }
+
+        vt.setStatus(lockingNow ? "INACTIVE" : "ACTIVE");
         repository.save(vt);
     }
 

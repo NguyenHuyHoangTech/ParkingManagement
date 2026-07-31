@@ -16,19 +16,15 @@ import org.springframework.stereotype.Service;
  *   họ không tự hét vào đường ống, mà họ viết giấy đưa cho ông MC này đọc.
  * - @Service: Báo cho Giám đốc Spring Boot biết hãy thuê ông này làm nhân viên chính thức.
  * 
- * TÓM TẮT BỨC TRANH TOÀN CẢNH CỦA 3 HÀM TRONG FILE NÀY:
- * 
+ * TÓM TẮT BỨC TRANH TOÀN CẢNH CỦA 2 HÀM TRONG FILE NÀY:
+ *
  * 1. Hàm broadcastEvent (Phát thanh loa phường):
  *    - Dùng để thông báo một tin tức chung cho tất cả các nhân viên đang kết nối (Ví dụ: Trạng thái chỗ trống bãi xe thay đổi).
  *    - Ai cũng có thể nghe thấy.
- * 
+ *
  * 2. Hàm broadcastCriticalEvent (Phát thanh báo động đỏ):
  *    - Giống hệt hàm trên, nhưng có gắn thêm cờ "CRITICAL" để phân loại mức độ nghiêm trọng.
  *    - Dùng cho các sự kiện khẩn cấp (Báo cháy, lỗi thiết bị) để Frontend kích hoạt còi hú hoặc hiển thị cảnh báo đỏ trên màn hình.
- * 
- * 3. Hàm unicastEvent (Gọi điện thoại riêng tư):
- *    - Thay vì phát loa cho cả làng nghe, hàm này nhắm đích danh một cá nhân (dựa vào Email/Username) để gửi tin nhắn.
- *    - Dùng khi muốn báo lỗi riêng tư, hoặc gửi hình ảnh camera biển số xe cho đúng cái ông bảo vệ đang ngồi ở cái cổng đó, các cổng khác không được xem.
  */
 @Service
 public class WebSocketEventPublisher {
@@ -67,20 +63,5 @@ public class WebSocketEventPublisher {
     public void broadcastCriticalEvent(String topic, String eventType, Object payload) {
         WsMessageWrapper<Object> message = WsMessageWrapper.of(eventType, "CRITICAL", payload);
         messagingTemplate.convertAndSend(topic, message);
-    }
-
-    /**
-     * HÀM 3: GỌI ĐIỆN RIÊNG TƯ (UNICAST)
-     * - Thay vì dùng Loa phường, ông MC dùng điện thoại bàn gọi thẳng cho Bốt gác số 1.
-     * - Chỉ người được gọi mới nghe thấy tin tức này, những người khác không hề biết.
-     * 
-     * Cách thức hoạt động:
-     * - username: Tên người nhận (Ví dụ Email của bảo vệ Cổng số 1).
-     * - queue: Số điện thoại máy lẻ (Ví dụ: "/queue/gates/GATE_IN_01").
-     * -> Ông MC dùng lệnh "convertAndSendToUser" để ném thẳng cái phong bì vào hòm thư cá nhân của nhân viên đó.
-     */
-    public void unicastEvent(String username, String queue, String eventType, Object payload) {
-        WsMessageWrapper<Object> message = WsMessageWrapper.of(eventType, payload);
-        messagingTemplate.convertAndSendToUser(username, queue, message);
     }
 }

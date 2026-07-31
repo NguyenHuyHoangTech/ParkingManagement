@@ -42,9 +42,9 @@ public class PublicController {
         try {
             SystemConfig config = systemConfigService.getConfigByKey("TIME_SIMULATED_OFFSET_SECONDS");
             long offset = Long.parseLong(config.getConfigValue());
-            return ResponseEntity.ok(ApiResponse.success(offset, "This is a challenge for a long time."));
+            return ResponseEntity.ok(ApiResponse.success(offset, "Time offset retrieved successfully"));
         } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.success(0L, "Don't pay attention to the mood over time"));
+            return ResponseEntity.ok(ApiResponse.success(0L, "Time offset config not found, defaulting to 0"));
         }
     }
 
@@ -56,7 +56,7 @@ public class PublicController {
 
     @GetMapping("/building-profile")
     public ResponseEntity<ApiResponse<BuildingProfile>> getBuildingProfile() {
-        return ResponseEntity.ok(ApiResponse.success(buildingProfileService.getProfile(), "Let's get information from the house as well"));
+        return ResponseEntity.ok(ApiResponse.success(buildingProfileService.getProfile(), "Building profile retrieved successfully"));
     }
 
     @GetMapping("/parking-status")
@@ -81,7 +81,7 @@ public class PublicController {
             statusList.add(map);
         }
 
-        return ResponseEntity.ok(ApiResponse.success(statusList, "Fraudulently deleting the car"));
+        return ResponseEntity.ok(ApiResponse.success(statusList, "Parking status retrieved successfully"));
     }
 
     @GetMapping("/config/{key}")

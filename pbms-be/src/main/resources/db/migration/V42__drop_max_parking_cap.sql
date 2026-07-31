@@ -4,5 +4,8 @@ IF @ConstraintName IS NOT NULL
     EXEC('ALTER TABLE pricing_policies DROP CONSTRAINT ' + @ConstraintName)
 GO
 
-ALTER TABLE pricing_policies DROP COLUMN max_parking_cap;
+IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'max_parking_cap' AND Object_ID = Object_ID(N'pricing_policies'))
+BEGIN
+    ALTER TABLE pricing_policies DROP COLUMN max_parking_cap;
+END
 GO
