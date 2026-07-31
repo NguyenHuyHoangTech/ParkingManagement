@@ -44,7 +44,9 @@ public class MapConfigurationService {
 
     @Transactional(readOnly = true)
     public MapConfigDTO getMapConfiguration() {
-        List<Floor> floors = floorRepository.findAll();
+        List<Floor> floors = floorRepository.findAll().stream()
+                .filter(f -> !"DELETED".equals(f.getStatus()))
+                .collect(Collectors.toList());
         List<Zone> zones = zoneRepository.findAll().stream()
                 .filter(z -> !"DELETED".equals(z.getStatus()))
                 .collect(Collectors.toList());
@@ -188,6 +190,26 @@ public class MapConfigurationService {
         Map<Long, Floor> floorMap = currentFloors.stream()
                 .collect(Collectors.toMap(f -> f.getId(), Function.identity()));
 
+        List<Long> incomingFloorIds = mapConfig.getFloors().stream()
+                .filter(f -> f.getId() < 1000000000L)
+                .map(f -> f.getId()).collect(Collectors.toList());
+
+        for (Floor cf : currentFloors) {
+            if (!incomingFloorIds.contains(cf.getId()) && !"DELETED".equals(cf.getStatus())) {
+                boolean hasActiveZones = zoneRepository.findAll().stream()
+                        .anyMatch(z -> z.getFloor().getId().equals(cf.getId()) && !"DELETED".equals(z.getStatus()));
+                boolean hasActiveGates = gateRepository.findAll().stream()
+                        .anyMatch(g -> g.getFloor() != null && g.getFloor().getId().equals(cf.getId()) && !"DELETED".equals(g.getStatus()));
+                
+                if (hasActiveZones || hasActiveGates) {
+                    throw new RuntimeException("Cannot delete floor '" + cf.getFloorName() + "' because it still has active Zones or Gates.");
+                }
+                
+                cf.setStatus("DELETED");
+                floorRepository.save(cf);
+            }
+        }
+
         for (FloorConfigDTO fDTO : mapConfig.getFloors()) {
             Floor floor;
             if (fDTO.getId() > 1000000000L || !floorMap.containsKey(fDTO.getId())) {
@@ -198,6 +220,7 @@ public class MapConfigurationService {
                         .floorType(fDTO.getType())
                         .mapCols(fDTO.getMapCols())
                         .mapRows(fDTO.getMapRows())
+                        .status("ACTIVE")
                         .build();
                 floor = floorRepository.save(floor);
                 // Map the old temp ID to new ID for children
@@ -227,6 +250,7 @@ public class MapConfigurationService {
                 floor.setFloorType(fDTO.getType());
                 floor.setMapCols(fDTO.getMapCols());
                 floor.setMapRows(fDTO.getMapRows());
+                floor.setStatus("ACTIVE");
                 floorRepository.save(floor);
             }
         }
@@ -241,10 +265,10 @@ public class MapConfigurationService {
             if (zDTO.getCapacity() > 0) {
                 String name = zDTO.getName() != null ? zDTO.getName().trim() : "";
                 if (name.isEmpty()) {
-                    throw new RuntimeException("Tên khu vực (Zone) không được để trống.");
+                    throw new RuntimeException("Zone name cannot be empty.");
                 }
                 if (activeZoneNames.contains(name.toLowerCase())) {
-                    throw new RuntimeException("Tên khu vực (Zone) không được trùng nhau: " + name);
+                    throw new RuntimeException("Zone name must be unique: " + name);
                 }
                 activeZoneNames.add(name.toLowerCase());
             }

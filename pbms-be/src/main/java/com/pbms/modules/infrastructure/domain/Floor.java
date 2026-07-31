@@ -34,5 +34,9 @@ public class Floor {
 
     @Column(name = "map_rows")
     private Integer mapRows;
+
+    @Column(length = 50)
+    @Builder.Default
+    private String status = "ACTIVE"; // ACTIVE, DELETED
 }
 

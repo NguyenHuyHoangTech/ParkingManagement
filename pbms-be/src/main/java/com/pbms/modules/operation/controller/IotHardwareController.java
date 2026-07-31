@@ -715,7 +715,9 @@ public class IotHardwareController {
          * Nhặt ra số lượng Cột (mapCols) và Hàng (mapRows).
          * Đây là số liệu cực kỳ quan trọng để Frontend vẽ một cái lưới Grid 2D (ví dụ 10x20 ô) để thả các Slot vào.
          */
-        data.put("floors", floorRepository.findAll().stream().map(f -> {
+        data.put("floors", floorRepository.findAll().stream()
+                .filter(f -> !"DELETED".equals(f.getStatus()))
+                .map(f -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", f.getId());
             map.put("floorName", f.getFloorName());

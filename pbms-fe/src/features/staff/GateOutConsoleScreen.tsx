@@ -516,7 +516,10 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
     } catch (error: any) {
       const errMsg = error.response?.data?.message || 'Error checking out vehicle.';
       if (errMsg.includes('Quote has expired') || errMsg.includes('refresh the page')) {
-        message.warning('The price has been refreshed. Please review and confirm the accurate collection amount.');
+        message.warning({
+          content: 'The price has been refreshed. Please review and confirm the accurate collection amount.',
+          duration: 8 // Show for 8 seconds
+        });
         if (handleRefreshPriceRef.current) {
           await handleRefreshPriceRef.current();
         }
@@ -633,7 +636,8 @@ export const GateOutConsoleScreen = ({ activeGate }: { activeGate: any }) => {
         checkoutToken: info.checkoutToken || null,
         expiresInSeconds: info.expiresInSeconds || 0,
         overtimeMinutes: info.overtimeMinutes || 0,
-        duration: info.durationMinutes || 0,
+        durationMinutes: info.durationMinutes || 0,
+        duration: info.durationMinutes ? `${info.durationMinutes} minutes` : '--',
         warnings: info.warnings || prev.warnings || []
       }));
       if (info.expiresInSeconds && info.checkoutToken) {

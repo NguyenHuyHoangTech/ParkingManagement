@@ -663,11 +663,11 @@ export const SpaceMapScreen = () => {
       if (zone.capacity === 0) continue;
       const name = (zone.name || '').trim().toLowerCase();
       if (!name) {
-        message.error(`Tên khu vực không được để trống!`);
+        message.error(`Zone name cannot be empty!`);
         return;
       }
       if (zoneNames.has(name)) {
-        message.error(`Tên khu vực (Zone) không được trùng nhau: ${zone.name}`);
+        message.error(`Zone name must be unique: ${zone.name}`);
         return;
       }
       zoneNames.add(name);
@@ -1053,6 +1053,33 @@ export const SpaceMapScreen = () => {
                       setFloors(prev => [...prev, { id: newId, name: `New Floor`, type: 'FOUR_WHEEL', mapCols: 60, mapRows: 40 }]);
                       setSelectedFloorId(newId);
                     }}>More</Button>
+                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => {
+                      if (floors.length <= 1) {
+                        message.warning('Must have at least one floor!');
+                        return;
+                      }
+                      const hasZones = zones.some(z => z.floorId === selectedFloorId);
+                      const hasGates = gates.some(g => g.floorId === selectedFloorId);
+                      if (hasZones || hasGates) {
+                        message.error('Please delete all Zones and Gates on this floor before deleting the floor!');
+                        return;
+                      }
+                      
+                      Modal.confirm({
+                        title: 'Delete this floor?',
+                        content: 'This floor and all unsaved data on it will be removed from the UI. You need to click Save to apply these changes. Are you sure?',
+                        okText: 'Delete',
+                        okType: 'danger',
+                        cancelText: 'Cancel',
+                        onOk: () => {
+                          const newFloors = floors.filter(f => f.id !== selectedFloorId);
+                          setFloors(newFloors);
+                          setSelectedFloorId(newFloors[0].id);
+                          setZones(prev => prev.filter(z => z.floorId !== selectedFloorId));
+                          setGates(prev => prev.filter(g => g.floorId !== selectedFloorId));
+                        }
+                      });
+                    }} />
                     <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave}>
                       Save Floor
                     </Button>
