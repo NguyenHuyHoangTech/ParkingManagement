@@ -10,7 +10,9 @@ import {
   IdcardOutlined,
   MenuOutlined,
   SettingOutlined,
-  ReadOutlined
+  ReadOutlined,
+  SunOutlined,
+  MoonOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../core/store/useAuthStore';
@@ -21,6 +23,7 @@ import { SystemClock } from '../shared/components/SystemClock';
 import { useQuery } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 import { GlobalReservationDebugWidget } from '../debug/GlobalReservationDebugWidget';
+import { BottomTabBar } from '../shared/components/BottomTabBar';
 
 const { Content } = Layout;
 
@@ -34,6 +37,12 @@ export const CustomerLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleTheme = () => {
+    const isNowDark = document.documentElement.classList.toggle('dark');
+    setIsDark(isNowDark);
+  };
 
   const { data: buildingProfile } = useQuery({
     queryKey: ['public-building-profile'],
@@ -70,17 +79,34 @@ export const CustomerLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-500/30">
+    <div 
+      className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-500/30"
+    >
       
-      {/* Glass Header */}
-      <header className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed w-full top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm h-14 flex items-center justify-between px-4">
+        <div className="flex items-center gap-2" onClick={() => navigate('/customer/home')}>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <span className="font-sans font-black text-lg tracking-wider text-slate-800">PBMS<span className="text-blue-600">.</span></span>
+        </div>
+        <Button 
+          type="text" 
+          icon={<MenuOutlined className="text-xl text-slate-700" />} 
+          onClick={() => setIsMobileMenuOpen(true)} 
+        />
+      </header>
+
+      {/* Glass Header (Desktop) */}
+      <header className="hidden lg:block fixed w-full top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
           <div className="max-w-[1400px] mx-auto px-4 lg:px-6 h-20 flex items-center justify-between">
               <div className="flex items-center gap-4 lg:gap-8 xl:gap-12">
                   <div className="flex items-center gap-2 group cursor-pointer shrink-0" onClick={() => navigate('/customer/home')}>
                       <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-[0_4px_14px_0_rgba(59,130,246,0.39)] group-hover:scale-105 transition">
                           <svg className="w-5 h-5 lg:w-6 lg:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                       </div>
-                      <span className="font-sans font-black text-xl lg:text-2xl tracking-wider text-slate-800">PBMS<span className="text-blue-600">.</span></span>
+                      <span className="font-sans font-black text-xl lg:text-2xl tracking-wider text-slate-800 bg-white/50 backdrop-blur-sm px-2 rounded-md">PBMS<span className="text-blue-600">.</span></span>
                   </div>
                   
                   <nav className="hidden lg:flex gap-4 xl:gap-8 text-xs xl:text-sm font-bold text-slate-500 whitespace-nowrap">
@@ -111,22 +137,23 @@ export const CustomerLayout = () => {
                       </span>
                   </div>
 
-                  <div className="hidden lg:block pl-2 lg:pl-4 border-l border-slate-200 shrink-0">
+                  <div className="hidden lg:block border-l border-slate-200 pl-4 shrink-0">
+                    <Button 
+                      type="text" 
+                      shape="circle" 
+                      icon={isDark ? <SunOutlined className="text-yellow-500 text-lg" /> : <MoonOutlined className="text-slate-600 text-lg" />} 
+                      onClick={toggleTheme} 
+                      className="hover:bg-slate-100"
+                    />
+                  </div>
+
+                  <div className="hidden lg:block pl-2 lg:pl-4 shrink-0">
                     <Dropdown menu={userMenu} placement="bottomRight" arrow>
                       <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 pr-3 rounded-full transition-colors">
                           <img src={`https://ui-avatars.com/api/?name=${name || email || 'C'}&background=2563eb&color=fff`} className="w-8 h-8 rounded-full shadow-sm" />
                           <span className="font-bold text-xs xl:text-sm text-slate-700 max-w-[80px] xl:max-w-[120px] truncate">{name || email || 'Customer'}</span>
                       </div>
                     </Dropdown>
-                  </div>
-
-                  <div className="lg:hidden">
-                    <Button 
-                      className="text-slate-600" 
-                      type="text" 
-                      icon={<MenuOutlined className="text-xl" />} 
-                      onClick={() => setIsMobileMenuOpen(true)} 
-                    />
                   </div>
               </div>
           </div>
@@ -166,11 +193,11 @@ export const CustomerLayout = () => {
         />
       </Drawer>
 
-      <Content className="pt-20 m-0 flex-1 bg-slate-50">
+      <Content className="pt-14 lg:pt-20 pb-16 lg:pb-0 m-0 flex-1 bg-slate-50">
         <Outlet />
       </Content>
 
-      <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
+      <footer className="hidden lg:block bg-white border-t border-slate-200 pt-16 pb-8">
           <div className="max-w-7xl mx-auto px-4 md:px-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-12 border-b border-slate-100 pb-12 mb-8">
                   <div className="col-span-1 md:col-span-2">
@@ -219,6 +246,8 @@ export const CustomerLayout = () => {
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
       />
+
+      <BottomTabBar onOpenSettings={() => setIsSettingsOpen(true)} />
     </div>
   );
 };

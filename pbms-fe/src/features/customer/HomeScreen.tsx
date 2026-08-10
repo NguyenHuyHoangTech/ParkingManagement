@@ -9,8 +9,10 @@ import dayjs from 'dayjs';
 import { 
   CarOutlined, 
   ClockCircleOutlined,
-  BookOutlined
+  BookOutlined,
+  EnvironmentOutlined
 } from '@ant-design/icons';
+import { VehicleSelector } from '../shared/components/VehicleSelector';
 
 // Data structures
 type VehicleType = 'CAR' | 'MOTORBIKE' | 'EBIKE';
@@ -29,8 +31,58 @@ export const HomeScreen = () => {
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<string | null>(null);
   
   // 2. HERO FORM STATE
-  const [formVehicle, setFormVehicle] = useState<string>('');
-  const [formArrivalTime, setFormArrivalTime] = useState<dayjs.Dayjs | null>(() => simulatedDayjs().add(30, 'minute'));
+  const [formVehicleTypeId, setFormVehicleTypeId] = useState<number | null>(null);
+  const [formPlate, setFormPlate] = useState<string>('');
+
+  // 3. GEOLOCATION STATE
+  const [distance, setDistance] = useState<string | null>(null);
+  const BUILDING_COORDS = { lat: 10.8411, lng: 106.8105 }; // Thu Duc Campus
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+    return R * c; 
+  };
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const dist = calculateDistance(
+            position.coords.latitude, 
+            position.coords.longitude, 
+            BUILDING_COORDS.lat, 
+            BUILDING_COORDS.lng
+          );
+          setDistance(dist.toFixed(1));
+        },
+        () => {
+          // Silent fail if user denies location
+        }
+      );
+    }
+  }, []);
+
+  // 4. PARALLAX STATE
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (window.innerWidth < 1024) return; // Only on desktop
+    const { clientX, clientY } = e;
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const tiltX = ((clientY - centerY) / centerY) * 15;
+    const tiltY = ((clientX - centerX) / centerX) * -15;
+    setMousePosition({ x: tiltX, y: tiltY });
+  };
+  const handleMouseLeave = () => {
+    setMousePosition({ x: 0, y: 0 });
+  };
 
   const { data: parkingStatusData } = useQuery({
     queryKey: ['public-parking-status'],
@@ -68,9 +120,6 @@ export const HomeScreen = () => {
         if (!selectedVehicleTypeId && activeVTs.length > 0) {
           setSelectedVehicleTypeId(activeVTs[0].id);
         }
-        if (!formVehicle && activeVTs.length > 0) {
-          setFormVehicle(activeVTs[0].id);
-        }
       }
 
       setSlots(filteredData.map((d: any) => {
@@ -94,10 +143,6 @@ export const HomeScreen = () => {
           icon: iconElement
         };
       }));
-    }
-    
-    if (!formArrivalTime) {
-      setFormArrivalTime(simulatedDayjs().add(30, 'minute'));
     }
   }, [parkingStatusData, vehicleTypes]);
 
@@ -160,17 +205,19 @@ export const HomeScreen = () => {
     }
 
     return (
-      <div key={slot.type} className={`bg-white/80 backdrop-blur-xl rounded-2xl p-6 relative border ${borderClass} shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
-        <div className={`w-14 h-14 rounded-full ${iconBg} flex items-center justify-center mb-6 text-3xl shadow-inner`}>
+      <div key={slot.type} className={`bg-white/80 backdrop-blur-xl rounded-xl p-4 relative border ${borderClass} shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4`}>
+        <div className={`w-12 h-12 shrink-0 rounded-full ${iconBg} flex items-center justify-center text-2xl shadow-inner`}>
           {slot.icon}
         </div>
-        <h3 className="text-lg font-bold text-slate-800">{slot.label}</h3>
-        <div className="mt-4 flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-3">
-            <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Available Slots</p>
-                <p className={`text-4xl font-black font-mono mt-1 ${numberColor}`}>{isFull ? '00' : slot.available}</p>
-            </div>
-            <span className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full border font-bold text-center ${statusBg}`}>{statusText}</span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-bold text-slate-800 truncate leading-tight mb-1">{slot.label}</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wide font-bold">Available:</span>
+            <span className={`text-xl font-black font-mono leading-none ${numberColor}`}>{isFull ? '00' : slot.available}</span>
+          </div>
+        </div>
+        <div className="shrink-0 flex items-center">
+          <span className={`text-[10px] px-2 py-1 rounded-full border font-bold text-center whitespace-nowrap ${statusBg}`}>{statusText}</span>
         </div>
       </div>
     );
@@ -222,10 +269,12 @@ export const HomeScreen = () => {
                         <p className="text-sm text-slate-500 mb-6 font-medium">Suitable for short-term parking. Click for details.</p>
                         <div className="flex items-end gap-2">
                             <span className="text-5xl font-black text-slate-800 font-mono tracking-tighter">
-                              {policy.globalBaseFee?.toLocaleString() || '0'}
+                              {(policy.globalBaseFee > 0 ? policy.globalBaseFee : (policy.shifts?.[0]?.blocks?.[0]?.fee || 0)).toLocaleString()}
                               <span className="text-2xl text-slate-400 font-sans ml-1">VND</span>
                             </span>
-                            <span className="text-slate-500 font-medium mb-1">/ {policy.globalBaseMins} mins</span>
+                            <span className="text-slate-500 font-medium mb-1">
+                              / {policy.globalBaseMins > 0 ? policy.globalBaseMins : (policy.shifts?.[0]?.blocks?.[0]?.durationMins || 0)} mins
+                            </span>
                         </div>
                     </div>
                 </summary>
@@ -311,10 +360,26 @@ export const HomeScreen = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20">
         
         {/* HERO SECTION */}
-        <section className="relative rounded-[2rem] md:rounded-[2.5rem] bg-white overflow-hidden shadow-sm border border-slate-100 min-h-[auto] md:min-h-[75vh] flex flex-col justify-center pt-8 pb-8 px-4 md:px-8 lg:px-12 mt-4 md:mt-8">
+        <section 
+            className="relative rounded-[2rem] md:rounded-[2.5rem] bg-white overflow-hidden shadow-sm border border-slate-100 min-h-[auto] md:min-h-[75vh] flex flex-col justify-center pt-8 pb-8 px-4 md:px-8 lg:px-12 mt-4 md:mt-8"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+        >
             <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20"></div>
             <div className="absolute top-0 right-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-cyan-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
             <div className="absolute bottom-0 left-0 w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-blue-400/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3"></div>
+            
+            {/* Parallax 3D Illustration */}
+            <div 
+              className="absolute top-1/2 left-1/2 w-[800px] h-[800px] pointer-events-none z-0 mix-blend-multiply opacity-50 hidden lg:block"
+              style={{
+                transform: `translate(-50%, -50%) perspective(1000px) rotateX(${mousePosition.x}deg) rotateY(${mousePosition.y}deg) scale(1.1)`,
+                transition: 'transform 0.1s ease-out'
+              }}
+            >
+              <img src="/fpt_3d_campus.png" alt="Smart Campus 3D" className="w-full h-full object-contain drop-shadow-2xl" />
+            </div>
+
             
             <div className="relative z-10 w-full flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
                 <div className="flex-1 w-full max-w-2xl text-center lg:text-left mt-8 lg:mt-0">
@@ -322,6 +387,18 @@ export const HomeScreen = () => {
                         {buildingProfile?.name || "Smart space."}<br className="hidden md:block" />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 block mt-2 md:mt-0">Touchless experience.</span>
                     </h1>
+                    
+                    {distance && (
+                        <div 
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50/80 backdrop-blur-sm text-blue-700 rounded-full font-bold text-sm md:text-base mb-6 cursor-pointer hover:bg-blue-100 hover:shadow-md transition-all duration-300 border border-blue-200/50 shadow-sm group"
+                          onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${BUILDING_COORDS.lat},${BUILDING_COORDS.lng}`, '_blank')}
+                        >
+                          <EnvironmentOutlined className="text-lg text-blue-500 group-hover:scale-110 transition-transform" />
+                          <span>Just <span className="text-blue-600 font-black">{distance} km</span> away from you</span>
+                          <span className="text-[10px] md:text-xs ml-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-2 py-1 rounded-full shadow-sm group-hover:shadow-md transition-shadow">Get Directions &rarr;</span>
+                        </div>
+                    )}
+
                     <p className="text-slate-500 text-base md:text-lg lg:text-xl mb-8 md:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium whitespace-pre-line">
                         {buildingProfile?.description || "Smart Parking Facility Parking easier than ever. Real-time empty slot updates, smart AI navigation, and automated payment via License Plate Recognition (LPR)."}
                     </p>
@@ -339,46 +416,24 @@ export const HomeScreen = () => {
                             
                             <div className="space-y-5">
                                 <div>
-                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Vehicle Type</label>
-                                    <select 
-                                      value={formVehicle}
-                                      onChange={(e) => setFormVehicle(e.target.value)}
-                                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-4 py-3.5 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all appearance-none font-medium"
-                                    >
-                                        {(vehicleTypes || []).filter((vt:any) => vt.status === 'ACTIVE').map((vt:any) => (
-                                          <option key={vt.id} value={vt.id}>{vt.typeName}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Expected Arrival Time</label>
-                                    <div className="hidden md:block">
-                                        <DatePicker 
-                                          showTime 
-                                          format="HH:mm DD/MM/YYYY" 
-                                          value={formArrivalTime}
-                                          onChange={(val) => val && setFormArrivalTime(val)} 
-                                          className="w-full h-[52px] rounded-xl bg-slate-50 border-slate-200 hover:border-cyan-400 focus:border-cyan-400 font-medium text-lg" 
-                                          minDate={simulatedDayjs()}
-                                          inputReadOnly={true}
-                                        />
-                                    </div>
-                                    <div className="block md:hidden">
-                                        <input 
-                                          type="datetime-local"
-                                          className="w-full h-[52px] bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-4 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all font-medium text-base"
-                                          value={formArrivalTime ? formArrivalTime.format('YYYY-MM-DDTHH:mm') : ''}
-                                          min={simulatedDayjs().format('YYYY-MM-DDTHH:mm')}
-                                          onChange={(e) => { if(e.target.value) setFormArrivalTime(dayjs(e.target.value)) }}
+                                    <label className="block text-xs text-slate-500 tracking-wider mb-2 uppercase font-bold">Select your vehicle</label>
+                                    <div className="bg-white/50 backdrop-blur-sm rounded-xl p-2 border border-white/50 shadow-inner">
+                                        <VehicleSelector 
+                                            availableTypes={vehicleTypes || []} 
+                                            onSelect={(typeId, plate) => {
+                                                setFormVehicleTypeId(typeId);
+                                                setFormPlate(plate);
+                                            }} 
+                                            selectedPlate={formPlate} 
                                         />
                                     </div>
                                 </div>
 
                                 <div className="pt-2">
                                     <button 
-                                      onClick={() => navigate('/customer/pre-booking', { state: { vehicleTypeId: parseInt(formVehicle), arrivalTime: formArrivalTime?.toISOString() }})}
+                                      onClick={() => navigate('/customer/pre-booking', { state: { vehicleTypeId: formVehicleTypeId, plateNumber: formPlate }})}
                                       className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 px-8 rounded-xl shadow-[0_4px_14px_0_rgba(6,182,212,0.39)] hover:shadow-[0_6px_20px_rgba(6,182,212,0.23)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                      disabled={!formVehicleTypeId || !formPlate}
                                     >
                                         CONTINUE BOOKING
                                     </button>

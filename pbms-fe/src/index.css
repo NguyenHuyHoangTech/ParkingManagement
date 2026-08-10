@@ -21,3 +21,20 @@
 /* Fix Antd notification container blocking clicks */
 .ant-notification { pointer-events: none !important; }
 .ant-notification-notice { pointer-events: auto !important; }
+
+/* Quick Global Dark Mode using CSS Filters (Modern Soft Dark) */
+html.dark {
+  filter: invert(1) hue-rotate(180deg) contrast(0.85) brightness(1.2);
+  background-color: #0f172a; /* Slate 900 */
+}
+/* Revert filter on media and certain UI elements to perfectly restore original colors */
+html.dark img,
+html.dark video,
+html.dark canvas,
+html.dark svg:not(.anticon svg),
+html.dark [style*="background-image"],
+html.dark .ant-drawer,
+html.dark .ant-modal,
+html.dark .ant-dropdown {
+  filter: brightness(0.8333) contrast(1.1764) hue-rotate(180deg) invert(1);
+}

@@ -1,15 +1,17 @@
 import { simulatedDayjs, useSystemTime, useSimulatedOffset, refreshSimulatedOffset } from '../../core/utils/timeProvider';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert, notification } from 'antd';
-import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined, WarningOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Space, DatePicker, message, Spin, Radio, Input, Modal, QRCode, Alert, notification, Drawer } from 'antd';
+import { CarOutlined, CreditCardOutlined, CalendarOutlined, CheckCircleOutlined, EnvironmentOutlined, NumberOutlined, WarningOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl } from '../../core/utils/imageHelper';
 import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
+import { VehicleSelector } from '../shared/components/VehicleSelector';
 
 const { Title, Text } = Typography;
+import { translateErrorMessage } from '../../core/utils/errorHandler';
 
 const GATEWAYS = [
   { id: 'PAYPAL', name: 'PayPal', icon: '/paypal_logo.webp' },
@@ -21,7 +23,7 @@ export const PreBookingScreen = () => {
   const location = useLocation();
 
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(location.state?.vehicleTypeId || null);
-  const [plateNumber, setPlateNumber] = useState<string>('');
+  const [plateNumber, setPlateNumber] = useState<string>(location.state?.plateNumber || '');
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
 
   const [arrivalTime, setArrivalTime] = useState<dayjs.Dayjs>(() => {
@@ -30,9 +32,11 @@ export const PreBookingScreen = () => {
   });
   const [endTime, setEndTime] = useState<dayjs.Dayjs>(() => {
     if (location.state?.arrivalTime) return dayjs(location.state.arrivalTime).add(2, 'hour');
-    return simulatedDayjs().add(2, 'hour').add(30, 'minute');
+    return simulatedDayjs().add(10, 'minute').add(2, 'hour');
   });
   const [debugLogs, setDebugLogs] = useState<any[]>([]);
+  const [selectedArrivalBtn, setSelectedArrivalBtn] = useState<string>('Now (+10m)');
+  const [selectedDurationBtn, setSelectedDurationBtn] = useState<string>('2 hours');
 
   // Automatically adjust time if system offset syncs after page load
   const systemOffset = useSimulatedOffset();
@@ -269,8 +273,9 @@ export const PreBookingScreen = () => {
     },
     onError: (err: any) => {
       console.error("Payment initialization error:", err);
-      const errMsg = err.response?.data?.message || err.message || 'Error when creating payment link (Validation failed)';
-      notification.error({ message: 'Payment Error', description: errMsg, duration: 8 });
+      const rawMsg = err.response?.data?.message || err.message || 'Lỗi không xác định khi tạo liên kết thanh toán';
+      const errMsg = translateErrorMessage(rawMsg);
+      notification.error({ message: 'Lỗi Đặt trước', description: errMsg, duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -402,7 +407,7 @@ export const PreBookingScreen = () => {
       {/* System Time Debugger (Hidden by user request) */}
 
 
-      <div className="p-4 md:p-6 bg-white/80 backdrop-blur-md shadow-sm sticky top-16 z-10 border-b border-white/50">
+      <div className="p-4 md:p-6 bg-white/80 backdrop-blur-md shadow-sm border-b border-white/50">
         <Title level={3} className="m-0 text-slate-800 text-2xl md:text-3xl font-black">Pre-Booking</Title>
         <Text type="secondary" className="text-slate-500 text-sm">Reserve your spot in advance to ensure there is always a parking spot at PBMS</Text>
       </div>
@@ -411,82 +416,76 @@ export const PreBookingScreen = () => {
 
         <div className="lg:col-span-2 space-y-6">
 
-          <Card title={<span className="font-black text-xl"><CarOutlined className="mr-2 text-blue-600" />1. Vehicle Information</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
-            <div className="mb-6">
-              <Text className="block font-bold mb-3 text-slate-700">Vehicle Type:</Text>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {VEHICLES.map((v: any) => (
-                  <div
-                    key={v.id}
-                    onClick={() => { setSelectedVehicle(v.id); setSelectedZone(null); }}
-                    className={`cursor-pointer p-6 rounded-2xl border-0 shadow-md transition-all duration-300 flex flex-col items-center justify-center ${selectedVehicle === v.id ? 'ring-4 ring-blue-500 bg-blue-50 text-blue-800 scale-105 shadow-xl' : 'bg-white hover:ring-2 hover:ring-blue-300 hover:shadow-lg'}`}
-                  >
-                    {v.iconUrl ? <img src={getImageUrl(v.iconUrl)} className="h-10 mb-2 object-contain" /> : <CarOutlined className="text-3xl mb-2" />}
-                    <span className="font-bold text-lg">{v.typeName}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Text className="block font-bold mb-2 text-slate-700">License Plate xe:</Text>
-              <Input
-                size="large"
-                prefix={<NumberOutlined className="text-slate-400" />}
-                placeholder="For example: 51H-123e45"
-                value={plateNumber}
-                onChange={e => setPlateNumber(normalizePlateNumber(e.target.value))}
-                className="rounded-lg h-12 text-lg font-mono font-bold uppercase"
-              />
-            </div>
+          <Card title={<span className="font-black text-xl"><CarOutlined className="mr-2 text-blue-600" />1. Chọn xe của bạn</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
+            <VehicleSelector 
+              availableTypes={VEHICLES} 
+              onSelect={(typeId, plate) => { 
+                setSelectedVehicle(typeId); 
+                setPlateNumber(plate); 
+                setSelectedZone(null); 
+              }} 
+              selectedPlate={plateNumber} 
+            />
           </Card>
 
           <Card title={<span className="font-black text-xl"><CalendarOutlined className="mr-2 text-green-600" />2. Parking time</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4">
+            <div className="space-y-6 mt-2">
               <div>
-                <Text className="block font-bold mb-2 text-slate-700">Expected arrival:</Text>
-                <div className="hidden md:block">
-                  <DatePicker
-                    showTime
-                    format="HH:mm DD/MM/YYYY"
-                    value={arrivalTime}
-                    onChange={(val) => val && setArrivalTime(val)}
-                    className="w-full h-12 rounded-lg text-lg"
-                    minDate={simulatedDayjs().add(10, 'minute')}
-                    inputReadOnly={true}
-                  />
+                <div className="flex justify-between items-end mb-2">
+                  <Text className="block font-bold text-slate-700">Expected arrival:</Text>
+                  <Text className="text-blue-600 font-bold">{arrivalTime.format('HH:mm DD/MM')}</Text>
                 </div>
-                <div className="block md:hidden">
-                  <input
-                    type="datetime-local"
-                    className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-base"
-                    value={arrivalTime.format('YYYY-MM-DDTHH:mm')}
-                    min={simulatedDayjs().add(10, 'minute').format('YYYY-MM-DDTHH:mm')}
-                    onChange={(e) => { if (e.target.value) setArrivalTime(dayjs(e.target.value)) }}
-                  />
+                <div className="flex overflow-x-auto space-x-2 pb-2 hide-scrollbar">
+                  {[
+                    { label: 'Now (+10m)', add: 10, unit: 'minute' },
+                    { label: '+30m', add: 30, unit: 'minute' },
+                    { label: '+1h', add: 1, unit: 'hour' },
+                    { label: '+2h', add: 2, unit: 'hour' },
+                  ].map(btn => (
+                    <Button 
+                      key={btn.label} 
+                      type={selectedArrivalBtn === btn.label ? "primary" : "default"}
+                      shape="round" 
+                      onClick={() => {
+                        const newArrival = simulatedDayjs().add(btn.add, btn.unit as dayjs.ManipulateType);
+                        const currentDurationMins = endTime.diff(arrivalTime, 'minute');
+                        setArrivalTime(newArrival);
+                        setEndTime(newArrival.add(currentDurationMins, 'minute'));
+                        setSelectedArrivalBtn(btn.label);
+                      }}
+                      className="shrink-0 font-semibold"
+                    >
+                      {btn.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
+              
               <div>
-                <Text className="block font-bold mb-2 text-slate-700">Expected to pick up the car:</Text>
-                <div className="hidden md:block">
-                  <DatePicker
-                    showTime
-                    format="HH:mm DD/MM/YYYY"
-                    value={endTime}
-                    onChange={(val) => val && setEndTime(val)}
-                    className="w-full h-12 rounded-lg text-lg"
-                    minDate={arrivalTime}
-                    inputReadOnly={true}
-                  />
+                <div className="flex justify-between items-end mb-2">
+                  <Text className="block font-bold text-slate-700">Expected duration:</Text>
+                  <Text className="text-green-600 font-bold">{endTime.diff(arrivalTime, 'hour', true).toFixed(1)} hours</Text>
                 </div>
-                <div className="block md:hidden">
-                  <input
-                    type="datetime-local"
-                    className="w-full h-12 rounded-lg border border-slate-300 px-3 text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-base"
-                    value={endTime.format('YYYY-MM-DDTHH:mm')}
-                    min={arrivalTime.format('YYYY-MM-DDTHH:mm')}
-                    onChange={(e) => { if (e.target.value) setEndTime(dayjs(e.target.value)) }}
-                  />
+                <div className="flex overflow-x-auto space-x-2 pb-2 hide-scrollbar">
+                  {[
+                    { label: '2 hours', add: 2 },
+                    { label: '4 hours', add: 4 },
+                    { label: '8 hours', add: 8 },
+                    { label: '12 hours', add: 12 },
+                  ].map(btn => (
+                    <Button 
+                      key={btn.label} 
+                      type={selectedDurationBtn === btn.label ? "primary" : "default"}
+                      shape="round" 
+                      onClick={() => {
+                        setEndTime(arrivalTime.add(btn.add, 'hour'));
+                        setSelectedDurationBtn(btn.label);
+                      }}
+                      className="shrink-0 font-semibold"
+                    >
+                      {btn.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -509,45 +508,54 @@ export const PreBookingScreen = () => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredZones.map((z: any) => {
-                    const isFull = (z.availableSlots || 0) <= 0;
-                    return (
-                      <div
-                        key={z.id || Math.random()}
-                        onClick={() => {
-                          if (!isFull) setSelectedZone(z.id);
-                        }}
-                        className={`p-5 rounded-2xl border-0 shadow-sm transition-all duration-300 cursor-pointer ${isFull ? 'bg-slate-100 opacity-60 cursor-not-allowed' :
-                          selectedZone === z.id ? 'ring-4 ring-orange-500 bg-orange-50 scale-105 shadow-lg' : 'bg-white hover:ring-2 hover:ring-orange-300 hover:shadow-md'
-                          }`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <Text strong className={`text-base ${selectedZone === z.id ? 'text-orange-700' : 'text-slate-700'}`}>{z.name}</Text>
-                          {isFull && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded font-bold">BOOKED</span>}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="flex-1 bg-slate-200 h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`}
-                              style={{ width: `${(((z.capacity || 1) - (z.availableSlots || 0)) / (z.capacity || 1)) * 100}%` }}
-                            />
-                          </div>
-                          <Text className="text-xs font-bold whitespace-nowrap">Available {z.availableSlots}/{z.capacity}</Text>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {selectedZone && (
-                  <div className="mt-4">
-                    <Alert
-                      message="Entry Gate Notice"
-                      description={`The selected zone is located on ${allZones.find((z: any) => z.id === selectedZone)?.floorName}. Please ensure you use the correct entry gate designated for this floor when arriving.`}
-                      type="warning"
-                      showIcon
-                    />
+                {filteredZones.length === 0 ? (
+                  <div className="p-8 text-center bg-orange-50/30 rounded-lg border border-dashed border-orange-200">
+                    <Text className="block text-orange-600 font-bold mb-2">Không tìm thấy khu vực đỗ xe phù hợp</Text>
+                    <Text className="text-slate-500 text-sm">Hiện tại không có khu vực đỗ xe (Vãng lai) nào được cấu hình cho loại xe này trong hệ thống. Vui lòng chọn loại xe khác hoặc liên hệ bộ phận hỗ trợ.</Text>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredZones.map((z: any) => {
+                        const isFull = (z.availableSlots || 0) <= 0;
+                        return (
+                          <div
+                            key={z.id || Math.random()}
+                            onClick={() => {
+                              if (!isFull) setSelectedZone(z.id);
+                            }}
+                            className={`p-5 rounded-2xl border-0 shadow-sm transition-all duration-300 cursor-pointer ${isFull ? 'bg-slate-100 opacity-60 cursor-not-allowed' :
+                              selectedZone === z.id ? 'ring-4 ring-orange-500 bg-orange-50 scale-[1.02] shadow-lg' : 'bg-white hover:ring-2 hover:ring-orange-300 hover:shadow-md'
+                              }`}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <Text strong className={`text-base ${selectedZone === z.id ? 'text-orange-700' : 'text-slate-700'}`}>{z.name}</Text>
+                              {isFull && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded font-bold">BOOKED</span>}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className="flex-1 bg-slate-200 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full ${isFull ? 'bg-red-500' : 'bg-green-500 transition-all duration-500'}`}
+                                  style={{ width: `${isFull ? 100 : (((z.availableSlots || 0) / (z.capacity || 1)) * 100)}%` }}
+                                />
+                              </div>
+                              <Text className="text-xs font-bold whitespace-nowrap">Available {z.availableSlots}/{z.capacity}</Text>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {selectedZone && (
+                      <div className="mt-4">
+                        <Alert
+                          message="Entry Gate Notice"
+                          description={`The selected zone is located on ${allZones.find((z: any) => z.id === selectedZone)?.floorName || 'this floor'}. Please ensure you use the correct entry gate designated for this floor when arriving.`}
+                          type="warning"
+                          showIcon
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -618,32 +626,52 @@ export const PreBookingScreen = () => {
                 })}
               </div>
             </Card>
-
-            {!isQRModalVisible && (
+            <div className="lg:hidden mt-6">
               <Button
                 type="primary"
                 size="large"
-                block
-                className="h-16 mt-6 text-xl font-black shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0 rounded-2xl"
+                className="w-full h-16 text-xl font-black shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0 rounded-2xl animate-pulse"
                 onClick={handleConfirm}
                 loading={generateLinkMutation.isPending}
               >
-                Confirm & Payment
+                Confirm & Pay ({totalFee.toLocaleString()} VND)
               </Button>
-            )}
+            </div>
 
           </div>
         </div>
       </div>
 
+      {/* Sticky Bottom Action Bar (Desktop only) */}
+      <div className="hidden lg:flex fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-[60] items-center justify-between">
+        <div className="flex flex-col">
+          <Text className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Fee</Text>
+          {isFeeLoading ? (
+            <Spin size="small" />
+          ) : (
+            <Text className="text-xl md:text-2xl font-black text-blue-600 leading-tight">{totalFee.toLocaleString()} <span className="text-xs font-bold text-slate-500">VND</span></Text>
+          )}
+        </div>
+        <Button
+          type="primary"
+          size="large"
+          className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg font-black shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 border-0 rounded-2xl"
+          onClick={handleConfirm}
+          loading={generateLinkMutation.isPending}
+        >
+          Confirm & Pay
+        </Button>
+      </div>
+
       <Modal
-        open={isQRModalVisible}
-        footer={null}
-        closable={!isPaymentSuccess}
-        onCancel={() => !isPaymentSuccess && setIsQRModalVisible(false)}
         centered
-        maskClosable={false}
         width={400}
+        footer={null}
+        open={isQRModalVisible}
+        onCancel={() => !isPaymentSuccess && setIsQRModalVisible(false)}
+        closable={!isPaymentSuccess}
+        maskClosable={false}
+        styles={{ body: { padding: '16px' } }}
       >
         <div className="text-center py-4">
           {!isPaymentSuccess ? (

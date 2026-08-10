@@ -10,6 +10,7 @@ import axiosClient from '../../core/api/axiosClient';
 import { getImageUrl as getGlobalImageUrl } from '../../core/utils/imageHelper';
 import { normalizePlateNumber } from '../../core/utils/licensePlateUtils';
 const { Title, Text } = Typography;
+import { translateErrorMessage } from '../../core/utils/errorHandler';
 
 const BASE_PACKAGES = [
   { id: 1, name: '1 month' },
@@ -156,8 +157,9 @@ export const CustomerMonthlyPassScreen = () => {
     },
     onError: (err: any) => {
       console.error("Payment initialization error:", err);
-      const errMsg = err.response?.data?.message || err.message || 'Error when creating payment link';
-      notification.error({ message: 'Payment Error', description: errMsg, duration: 8 });
+      const rawMsg = err.response?.data?.message || err.message || 'Lỗi không xác định khi tạo liên kết thanh toán';
+      const errMsg = translateErrorMessage(rawMsg);
+      notification.error({ message: 'Lỗi Đăng ký', description: errMsg, duration: 8 });
       setIsQRModalVisible(false);
     }
   });
@@ -332,20 +334,20 @@ export const CustomerMonthlyPassScreen = () => {
               {isPricingLoading ? (
                 <Spin />
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   {dynamicVehicles.map((v: any) => (
                     <div
                       key={v.id}
                       onClick={() => setSelectedVehicle(v.id)}
-                      className={`cursor-pointer p-6 rounded-2xl border-0 shadow-md transition-all duration-300 flex flex-col items-center justify-center ${selectedVehicle === v.id ? 'ring-4 ring-green-500 bg-green-50 text-green-800 scale-105 shadow-xl' : 'bg-white hover:ring-2 hover:ring-green-300 hover:shadow-lg'}`}
+                      className={`cursor-pointer p-3 sm:p-4 rounded-xl sm:rounded-2xl border-0 shadow-sm transition-all duration-300 flex flex-col items-center justify-center ${selectedVehicle === v.id ? 'ring-2 sm:ring-4 ring-green-500 bg-green-50 text-green-800 scale-[1.02] sm:scale-105 shadow-md' : 'bg-white hover:ring-1 sm:hover:ring-2 hover:ring-green-300 hover:shadow-md'}`}
                     >
                       {v.iconUrl ? (
-                        <img src={getImageUrl(v.iconUrl)} alt={v.name} className="h-10 w-10 object-contain mb-2" />
+                        <img src={getImageUrl(v.iconUrl)} alt={v.name} className="h-8 w-8 sm:h-10 sm:w-10 object-contain mb-1 sm:mb-2" />
                       ) : (
-                        <CarOutlined className="text-3xl mb-2" />
+                        <CarOutlined className="text-2xl sm:text-3xl mb-1 sm:mb-2" />
                       )}
-                      <span className="font-bold text-lg mb-1">{v.name}</span>
-                      <span className="text-sm text-slate-500">{v.pricePerMonth.toLocaleString()} VND/month</span>
+                      <span className="font-bold text-sm sm:text-base text-center mb-0.5 sm:mb-1">{v.name}</span>
+                      <span className="text-[10px] sm:text-xs text-slate-500 text-center">{v.pricePerMonth.toLocaleString()} VND/mo</span>
                     </div>
                   ))}
                 </div>
@@ -369,19 +371,19 @@ export const CustomerMonthlyPassScreen = () => {
           <Card title={<span className="font-black text-xl"><CalendarOutlined className="mr-2 text-orange-600" />3. Package Monthly Passes & Validity</span>} className="shadow-xl rounded-3xl border-0 bg-white/90 backdrop-blur-md hover:shadow-2xl transition-shadow duration-300">
             <div className="mb-6">
               <Text className="block font-bold mb-3 text-slate-700">Choose Time package:</Text>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {PACKAGES.map(p => (
                   <div
                     key={p.id}
                     onClick={() => setSelectedDuration(p.id)}
-                    className={`relative cursor-pointer p-4 rounded-2xl border-0 shadow-md transition-all duration-300 flex flex-col items-center justify-center ${selectedDuration === p.id ? 'ring-4 ring-orange-500 bg-orange-50 text-orange-800 scale-105 shadow-xl' : 'bg-white hover:ring-2 hover:ring-orange-300 hover:shadow-lg'}`}
+                    className={`relative cursor-pointer p-3 sm:p-4 rounded-xl sm:rounded-2xl border-0 shadow-sm transition-all duration-300 flex flex-col items-center justify-center ${selectedDuration === p.id ? 'ring-2 sm:ring-4 ring-orange-500 bg-orange-50 text-orange-800 scale-[1.02] sm:scale-105 shadow-md' : 'bg-white hover:ring-1 sm:hover:ring-2 hover:ring-orange-300 hover:shadow-sm'}`}
                   >
                     {p.discount > 0 && (
-                      <div className="absolute -top-3 -right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
                         -{p.discount * 100}%
                       </div>
                     )}
-                    <span className="font-bold text-base">{p.name}</span>
+                    <span className="font-bold text-sm sm:text-base">{p.name}</span>
                   </div>
                 ))}
               </div>
@@ -482,15 +484,16 @@ export const CustomerMonthlyPassScreen = () => {
               </div>
             </Card>
 
-            <Button
-              type="primary"
-              size="large"
-              className="w-full h-16 mt-6 text-xl font-black shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0 rounded-2xl animate-pulse"
-              onClick={handleConfirm}
-            >
-
-              Confirm Registration
-            </Button>
+            <div className="block mt-6">
+              <Button
+                type="primary"
+                size="large"
+                className="w-full h-16 mt-6 text-xl font-black shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0 rounded-2xl animate-pulse"
+                onClick={handleConfirm}
+              >
+                Confirm Registration
+              </Button>
+            </div>
           </div>
         </div>
 
