@@ -8,6 +8,10 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+      "Cross-Origin-Embedder-Policy": "unsafe-none"
+    },
     // Để dùng qua mạng LAN (Wi-Fi), bắt buộc phải có host: '0.0.0.0'. 
     // Nếu bạn muốn quay về chỉ dùng localhost, hãy thêm // vào đầu dòng dưới để comment nó lại:
     host: '0.0.0.0', 
