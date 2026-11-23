@@ -1,0 +1,87 @@
+# =====================================================================
+# ROOT GITIGNORE - PARKING MANAGEMENT SYSTEM (PBMS)
+# =====================================================================
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE & Editor Configurations
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.sublime-project
+*.sublime-workspace
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Node.js & Frontend Build Outputs
+node_modules/
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Java & Maven Build Outputs
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Spring Tools Suite & Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# Logs & Temporary Files
+logs/
+*.log
+scratch/
+temp/
+tmp/
+*.tmp
+*.bak.tmp
+CheckFileForProject.txt
+
+# Playwright & E2E Testing Outputs
+pbms-e2e/test-results/
+pbms-e2e/playwright-report/
+pbms-e2e/blob-report/
+pbms-e2e/test-videos/
+
+# Application Uploads
+uploads/
+pbms-be/uploads/
